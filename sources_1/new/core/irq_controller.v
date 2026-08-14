@@ -1,0 +1,73 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 2026/08/14 06:32:02
+// Design Name: 
+// Module Name: irq_controller
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module irq_controller(
+    input wire clk, rst, iret, 
+    input wire [5:0] irq_addr_in,
+    input wire [7:0] pc_addr_in, bytmov,
+    output reg [7:0] irq_addr,
+    output reg irq_flush
+    );
+
+    localparam 
+        UART_RX = 0,
+        TIMER = 1,
+        GPIO1 = 2,
+        GPIO2 = 3;
+
+    reg [7:0] irq_vex [0:15];
+    reg [7:0] pc_addr;
+    reg irq_busy;
+    initial begin
+        pc_addr = 8'b0;
+        irq_vex[UART_RX] = 8'd232; 
+        irq_vex[TIMER] = 8'd208; 
+        irq_vex[GPIO1] = 8'd184; 
+        irq_vex[GPIO2] = 8'd160; 
+
+    end
+
+    always @(posedge clk) begin
+        irq_flush <= 1'b0;
+        irq_addr <= 8'b0;
+        if (rst) begin
+            irq_busy <= 1'b0;
+            irq_flush <= 1'b0;
+            irq_addr <= 8'b0;
+        end
+        else if (!irq_busy) begin
+            if (irq_addr_in != 11'b0 && bytmov == 8'b0) begin
+                irq_busy <= 1'b1;
+                irq_flush <= 1'b1;
+                pc_addr <= pc_addr_in;
+                irq_addr <= irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
+            end
+        end
+        else begin
+            if (iret == 1'b1) begin 
+                irq_busy <= 1'b0;
+                irq_flush <= 1'b1;
+                irq_addr <= pc_addr;
+            end
+        end
+    end
+endmodule
