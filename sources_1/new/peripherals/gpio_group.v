@@ -61,12 +61,10 @@ module gpio_group(
         if (rst) begin
             for (i = 0; i < 8; i = i + 1) gpio_mode[i] <= UNUSE;
             gpio_output <= 8'b0;
-            bus_data_out <= 8'b0;
             rx <= 1'b1;
         end
         else begin
             gpio_irq <= 2'b0;
-            bus_data_out <= 8'b0;
             rx <= 1'b1;
             if (bus_addr_in[15:13] == 3'b100) begin
                 if (bus_sig_in[0] && bus_addr_in[0]) begin
