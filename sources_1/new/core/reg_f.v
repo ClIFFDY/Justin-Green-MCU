@@ -26,23 +26,23 @@ module reg_f(
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
     input wire [7:0] rd,
-    input wire [7:0] ra_in,
+    input wire [8:0] ra_in,
     input wire [7:0] rd_data,
     output wire [1:0] j_flag,
-    output wire [7:0] ra,
+    output wire [8:0] ra,
     output wire [23:0] rd12_data
     );
 
     reg [7:0] regs [0:255];
-    reg [7:0] rad [0:255];
+    reg [8:0] rad [0:255];
 
     integer i;
-    reg [7:0] j;
+    reg [8:0] j;
 
     initial begin
         for (i = 0; i < 64; i = i + 1) regs[i] = 8'b0;
         for (i = 0; i < 16; i = i + 1) rad[i] = 8'b0;
-        j = 8'b0;
+        j = 9'b0;
     end
 
     wire [7:0] r_ram = addr_r12[23:16];
@@ -72,13 +72,13 @@ module reg_f(
             if (we && rd != 0) regs[rd] <= rd_data;
 
             if (jmpflg[1] && ra_in != 0) begin
-                rad[j] <= ra_in;
+                rad[j] <= ra_in;      
                 j <= j + 1;
             end
-            else if (jmpflg[0] && j != 8'b0) begin
-                rad[j - 1] <= 8'b0;
+            else if (jmpflg[0] && j != 9'b0) begin
+                rad[j - 1] <= 9'b0;
                 j <= j - 1;
-            end            
+            end           
         end
     end
 endmodule

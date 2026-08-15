@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ============================================================
-# MCU v1.2 汇编器：助记符 .asm → ins_rom.hex（$readmemh 格式）
+# MCU v1.3 汇编器：助记符 .asm → ins_rom.hex（$readmemh 格式，512 字节 ROM）
 #
-# 编码依据：说明文档/指令集说明/mc_v1.2_ins.md
+# 编码依据：说明文档/指令集说明/mc_v1.3_ins.md
 #   byte0 = opcode[5:0]<<2 | len（len = 字节数-1）
 #   bytmov 相对指令末尾（addr+len）：R(向前)=target-(addr+len)，L(向后)=(addr+len)-target
 #
@@ -16,7 +16,7 @@
 #   寄存器：rN 或裸数字（0-255）；立即数/地址：十进制或 0x 十六进制
 #   跳转目标写【绝对地址】，汇编器自动算 bytmov（方向由 L/R 前缀决定）
 #   伪指令：
-#     .org <addr>       设置当前地址（程序区 0x00-0xFF）
+#     .org <addr>       设置当前地址（程序区 0x00-0x1FF，512 字节 ROM）
 #     .equ NAME <value> 定义常量，可被操作数引用
 #     .byte <b>[,<b>..] 直接放原始字节
 #     .str "text"       放 ASCII 字符串（支持 \r \n \t \\ \" \xNN）
@@ -70,7 +70,7 @@ INS = {
     'SB':  (0x77, 4, 'sb'),
 }
 
-ROM_TOP = 0xFF   # PC 8 位，程序区 0x00-0xFF
+ROM_TOP = 0x1FF  # PC 9 位，程序区 0x00-0x1FF（512 字节 ROM）
 
 
 class AsmError(Exception):
@@ -197,12 +197,12 @@ def parse_str(operands):
 
 def place(addr, bs, comment, mem, instrs):
     """把 bs 放到 addr 起始；冲突报错。mem 记录字节，instrs 记录输出排布。"""
-    if addr > ROM_TOP:
-        raise AsmError(f'程序区越界：0x{addr:02X}（PC 仅 8 位，最大 0x{ROM_TOP:02X}）')
+    if addr > ROM_TOP or addr + len(bs) - 1 > ROM_TOP:
+        raise AsmError(f'程序区越界：0x{addr:02X}（PC 9 位，最大 0x{ROM_TOP:03X}）')
     for i, b in enumerate(bs):
         a = addr + i
         if a in mem:
-            raise AsmError(f'地址 0x{a:02X} 重复定义（.org 回退进了已写区域？）')
+            raise AsmError(f'地址 0x{a:03X} 重复定义（.org 回退进了已写区域？）')
         mem[a] = b
     instrs[addr] = (list(bs), comment.strip())
 
@@ -231,7 +231,7 @@ def assemble(src_lines):
                     raise AsmError('.org 需要 1 个地址')
                 addr = parse_int(ops[0], symbols)
                 if not (0 <= addr <= ROM_TOP):
-                    raise AsmError(f'.org 越界: 0x{addr:02X}')
+                    raise AsmError(f'.org 越界: 0x{addr:03X}')
                 continue
             if m == '.EQU':
                 if len(ops) != 2:
@@ -330,7 +330,7 @@ def encode(m, byte0, nbytes, fmt, ops, addr, symbols):
 # ---------------------------------------------------------------- 输出
 def write_hex(mem, instrs, fh):
     """$readmemh 格式：@0000 + 字节；间隙填 HALT(0x00)，指令行带源注释。
-    写满 0x00-0xFF 共 256 字节——$readmemh 未指定地址会留 X，全填 HALT 保证 ROM 无 X。"""
+    写满 0x00-0x1FF 共 512 字节——$readmemh 未指定地址会留 X，全填 HALT 保证 ROM 无 X。"""
     fh.write('@0000\n')
     i = 0
     while i <= ROM_TOP:
@@ -353,7 +353,7 @@ def main():
     # 保证在 UTF-8/GBK 终端里中文都尽量不糊
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    ap = argparse.ArgumentParser(description='MCU v1.2 汇编器：.asm → ins_rom.hex')
+    ap = argparse.ArgumentParser(description='MCU v1.3 汇编器：.asm → ins_rom.hex')
     ap.add_argument('src', help='源 .asm 文件')
     ap.add_argument('-o', '--output', help='输出 hex 路径（默认 project_self-try.srcs/ins_rom.hex）')
     args = ap.parse_args()
@@ -381,20 +381,20 @@ def main():
         write_hex(mem, instrs, fh)
 
     # 打印 listing 便于核对
-    print(f'程序范围: 0x00–0x{max_addr:02X}（{len(mem)} 字节），ROM 已填满 0x00–0xFF -> {out_path}')
+    print(f'程序范围: 0x00–0x{max_addr:03X}（{len(mem)} 字节），ROM 已填满 0x00–0x1FF -> {out_path}')
     print('---- listing ----')
     i = 0
     while i <= max_addr:
         if i in instrs:
             bs, comment = instrs[i]
-            print(f'0x{i:02X}: {" ".join("%02X" % b for b in bs):20} | {comment.strip()}')
+            print(f'0x{i:03X}: {" ".join("%02X" % b for b in bs):20} | {comment.strip()}')
             i += len(bs)
         else:
             run = []
             while i <= max_addr and i not in instrs and len(run) < 8:
                 run.append(mem.get(i, 0x00))
                 i += 1
-            print(f'0x{i - len(run):02X}: {" ".join("%02X" % b for b in run):20} | (填充)')
+            print(f'0x{i - len(run):03X}: {" ".join("%02X" % b for b in run):20} | (填充)')
 
 
 if __name__ == '__main__':

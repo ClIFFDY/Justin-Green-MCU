@@ -31,7 +31,7 @@ module single_cpu_top(
     );
 
     wire [1:0] stage;
-    wire [7:0] pc_addr, irq_addr;
+    wire [8:0] pc_addr, irq_addr;
     wire [31:0] inst_raw1, inst_raw2;
     wire [1:0] inst_num;
     wire [5:0] op_temp, opcode;
@@ -40,7 +40,7 @@ module single_cpu_top(
     wire [7:0] rd_temp, rd;
     wire [7:0] rd_data, imm8_temp, imm8;
     wire [7:0] bytmov;
-    wire [7:0] ra_fo, ra_ba;
+    wire [8:0] ra_fo, ra_ba;
     wire [7:0] result;
     wire [1:0] jmpflg, j_flag;
     wire we_temp1, we_temp2, we;

@@ -28,49 +28,44 @@ module timer(
     output reg timer_irq
     );
 
-    reg [7:0] cnt_set_h, cnt_set_l, cnt_h, cnt_l;
+    reg [7:0] cnt_set [0:3];
+    reg [7:0] cnt [0:3];
     reg irq_mode;
+    integer i;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            cnt_set_h <= 8'b0;
-            cnt_set_l <= 8'b0;
-            cnt_h <= 8'b0;
-            cnt_l <= 8'b0;
+            for (i = 0; i < 4; i = i + 1) begin 
+                cnt_set[i] <= 8'b0;
+                cnt[i] <= 8'b0;
+            end
             timer_irq <= 1'b0;
             irq_mode <= 1'b0;
         end
         else begin
             if (!irq_mode) timer_irq <= 0;
-                if (bus_addr_in[15:13] == 3'b011 && bus_sig_in[0]) begin
-                cnt_h <= 8'b0;
-                cnt_l <= 8'b0;
-                case (bus_addr_in[12:0])
-                13'd0: begin
-                    cnt_set_l <= bus_data_in;
+            if (bus_addr_in[15:13] == 3'b011 && bus_sig_in[0]) begin
+                for (i = 0; i < 4; i = i + 1) cnt[i] <= 8'b0;
+                if (bus_addr_in[12:0] <= 13'd3) begin
+                    cnt_set[bus_addr_in[12:0]] <= bus_data_in;
                 end
-                13'd1: begin
-                    cnt_set_h <= bus_data_in;
-                end
-                13'd2: begin
+                else if (bus_addr_in[12:0] == 13'd4) begin
                     irq_mode <= bus_data_in[0];
                 end
-                default: begin
-                    if (irq_mode && timer_irq) begin
-                    cnt_h <= cnt_h;
-                    cnt_l <= cnt_l;
-                    timer_irq <= 1'b0;                   
-                    end
+                else if (bus_addr_in[12:0] == 13'd5) begin
+                     if (irq_mode && timer_irq) timer_irq <= 1'b0;
                 end
-                endcase
             end
-            else if (cnt_set_h != 8'd0 || cnt_set_l != 8'd0) begin
-                cnt_l <= cnt_l + 1;
-                if (cnt_l == 8'd255) cnt_h <= cnt_h + 1;
-                if (cnt_l == cnt_set_l && cnt_h == cnt_set_h) begin
+            else if (cnt_set[0] != 8'd0 || cnt_set[1] != 8'd0 
+            || cnt_set[2] != 8'd0 || cnt_set[3] != 8'd0) begin
+                cnt[0] <= cnt[0] + 1;
+                if (cnt[0] == 8'd255) cnt[1] <= cnt[1] + 1;
+                if (cnt[0] == 8'd255 && cnt[1] == 8'd255) cnt[2] <= cnt[2] + 1;
+                if (cnt[0] == 8'd255 && cnt[1] == 8'd255 && cnt[2] == 8'd255) cnt[3] <= cnt[3] + 1;
+                if (cnt_set[0] == cnt[0] && cnt_set[1] == cnt[1]
+                && cnt_set[2] == cnt[2] && cnt_set[3] == cnt[3]) begin
                     timer_irq <= 1'b1;
-                    cnt_h <= 8'd0;
-                    cnt_l <= 8'd0;
+                    for (i = 0; i < 4; i = i + 1) cnt[i] <= 8'd0;
                 end
             end
         end

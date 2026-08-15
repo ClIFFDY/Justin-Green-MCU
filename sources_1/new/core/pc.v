@@ -27,9 +27,9 @@ module pc(
     input wire [1:0] inst_num,
     input wire [5:0] op_raw,
     input wire [7:0] bytmov,
-    input wire [7:0] ra_in, irq_addr,
-    output reg [7:0] pc_addr,
-    output reg [7:0] ra,
+    input wire [8:0] ra_in, irq_addr,
+    output reg [8:0] pc_addr,
+    output reg [8:0] ra,
     output reg [1:0] jmpflg
     );
 
@@ -54,15 +54,15 @@ module pc(
     
     always @(posedge clk or posedge rst) begin
         if (rst) begin 
-            pc_addr <= 8'b0;
-            ra <= 8'b0;
+            pc_addr <= 10'b0;
+            ra <= 10'b0;
             jmpflg <= 2'b0;
         end
         else if (stage == EXE && !stall) begin
             jmpflg <= 2'b0;
             case (op_raw)
             LJAL, RJAL: begin 
-                if (bytmov != 8'b0 && !j_flag[1]) begin
+                if (bytmov != 10'b0 && !j_flag[1]) begin
                     ra <= pc_addr;
                     jmpflg[1] <= 1'b1;
                     case (op_raw[0])

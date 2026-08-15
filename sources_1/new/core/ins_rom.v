@@ -21,7 +21,7 @@
 
 
 module ins_rom(
-    input wire [7:0] addr,
+    input wire [8:0] addr,
     output wire [31:0] inst_raw,
     output wire [1:0] inst_num
     );

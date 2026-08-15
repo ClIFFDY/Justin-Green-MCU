@@ -160,7 +160,7 @@ module decoder(
             end
             JALR: begin
                 if (!j_flag[0]) begin 
-                    bytmov = 8'b1;
+                    bytmov = 8'd1;
                     flush1 = 1'b1;
                 end
             end

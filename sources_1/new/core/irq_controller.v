@@ -23,8 +23,9 @@
 module irq_controller(
     input wire clk, rst, iret, 
     input wire [5:0] irq_addr_in,
-    input wire [7:0] pc_addr_in, bytmov,
-    output reg [7:0] irq_addr,
+    input wire [8:0] pc_addr_in, 
+    input wire [7:0] bytmov,
+    output reg [8:0] irq_addr,
     output reg irq_flush
     );
 
@@ -42,24 +43,24 @@ module irq_controller(
     reg [1:0] stage;
 
     reg [7:0] irq_vex [0:15];
-    reg [7:0] pc_addr;
+    reg [10:0] pc_addr;
 
     initial begin
-        pc_addr = 8'b0;
-        irq_vex[UART_RX] = 8'd232; 
-        irq_vex[TIMER] = 8'd208; 
-        irq_vex[GPIO1] = 8'd184; 
-        irq_vex[GPIO2] = 8'd160; 
+        pc_addr = 9'b0;
+        irq_vex[UART_RX] = 10'd992; 
+        irq_vex[TIMER] = 10'd968; 
+        irq_vex[GPIO1] = 10'd936; 
+        irq_vex[GPIO2] = 10'd904; 
 
     end
 
     always @(posedge clk) begin
         irq_flush <= 1'b0;
-        irq_addr <= 8'b0;
+        irq_addr <= 9'b0;
         if (rst) begin
             stage <= IDLE;
             irq_flush <= 1'b0;
-            irq_addr <= 8'b0;
+            irq_addr <= 9'b0;
         end
         else begin
             case (stage)

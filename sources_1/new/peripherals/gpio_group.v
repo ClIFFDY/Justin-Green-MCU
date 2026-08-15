@@ -35,7 +35,7 @@ module gpio_group(
     );
 
     localparam [3:0]
-        UNUSE = 4'b0000,
+        UNUSE = 4'bz,
         OUT = 4'b0001,
         IN = 4'b0010,
         IRQ = 4'b0011,
