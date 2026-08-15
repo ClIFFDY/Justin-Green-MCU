@@ -47,7 +47,6 @@ module uart_top(
         if (rst) begin
             wr_ptr <= 6'd0;
             rd_ptr <= 6'd0;
-            rx_read <= 1'b0;
             rx_irq <= 1'b0;
         end
         else begin

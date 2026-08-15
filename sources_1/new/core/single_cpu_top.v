@@ -167,6 +167,7 @@ module single_cpu_top(
     
     reg_f u_reg_f(
         .clk(clk), 
+        .rst(rst),
         .we(we), 
         .tx_busy(tx_busy),
         .jmpflg(jmpflg),

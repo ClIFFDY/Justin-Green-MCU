@@ -109,12 +109,16 @@
 | 5 | pin0 未接线 | 保留设计（generate 已含 j=0，功能逻辑仍从 1 起） |
 | 6 | single_mcu_top 拼装 `irq_bus = {4'b010, gpio_irq}`：4'b010 实为 4 位 `0010`，拼出 `001001` → 向量索引落 Timer(0xD0) 而非 GPIO1(0xB8)，中断进错 ISR 区 | 改 `{4'b010_0, gpio_irq}`（= `0100`），拼出 `010001`/`010010`，GPIO1→0xB8、GPIO2→0xA0 正确 |
 | 7 | gpio_group 的 `gpio_irq` 阻塞清零 `=2'b0` + 非阻塞置位混用，边沿采样存在竞争（irq_controller 可能采到 0） | 清零改非阻塞 `gpio_irq <= 2'b0`，全部 NBA，采样稳定 |
+| 8 | 按键复位 `rst_n` 直接进 uart_tx（异步复位），松开瞬间机械抖动再次拉低 → 正在发的 UART 帧被拦腰截断（banner 乱码/重发） | 新增 `mcu/rst_buf.v`：2 级同步 + IDLE/PUSH 两态机，rst_n **释放边沿**开始计时、连续高 `2^22` 拍（≈83.9ms@50MHz）才释放内部复位；按下边沿立即复位。独立 tb + 整机 tb 验证通过 |
+| 9 | irq_controller 用 `irq_busy` 标志锁存，IRET 后无缓冲，返回地址回写与同源中断重入判定可能竞争 | 改 **IDLE/IRQ/BACK 三态机**：IRET 在 IRQ 态捕获 → BACK 态回写返回地址、缓冲一拍 → 回 IDLE 才接受新中断 |
+| 10 | reg_f 无复位（上电 x）；timer 复位用阻塞赋值；uart_top 复位未清 rx_read | reg_f 补异步复位清 256 寄存器+rad+j；timer 复位改非阻塞 `<=`；uart_top 补 `rx_read <= 0` |
 
 ## 7. 已知限制 / 后续
 
 | 项 | 说明 |
 |----|------|
-| GPIO 板测 | 未上板，待补 |
+| GPIO 板测 | **已上板测试**（`board_test_nokey.asm`，KEY2 禁用版；rst_n 改接 T12 复位键）：能收到 banner 但开头被污染（`\0` + 乱码后 `ready` 尾缀正常），复位键按下发 0x00 流（见下行） |
+| 复位期间 TX 引脚被拉低 | 上板实测小瑕疵：**按下复位键时串口收到一串 0x00**（UART break），释放后 banner 开头有乱码。原因：`gpio_group` 复位时 `gpio_output=0`、mode 全 UNUSE（bit1=0 驱动）→ TX 引脚被驱动为低；**非 uart_tx 问题**（其复位态 `tx=1` 空闲）。可选修复：UNUSE 引脚改高阻 `z`（聚焦验证已通过，且能顺带让 banner 变干净），或板端上拉 P18 |
 | GPIO 测试程序 | 已写（`gpio_test.hex` + `gpio_test_tb`），13/13 通过 |
 | 双 GPIO 同触发 | 向量索引越界，勿用（见 §4） |
 | 中断不可重入 | 沿用 v1.1（irq_busy 锁存，ISR 内不响应新中断） |

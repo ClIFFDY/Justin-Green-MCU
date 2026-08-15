@@ -21,7 +21,7 @@
 
 
 module reg_f(
-    input wire clk,
+    input wire clk, rst,
     input wire we, tx_busy,
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
@@ -58,18 +58,27 @@ module reg_f(
     assign j_flag[0] = (j == 8'b0) ? 1'b1 : 1'b0;
 
 
-    always @(posedge clk) begin
-        regs[255] <= {7'b0, tx_busy};
-
-        if (we && rd != 0) regs[rd] <= rd_data;
-
-        if (jmpflg[1] && ra_in != 0) begin
-            rad[j] <= ra_in;
-            j <= j + 1;
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin 
+            for (i = 0; i < 256; i = i + 1) begin 
+                regs[i] <= 8'b0;
+                rad[i] <= 8'b0;
+            end
+            j <= 8'b0;
         end
-        else if (jmpflg[0] && j != 8'b0) begin
-            rad[j - 1] <= 8'b0;
-            j <= j - 1;
+        else begin
+            regs[255] <= {7'b0, tx_busy};
+
+            if (we && rd != 0) regs[rd] <= rd_data;
+
+            if (jmpflg[1] && ra_in != 0) begin
+                rad[j] <= ra_in;
+                j <= j + 1;
+            end
+            else if (jmpflg[0] && j != 8'b0) begin
+                rad[j - 1] <= 8'b0;
+                j <= j - 1;
+            end            
         end
     end
 endmodule

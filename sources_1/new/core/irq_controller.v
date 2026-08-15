@@ -34,9 +34,16 @@ module irq_controller(
         GPIO1 = 2,
         GPIO2 = 3;
 
+    localparam [1:0] 
+        IDLE = 2'b00,
+        IRQ = 2'b01,
+        BACK = 2'b10;
+
+    reg [1:0] stage;
+
     reg [7:0] irq_vex [0:15];
     reg [7:0] pc_addr;
-    reg irq_busy;
+
     initial begin
         pc_addr = 8'b0;
         irq_vex[UART_RX] = 8'd232; 
@@ -50,24 +57,31 @@ module irq_controller(
         irq_flush <= 1'b0;
         irq_addr <= 8'b0;
         if (rst) begin
-            irq_busy <= 1'b0;
+            stage <= IDLE;
             irq_flush <= 1'b0;
             irq_addr <= 8'b0;
         end
-        else if (!irq_busy) begin
-            if (irq_addr_in != 11'b0 && bytmov == 8'b0) begin
-                irq_busy <= 1'b1;
-                irq_flush <= 1'b1;
-                pc_addr <= pc_addr_in;
-                irq_addr <= irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
-            end
-        end
         else begin
-            if (iret == 1'b1) begin 
-                irq_busy <= 1'b0;
-                irq_flush <= 1'b1;
-                irq_addr <= pc_addr;
+            case (stage)
+            IDLE: begin
+                if (irq_addr_in != 11'b0 && bytmov == 8'b0) begin 
+                    stage <= IRQ;
+                    irq_flush <= 1'b1;
+                    pc_addr <= pc_addr_in;
+                    irq_addr <= irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
+                end
             end
+            IRQ: begin
+                if (iret == 1'b1) begin
+                    stage <= BACK;
+                    irq_flush <= 1'b1;
+                    irq_addr <= pc_addr; 
+                end
+            end
+            BACK: begin
+                stage <= IDLE;
+            end
+            endcase
         end
     end
 endmodule

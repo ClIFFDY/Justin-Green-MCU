@@ -78,10 +78,10 @@ module gpio_group(
             end
             for (i = 0; i < 8; i = i + 1) begin
                 if (i < 4) begin
-                    if (gpio_mode[i] == IRQ) gpio_irq[0] <= ~gpio_pin_bus[i];  // 低电平触发（板载 KEY 按下为低）
+                    if (gpio_mode[i] == IRQ) gpio_irq[0] <= ~gpio_pin_bus[i];  
                 end
                 else if (i >= 4 && i < 8) begin
-                    if (gpio_mode[i] == IRQ) gpio_irq[1] <= ~gpio_pin_bus[i];  // 低电平触发（板载 KEY 按下为低）
+                    if (gpio_mode[i] == IRQ) gpio_irq[1] <= ~gpio_pin_bus[i];  
                 end
                 if (gpio_mode[i] == TX) gpio_output[i] <= tx;
                 else if (gpio_mode[i] == RX) rx <= gpio_pin_bus[i];

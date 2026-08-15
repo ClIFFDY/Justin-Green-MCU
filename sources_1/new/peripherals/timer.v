@@ -33,12 +33,12 @@ module timer(
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            cnt_set_h = 8'b0;
-            cnt_set_l = 8'b0;
-            cnt_h = 8'b0;
-            cnt_l = 8'b0;
-            timer_irq = 1'b0;
-            irq_mode = 1'b0;
+            cnt_set_h <= 8'b0;
+            cnt_set_l <= 8'b0;
+            cnt_h <= 8'b0;
+            cnt_l <= 8'b0;
+            timer_irq <= 1'b0;
+            irq_mode <= 1'b0;
         end
         else begin
             if (!irq_mode) timer_irq <= 0;

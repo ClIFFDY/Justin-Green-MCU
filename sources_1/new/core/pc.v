@@ -48,7 +48,8 @@ module pc(
     LBNE  = 6'b01_1000,
     RBNE  = 6'b01_1001,
     LBLTU = 6'b01_1010,
-    RBLTU = 6'b01_1011;
+    RBLTU = 6'b01_1011,
+    IRET  = 6'b01_0101;
 
     
     always @(posedge clk or posedge rst) begin

@@ -26,13 +26,7 @@ module single_mcu_top(
     inout wire [7:0] gpio_pin_bus
     );
 
-    reg rst_n_s1 = 1'b1;
-    reg rst_n_s2 = 1'b1;
-    always @(posedge clk) begin
-        rst_n_s1 <= rst_n;
-        rst_n_s2 <= rst_n_s1;
-    end
-    wire rst = ~rst_n_s2;
+
 
     wire [15:0] bus_addr_f;
     wire [7:0] bus_data_f;
@@ -70,6 +64,13 @@ module single_mcu_top(
         if (gpio_irq != 2'b0) irq_bus = {4'b010_0, gpio_irq};
     end
 
+    rst_buf u_rst_buf(
+        .clk(clk),
+        .rst_n(rst_n),
+        //
+        .rst_stable(rst)
+    );
+    
     single_cpu_top u_cpu(
         .clk(clk),
         .rst(rst),

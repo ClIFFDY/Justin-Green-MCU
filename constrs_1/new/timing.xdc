@@ -9,7 +9,7 @@
 #   gpio[4] T16  未用（悬空）
 #   gpio[5] U17  未用（悬空）
 #   gpio[6] P15  LED   低电平点亮（程序配 OUT 模式）
-#   gpio[7] T12  KEY2  低电平触发（程序配 IRQ 模式，按下拉低；PULLUP 防悬空）
+#   gpio[7] V13  IRQ_IN(跳线激活)  低电平触发（程序配 IRQ 模式，按下拉低；PULLUP 防悬空）
 # ============================================================
 
 # ===== 时钟：PL_CLK_50M @ N18，50MHz =====
@@ -40,12 +40,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports {gpio_pin_bus[5]}]
 set_property PACKAGE_PIN P15 [get_ports {gpio_pin_bus[6]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {gpio_pin_bus[6]}]
 
-set_property PACKAGE_PIN T12 [get_ports {gpio_pin_bus[7]}]
+set_property PACKAGE_PIN V13 [get_ports {gpio_pin_bus[7]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {gpio_pin_bus[7]}]
-set_property PULLUP TRUE [get_ports {gpio_pin_bus[7]}]
 
-# ===== 复位：PL_KEY1 @ P16，按下低电平有效 =====
+# ===== 复位：PL_KEY2 @ P16，按下低电平有效 =====
 # top 端口 rst_n：平时上拉为高（不复位），按下拉低 → 复位
-set_property PACKAGE_PIN P16 [get_ports rst_n]
+set_property PACKAGE_PIN T12 [get_ports rst_n]
 set_property IOSTANDARD LVCMOS33 [get_ports rst_n]
 set_property PULLUP TRUE [get_ports rst_n]
+
