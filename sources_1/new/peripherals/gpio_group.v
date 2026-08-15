@@ -57,7 +57,7 @@ module gpio_group(
     endgenerate
 
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             for (i = 0; i < 8; i = i + 1) gpio_mode[i] <= UNUSE;
             gpio_output <= 8'b0;
@@ -66,7 +66,7 @@ module gpio_group(
         else begin
             gpio_irq <= 2'b0;
             rx <= 1'b1;
-            if (bus_addr_in[15:13] == 3'b100) begin
+            if (bus_addr_in[15:12] == 4'b0100) begin
                 if (bus_sig_in[0] && bus_addr_in[0]) begin
                     gpio_mode[bus_addr_in[3:1]] <= bus_data_in[3:0];
                 end 
@@ -91,7 +91,7 @@ module gpio_group(
 
     always @(*) begin 
         bus_data_out = 8'b0;
-        if (bus_addr_in[15:13] == 3'b100 && !bus_sig_in[0]) begin 
+        if (bus_addr_in[15:12] == 4'b0100 && !bus_sig_in[0]) begin 
             for (i = 1; i < 8; i = i + 1) begin
                 if (gpio_mode[i] == IN) bus_data_out[i] = gpio_pin_bus[i];
             end

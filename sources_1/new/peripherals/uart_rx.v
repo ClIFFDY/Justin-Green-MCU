@@ -37,7 +37,7 @@ module uart_rx(
     reg [7:0] rx_data_buf;
     reg rx_sig1, rx_sig2, start;
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             rx_sig1 <= 1'b1;
             rx_sig2 <= 1'b1;
@@ -48,7 +48,7 @@ module uart_rx(
         end
     end
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             clk_cnt <= 16'b0;
             bit_cnt <= 4'b0;

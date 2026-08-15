@@ -26,15 +26,15 @@ module reg_f(
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
     input wire [7:0] rd,
-    input wire [8:0] ra_in,
+    input wire [15:0] ra_in,
     input wire [7:0] rd_data,
     output wire [1:0] j_flag,
-    output wire [8:0] ra,
+    output wire [15:0] ra,
     output wire [23:0] rd12_data
     );
 
     reg [7:0] regs [0:255];
-    reg [8:0] rad [0:255];
+    reg [15:0] rad [0:255];
 
     integer i;
     reg [8:0] j;
@@ -58,7 +58,7 @@ module reg_f(
     assign j_flag[0] = (j == 8'b0) ? 1'b1 : 1'b0;
 
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin 
             for (i = 0; i < 256; i = i + 1) begin 
                 regs[i] <= 8'b0;

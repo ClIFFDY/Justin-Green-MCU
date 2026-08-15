@@ -43,7 +43,7 @@ module uart_top(
         for (i = 0; i < 64; i = i + 1) rx_buf[i] = 8'b0;
     end
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             wr_ptr <= 6'd0;
             rd_ptr <= 6'd0;
@@ -69,7 +69,7 @@ module uart_top(
         rx_read = 1'b0;
         bus_data_out = 8'b0;
         tx_busy = busy;
-        if (bus_addr_in[15:13] == 3'b010) begin
+        if (bus_addr_in[15:12] == 4'b0010) begin
             if (bus_sig_in[0]) begin
                 tx_en = 1'b1;
             end

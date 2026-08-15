@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ============================================================
-# MCU v1.3 汇编器：助记符 .asm → ins_rom.hex（$readmemh 格式，512 字节 ROM）
+# MCU v2.0 汇编器：助记符 .asm → ins_rom.hex（$readmemh 格式，4096 字节 ROM）
 #
-# 编码依据：说明文档/指令集说明/mc_v1.3_ins.md
-#   byte0 = opcode[5:0]<<2 | len（len = 字节数-1）
-#   bytmov 相对指令末尾（addr+len）：R(向前)=target-(addr+len)，L(向后)=(addr+len)-target
+# 编码依据：说明文档/指令集说明/mc_v2.0_ins.md
+#   byte0 = opcode[5:0]<<2 | len（len = 字节数-2，0..3）
+#   指令长度：2B=HALT/NOP/IRET/JALR；4B=ALU/LBU/SB；5B=跳转/分支
+#   bytmov 有效 12 位（±4095），相对指令末尾（addr+len）：
+#     5B 跳转/分支：byte1=bm[11:4]，byte4 高半字节=bm[3:0]（byte4={bm[3:0],0000}）
+#     方向：R(向前)=target-(addr+len)，L(向后)=(addr+len)-target
 #
 # 用法：
 #   python tools/asm.py 程序.asm                 # 默认输出 project_self-try.srcs/ins_rom.hex
@@ -16,7 +19,7 @@
 #   寄存器：rN 或裸数字（0-255）；立即数/地址：十进制或 0x 十六进制
 #   跳转目标写【绝对地址】，汇编器自动算 bytmov（方向由 L/R 前缀决定）
 #   伪指令：
-#     .org <addr>       设置当前地址（程序区 0x00-0x1FF，512 字节 ROM）
+#     .org <addr>       设置当前地址（程序区 0x000-0xFFF，4096 字节 ROM）
 #     .equ NAME <value> 定义常量，可被操作数引用
 #     .byte <b>[,<b>..] 直接放原始字节
 #     .str "text"       放 ASCII 字符串（支持 \r \n \t \\ \" \xNN）
@@ -27,50 +30,52 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------- 指令表
-# (byte0, 长度字节数, 格式)
-# 格式：none=无操作数；jalr=byte1 预留 0；jump=绝对目标→bytmov；
-#       branch=r1,r2,绝对目标→bytmov；alu_r=rd,rs1,rs2；alu_i=rd,rs1,imm8；
+# (opcode6, 字节数, 格式)
+# 格式：none=无操作数；jalr=byte1 预留 0；jump=绝对目标→bytmov12；
+#       branch=r1,r2,绝对目标→bytmov12；alu_r=rd,rs1,rs2；alu_i=rd,rs1,imm8；
 #       lb=rd,addr16；sb=rs,addr16
+# byte0 = opcode<<2 | (字节数-2)
 INS = {
-    # 控制
-    'HALT': (0x00, 1, 'none'),
-    'NOP':  (0x50, 1, 'none'),
-    'IRET': (0x54, 1, 'none'),
-    # 跳转
-    'LJAL': (0x21, 2, 'jump'),   # 向后压栈调用
-    'RJAL': (0x25, 2, 'jump'),   # 向前压栈调用
-    'JALR': (0x4D, 2, 'jalr'),   # 弹栈返回
-    # 分支
-    'LBEQ':  (0x5B, 4, 'branch'),
-    'RBEQ':  (0x5F, 4, 'branch'),
-    'LBNE':  (0x63, 4, 'branch'),
-    'RBNE':  (0x67, 4, 'branch'),
-    'LBLTU': (0x6B, 4, 'branch'),
-    'RBLTU': (0x6F, 4, 'branch'),
-    # ALU-R
-    'ADD':  (0x0B, 4, 'alu_r'),
-    'SUB':  (0x13, 4, 'alu_r'),
-    'AND':  (0x17, 4, 'alu_r'),
-    'OR':   (0x1B, 4, 'alu_r'),
-    'XOR':  (0x1F, 4, 'alu_r'),
-    'SLL':  (0x37, 4, 'alu_r'),
-    'SRL':  (0x3B, 4, 'alu_r'),
-    'SLTU': (0x47, 4, 'alu_r'),
-    # ALU-I
-    'ADDI':  (0x07, 4, 'alu_i'),
-    'SUBI':  (0x0F, 4, 'alu_i'),
-    'ANDI':  (0x2B, 4, 'alu_i'),
-    'ORI':   (0x2F, 4, 'alu_i'),
-    'XORI':  (0x33, 4, 'alu_i'),
-    'SLLI':  (0x3F, 4, 'alu_i'),
-    'SRLI':  (0x43, 4, 'alu_i'),
-    'SLTIU': (0x4B, 4, 'alu_i'),
-    # 访存
-    'LBU': (0x73, 4, 'lb'),
-    'SB':  (0x77, 4, 'sb'),
+    # 控制（2B）
+    'HALT': (0x00, 2, 'none'),
+    'NOP':  (0x14, 2, 'none'),
+    'IRET': (0x15, 2, 'none'),
+    # 跳转（5B，bytmov 12 位）
+    'LJAL': (0x08, 5, 'jump'),   # 向后压栈调用
+    'RJAL': (0x09, 5, 'jump'),   # 向前压栈调用
+    'JALR': (0x13, 2, 'jalr'),   # 弹栈返回（2B）
+    # 分支（5B）
+    'LBEQ':  (0x16, 5, 'branch'),
+    'RBEQ':  (0x17, 5, 'branch'),
+    'LBNE':  (0x18, 5, 'branch'),
+    'RBNE':  (0x19, 5, 'branch'),
+    'LBLTU': (0x1A, 5, 'branch'),
+    'RBLTU': (0x1B, 5, 'branch'),
+    # ALU-R（4B）
+    'ADD':  (0x02, 4, 'alu_r'),
+    'SUB':  (0x04, 4, 'alu_r'),
+    'AND':  (0x05, 4, 'alu_r'),
+    'OR':   (0x06, 4, 'alu_r'),
+    'XOR':  (0x07, 4, 'alu_r'),
+    'SLL':  (0x0D, 4, 'alu_r'),
+    'SRL':  (0x0E, 4, 'alu_r'),
+    'SLTU': (0x11, 4, 'alu_r'),
+    # ALU-I（4B）
+    'ADDI':  (0x01, 4, 'alu_i'),
+    'SUBI':  (0x03, 4, 'alu_i'),
+    'ANDI':  (0x0A, 4, 'alu_i'),
+    'ORI':   (0x0B, 4, 'alu_i'),
+    'XORI':  (0x0C, 4, 'alu_i'),
+    'SLLI':  (0x0F, 4, 'alu_i'),
+    'SRLI':  (0x10, 4, 'alu_i'),
+    'SLTIU': (0x12, 4, 'alu_i'),
+    # 访存（4B）
+    'LBU': (0x1C, 4, 'lb'),
+    'SB':  (0x1D, 4, 'sb'),
 }
 
-ROM_TOP = 0x1FF  # PC 9 位，程序区 0x00-0x1FF（512 字节 ROM）
+ROM_TOP = 0xFFF  # PC 16 位，程序区 0x000-0xFFF（4096 字节 ROM）
+BM_MAX = 0xFFF   # bytmov 有效 12 位（±4095）
 
 
 class AsmError(Exception):
@@ -153,20 +158,27 @@ def split_operands(s):
 
 
 def calc_bytmov(direction, addr, nbytes, target):
-    """direction='R' 向前（target-(addr+len)），'L' 向后（(addr+len)-target）。"""
+    """direction='R' 向前（target-(addr+len)），'L' 向后（(addr+len)-target）。
+    返回 0..BM_MAX（12 位有效）。"""
     end = addr + nbytes
     if direction == 'R':
         bm = target - end
-        if not (0 <= bm <= 0xFF):
-            raise AsmError(f'向前跳越界：addr=0x{addr:02X} target=0x{target:02X} '
-                           f'bytmov={bm}（须 0-255，方向不对换 L 前缀？）')
+        if not (0 <= bm <= BM_MAX):
+            raise AsmError(f'向前跳越界：addr=0x{addr:03X} target=0x{target:03X} '
+                           f'bytmov={bm}（须 0-0x{BM_MAX:X}，方向不对换 L 前缀？）')
         return bm
     else:
         bm = end - target
-        if not (0 <= bm <= 0xFF):
-            raise AsmError(f'向后跳越界：addr=0x{addr:02X} target=0x{target:02X} '
-                           f'bytmov={bm}（须 0-255，方向不对换 R 前缀？）')
+        if not (0 <= bm <= BM_MAX):
+            raise AsmError(f'向后跳越界：addr=0x{addr:03X} target=0x{target:03X} '
+                           f'bytmov={bm}（须 0-0x{BM_MAX:X}，方向不对换 R 前缀？）')
         return bm
+
+
+def bm_bytes(bm):
+    """bytmov 12 位 → 5B 指令的 byte1 / byte4 编码。
+    byte1=bm[11:4]，byte4 高半字节=bm[3:0]。"""
+    return [(bm >> 4) & 0xFF, ((bm & 0xF) << 4)]
 
 
 def parse_str(operands):
@@ -198,7 +210,7 @@ def parse_str(operands):
 def place(addr, bs, comment, mem, instrs):
     """把 bs 放到 addr 起始；冲突报错。mem 记录字节，instrs 记录输出排布。"""
     if addr > ROM_TOP or addr + len(bs) - 1 > ROM_TOP:
-        raise AsmError(f'程序区越界：0x{addr:02X}（PC 9 位，最大 0x{ROM_TOP:03X}）')
+        raise AsmError(f'程序区越界：0x{addr:03X}（PC 16 位，最大 0x{ROM_TOP:03X}）')
     for i, b in enumerate(bs):
         a = addr + i
         if a in mem:
@@ -256,9 +268,9 @@ def assemble(src_lines):
             if m not in INS:
                 raise AsmError(f'未知助记符/伪指令: {m}')
 
-            byte0, nbytes, fmt = INS[m]
+            opcode, nbytes, fmt = INS[m]
             ops = split_operands(operands)
-            bs = encode(m, byte0, nbytes, fmt, ops, addr, symbols)
+            bs = encode(m, opcode, nbytes, fmt, ops, addr, symbols)
             place(addr, bs, raw, mem, instrs)
             addr += nbytes
         except AsmError as e:
@@ -272,14 +284,16 @@ def assemble(src_lines):
     return mem, instrs, max(mem)
 
 
-def encode(m, byte0, nbytes, fmt, ops, addr, symbols):
+def encode(m, opcode, nbytes, fmt, ops, addr, symbols):
+    byte0 = (opcode << 2) | (nbytes - 2)
+
     def need(n):
         if len(ops) != n:
             raise AsmError(f'{m} 需要 {n} 个操作数，给了 {len(ops)}')
 
     if fmt == 'none':
         need(0)
-        return [byte0]
+        return [byte0, 0x00]
     if fmt == 'jalr':
         need(0)
         return [byte0, 0x00]
@@ -287,9 +301,10 @@ def encode(m, byte0, nbytes, fmt, ops, addr, symbols):
         need(1)
         target = parse_int(ops[0], symbols)
         if not (0 <= target <= ROM_TOP):
-            raise AsmError(f'跳转目标越界: 0x{target:02X}')
+            raise AsmError(f'跳转目标越界: 0x{target:03X}')
         bm = calc_bytmov(m[0], addr, nbytes, target)
-        return [byte0, bm]
+        b1, b4 = bm_bytes(bm)
+        return [byte0, b1, 0x00, 0x00, b4]
     if fmt == 'branch':
         need(3)
         # 汇编写法：LBEQ r1, r2, 目标（RISC-V 风格：寄存器在前、绝对目标最后）
@@ -297,9 +312,10 @@ def encode(m, byte0, nbytes, fmt, ops, addr, symbols):
         r2 = parse_reg(ops[1], symbols)
         target = parse_int(ops[2], symbols)
         if not (0 <= target <= ROM_TOP):
-            raise AsmError(f'跳转目标越界: 0x{target:02X}')
+            raise AsmError(f'跳转目标越界: 0x{target:03X}')
         bm = calc_bytmov(m[0], addr, nbytes, target)
-        return [byte0, bm, r1, r2]
+        b1, b4 = bm_bytes(bm)
+        return [byte0, b1, r1, r2, b4]
     if fmt == 'alu_r':
         need(3)
         return [byte0, parse_reg(ops[0], symbols), parse_reg(ops[1], symbols), parse_reg(ops[2], symbols)]
@@ -329,8 +345,8 @@ def encode(m, byte0, nbytes, fmt, ops, addr, symbols):
 
 # ---------------------------------------------------------------- 输出
 def write_hex(mem, instrs, fh):
-    """$readmemh 格式：@0000 + 字节；间隙填 HALT(0x00)，指令行带源注释。
-    写满 0x00-0x1FF 共 512 字节——$readmemh 未指定地址会留 X，全填 HALT 保证 ROM 无 X。"""
+    """$readmemh 格式：@0000 + 字节；间隙填 HALT(0x00)；指令行带源注释。
+    写满 0x000-0xFFF 共 4096 字节——$readmemh 未指定地址会留 X，全填 HALT 保证 ROM 无 X。"""
     fh.write('@0000\n')
     i = 0
     while i <= ROM_TOP:
@@ -353,7 +369,7 @@ def main():
     # 保证在 UTF-8/GBK 终端里中文都尽量不糊
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    ap = argparse.ArgumentParser(description='MCU v1.3 汇编器：.asm → ins_rom.hex')
+    ap = argparse.ArgumentParser(description='MCU v2.0 汇编器：.asm → ins_rom.hex')
     ap.add_argument('src', help='源 .asm 文件')
     ap.add_argument('-o', '--output', help='输出 hex 路径（默认 project_self-try.srcs/ins_rom.hex）')
     args = ap.parse_args()
@@ -381,7 +397,7 @@ def main():
         write_hex(mem, instrs, fh)
 
     # 打印 listing 便于核对
-    print(f'程序范围: 0x00–0x{max_addr:03X}（{len(mem)} 字节），ROM 已填满 0x00–0x1FF -> {out_path}')
+    print(f'程序范围: 0x000–0x{max_addr:03X}（{len(mem)} 字节），ROM 已填满 0x000–0xFFF -> {out_path}')
     print('---- listing ----')
     i = 0
     while i <= max_addr:

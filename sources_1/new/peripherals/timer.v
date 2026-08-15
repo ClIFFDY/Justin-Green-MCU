@@ -33,7 +33,7 @@ module timer(
     reg irq_mode;
     integer i;
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             for (i = 0; i < 4; i = i + 1) begin 
                 cnt_set[i] <= 8'b0;
@@ -44,15 +44,15 @@ module timer(
         end
         else begin
             if (!irq_mode) timer_irq <= 0;
-            if (bus_addr_in[15:13] == 3'b011 && bus_sig_in[0]) begin
+            if (bus_addr_in[15:12] == 4'b0011 && bus_sig_in[0]) begin
                 for (i = 0; i < 4; i = i + 1) cnt[i] <= 8'b0;
-                if (bus_addr_in[12:0] <= 13'd3) begin
-                    cnt_set[bus_addr_in[12:0]] <= bus_data_in;
+                if (bus_addr_in[11:0] <= 12'd3) begin
+                    cnt_set[bus_addr_in[11:0]] <= bus_data_in;
                 end
-                else if (bus_addr_in[12:0] == 13'd4) begin
+                else if (bus_addr_in[11:0] == 12'd4) begin
                     irq_mode <= bus_data_in[0];
                 end
-                else if (bus_addr_in[12:0] == 13'd5) begin
+                else if (bus_addr_in[11:0] == 12'd5) begin
                      if (irq_mode && timer_irq) timer_irq <= 1'b0;
                 end
             end

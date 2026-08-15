@@ -37,7 +37,7 @@ module uart_tx(
     reg [3:0] bit_cnt;
     reg [7:0] tx_data_buf;
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             clk_cnt <= 16'b0;
             bit_cnt <= 4'b0;

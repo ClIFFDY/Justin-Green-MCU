@@ -42,15 +42,20 @@ module single_mcu_top(
     wire rx_irq ,timer_irq;
     wire [1:0] gpio_irq;
 
-    localparam [2:0]
-        RAM = 3'b001,
-        UART = 3'b010,
-        TIMER = 3'b011,
-        GPIO = 3'b100;
+    localparam [3:0]
+        UART = 4'b0010,
+        TIMER = 4'b0011,
+        GPIO = 4'b0100,
+
+        RAM_1 = 4'b1000,
+        RAM_2 = 4'b1001,
+        RAM_3 = 4'b1010,
+        RAM_4 = 4'b1011;
+        
 
     always @(*) begin
-        case (bus_addr_f[15:13])
-        RAM: bus_data_b = bus_data_ram;
+        case (bus_addr_f[15:12])
+        RAM_1, RAM_2, RAM_3, RAM_4: bus_data_b = bus_data_ram;
         UART: bus_data_b = bus_data_uart;
         GPIO: bus_data_b = bus_data_gpio;
         default: bus_data_b = 8'b0;
@@ -84,7 +89,7 @@ module single_mcu_top(
         .bus_sig_out(bus_sig_f)
     );
 
-    data_ram u_data_ram(
+    ram_top u_ram_top(
         .clk(clk),
         .bus_addr_in(bus_addr_f),
         .bus_data_in(bus_data_f),
