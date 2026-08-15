@@ -19,3 +19,5 @@
 - 硬件返回栈深 255 (非通用寄存器)，满栈/空栈保护 (JAL/JALR)，flush 条件化
 - 支持 HALT 指令不可逆停机，rst 硬件消抖，初始化复位
 - 部分版本带有基于 Python 的 asm 转 hex 汇编器 (仅支持对应版本)
+
+- EDA：Xilinx™ Vivado 2019.1
