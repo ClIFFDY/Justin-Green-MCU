@@ -1,12 +1,12 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // MCU v1.2 上板程序回归（ins_rom.hex，UART 走 GPIO + KEY2 切回环 + LED 0.2s）
-//   引脚：pin0=RX(N17) pin1=TX(P18) pin6=LED(P15,低电平点亮) pin7=KEY2(T12,按下低电平)
+//   引脚：pin0=RX(N17) pin1=TX(P18) pin6=LED(P15,低电平点亮) pin7=V13(IRQ_IN 跳线,短接地低电平触发)
 //   前提：gpio_group.v 的 IRQ 已反转成低电平有效（gpio_irq[0/1] <= ~gpio_pin_bus[i]）
 //   Phase1 上电 "cpu ready\r\n" 11 字节
 //   Phase2 回环开(默认 r2=1)：发 a B 5，收大小写翻转回显 A b $0x15
-//   Phase3 KEY2 按下→中断→回环关：r2==0；发 'a' 无回显
-//   Phase4 KEY2 再按→回环开：r2==1；发 'x' 回显 'X'
+//   Phase3 V13 短接地→中断→回环关：r2==0；发 'a' 无回显
+//   Phase4 V13 再触发→回环开：r2==1；发 'x' 回显 'X'
 //   Phase5 LED：回发后 pin6 低(亮)，~0.2s 后 pin6 高(灭)
 // 运行：cd project_self-try.srcs && iverilog -g2012 -o /tmp/board_sim \
 //          sources_1/new/mcu/single_mcu_top.v sources_1/new/mcu/rst_buf.v \
@@ -30,7 +30,7 @@ module board_test_tb;
     assign gpio_pin_bus[0] = rx0_en ? rx0_drv : 1'bz;
     pullup (gpio_pin_bus[0]);
 
-    // pin7 = KEY2：idle 高（不按），按下拉低；模块配 IRQ 后为三态
+    // pin7 = V13：idle 高（不接），短接地拉低触发 IRQ；模块配 IRQ 后为三态
     reg key_drv = 1'b1;
     reg key_en = 1'b0;
     assign gpio_pin_bus[7] = key_en ? key_drv : 1'bz;
@@ -108,7 +108,7 @@ module board_test_tb;
         end
     endtask
 
-    // 按一次 KEY2：按下(低)→中断翻转 r2→ISR 切 IN 轮询等松手(去抖)→松手恢复 IRQ
+    // 触发一次 V13：短接地(低)→中断翻转 r2→ISR 切 IN 轮询等松手(去抖)→恢复 IRQ
     task press_key(input [7:0] old_r2);
         begin
             key_drv = 0; key_en = 1;                        // 按下
@@ -186,8 +186,8 @@ module board_test_tb;
             end
         end
 
-        // ===== Phase3: KEY2 按下 → 回环关 =====
-        $display("===== Phase3: KEY2 按下→回环关 =====");
+        // ===== Phase3: V13 短接地 → 回环关 =====
+        $display("===== Phase3: V13 短接地→回环关 =====");
         press_key(8'h01);
         if (u_top.u_cpu.u_reg_f.regs[2] == 8'h00) begin
             $display("  r2=0 OK（回环关）");
@@ -206,8 +206,8 @@ module board_test_tb;
             fail = fail + 1;
         end
 
-        // ===== Phase4: KEY2 再按 → 回环开 =====
-        $display("===== Phase4: KEY2 再按→回环开 =====");
+        // ===== Phase4: V13 再触发 → 回环开 =====
+        $display("===== Phase4: V13 再触发→回环开 =====");
         press_key(8'h00);
         if (u_top.u_cpu.u_reg_f.regs[2] == 8'h01) begin
             $display("  r2=1 OK（回环开）");

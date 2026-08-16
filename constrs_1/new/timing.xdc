@@ -42,6 +42,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports {gpio_pin_bus[6]}]
 
 set_property PACKAGE_PIN V13 [get_ports {gpio_pin_bus[7]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {gpio_pin_bus[7]}]
+set_property PULLUP TRUE [get_ports {gpio_pin_bus[7]}]
 
 # ===== 复位：PL_KEY2 @ P16，按下低电平有效 =====
 # top 端口 rst_n：平时上拉为高（不复位），按下拉低 → 复位

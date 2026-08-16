@@ -44,14 +44,15 @@ module irq_controller(
 
     reg [7:0] irq_vex [0:15];
     reg [10:0] pc_addr;
+    integer i;
 
     initial begin
         pc_addr = 9'b0;
-        irq_vex[UART_RX] = 10'd992; 
-        irq_vex[TIMER] = 10'd968; 
-        irq_vex[GPIO1] = 10'd936; 
-        irq_vex[GPIO2] = 10'd904; 
-
+        irq_vex[UART_RX] = 8'd224;
+        irq_vex[TIMER] = 8'd200;
+        irq_vex[GPIO1] = 8'd168;
+        irq_vex[GPIO2] = 8'd136;
+        for (i = 4; i < 16; i = i + 1) irq_vex[i] = 8'd168;
     end
 
     always @(posedge clk) begin

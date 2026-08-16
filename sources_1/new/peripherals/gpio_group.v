@@ -52,7 +52,7 @@ module gpio_group(
     genvar j;
     generate
         for (j = 0; j < 8; j = j + 1) begin
-            assign gpio_pin_bus[j] = (!gpio_mode[j][1])? gpio_output[j] : 8'bz;
+            assign gpio_pin_bus[j] = (gpio_mode[j] == OUT || gpio_mode[j] == TX)? gpio_output[j] : 8'bz;
         end       
     endgenerate
 

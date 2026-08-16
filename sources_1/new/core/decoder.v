@@ -93,6 +93,7 @@ module decoder(
             imm8 = 8'b0;
             frz = 1'b0;
             we = 1'b0;
+            iret   = 1'b0;
             flush1 = 1'b0;
             bus_addr_out = 16'b0;
             bus_data_out = 8'b0;
