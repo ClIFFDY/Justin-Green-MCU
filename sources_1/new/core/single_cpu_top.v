@@ -31,16 +31,16 @@ module single_cpu_top(
     );
 
     wire [1:0] stage;
-    wire [15:0] pc_addr, irq_addr;
-    wire [39:0] inst_raw;
+    wire [8:0] pc_addr, irq_addr;
+    wire [31:0] inst_raw1, inst_raw2;
     wire [1:0] inst_num;
     wire [5:0] op_temp, opcode;
     wire [23:0] rd12, rd12_data;
     wire [15:0] r12_data, ab_raw;
     wire [7:0] rd_temp, rd;
     wire [7:0] rd_data, imm8_temp, imm8;
-    wire [15:0] bytmov;
-    wire [15:0] ra_fo, ra_ba;
+    wire [7:0] bytmov;
+    wire [8:0] ra_fo, ra_ba;
     wire [7:0] result;
     wire [1:0] jmpflg, j_flag;
     wire we_temp1, we_temp2, we;
@@ -75,21 +75,28 @@ module single_cpu_top(
         .jmpflg(jmpflg)
         );
 
-    ins_rom u_ins_rom (
-        .clk(clk),
-        .rst(rst),
-        .flush1(flush1),
-        .stall(stall_bus),
-        .stage(stage),
+    ins_rom u_ins_rom(
         .addr(pc_addr),
-        .inst_raw(inst_raw),
+        //
+        .inst_raw(inst_raw1),
         .inst_num(inst_num)
+        );
+    
+    if_reg u_if_reg(
+        .clk(clk),
+        .stall(stall_bus),
+        .flush1(flush1),
+        .stage(stage),
+        .rst(rst),
+        .inst_raw_in(inst_raw1),
+        //
+        .inst_raw(inst_raw2)
     );
 
     decoder u_decoder(
         .rst(rst),
         .irq_flush(irq_flush),
-        .inst_raw(inst_raw),
+        .inst_raw(inst_raw2),
         .result_last_in(result),
         .rd_last1(rd_temp),
         .rd_last2(rd),

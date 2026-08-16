@@ -46,8 +46,8 @@ module ram_top(
     always @(*) begin
         sec = 4'b0;
         if (access) begin
-            sec[bus_addr_in[1:0]] = 1'b1;
-            bus_data_out = sec_out[bus_addr_in[1:0]];            
+            sec[bus_addr_in[13:12]] = 1'b1;
+            bus_data_out = sec_out[bus_addr_in[13:12]];            
         end 
         else begin
             sec = 4'b0;

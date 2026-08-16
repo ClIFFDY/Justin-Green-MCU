@@ -19,40 +19,21 @@
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-    // 指令由 tb 通过 $readmemh("ins_rom.hex") 层次引用载入，本模块不再内嵌程序。
 
 module ins_rom(
-    input wire clk, rst, flush1, stall,
-    input wire [1:0] stage,
-    input wire [15:0] addr,
-    output reg [39:0] inst_raw,
+    input wire [8:0] addr,
+    output wire [31:0] inst_raw,
     output wire [1:0] inst_num
     );
 
-    localparam NOP = 6'b01_0100;
-    integer i;
- 
-    (* ram_style = "distributed" *) reg [7:0] mem [0:4095];
-    initial begin
-        for (i = 0; i < 4096; i = i + 1) mem[i] = 8'b0;
-        $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);
-    end
+    // 指令由 tb 通过 $readmemh("ins_rom.hex") 层次引用载入，本模块不再内嵌程序。
+    // 但综合时 tb 不存在、ROM 是空数组 → opcode 恒 0（HALT）→ 整机被常量传播成死逻辑。
+    // 这里加 initial $readmemh：Vivado 综合支持用 $readmemh 初始化 ROM，
+    // 综合出的 ROM 会带真实程序内容，数据通路才有活动、逻辑才不被优化掉。
+    reg [7:0] mem [0:511];
+    initial $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);
 
     assign inst_num = mem[addr][1:0];
+    assign inst_raw = {mem[addr], mem[addr + 1], mem[addr + 2], mem[addr + 3]};
 
-    always @(posedge clk) begin
-        if (rst) inst_raw <= {NOP, 34'b0};
-        else if (stall) begin
-            inst_raw <= inst_raw;
-        end
-        else begin
-            if (stage == 2'b01 && !flush1 && !stall) begin
-                inst_raw <= {mem[addr], mem[addr + 1], mem[addr + 2], mem[addr + 3], mem[addr + 4]};
-            end
-            else begin
-                inst_raw <= {NOP, 34'b0};
-            end
-        end
-    end
 endmodule
-
