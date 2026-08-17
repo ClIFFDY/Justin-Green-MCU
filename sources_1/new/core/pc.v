@@ -21,15 +21,14 @@
 
 
 module pc(
-    input wire clk, rst, frz, stall, irq_flag,
+    input wire clk, rst, frz, stall_bus, cstall, irq_flag,
     input wire [1:0] stage,
     input wire [1:0] j_flag,
-    input wire [1:0] inst_num,
     input wire [5:0] op_raw,
-    input wire [7:0] bytmov,
-    input wire [8:0] ra_in, irq_addr,
-    output reg [8:0] pc_addr,
-    output reg [8:0] ra,
+    input wire [15:0] bytmov,
+    input wire [11:0] ra_in, irq_addr,
+    output reg [11:0] pc_addr,
+    output reg [11:0] ra,
     output reg [1:0] jmpflg
     );
 
@@ -58,12 +57,12 @@ module pc(
             ra <= 10'b0;
             jmpflg <= 2'b0;
         end
-        else if (stage == EXE && !stall) begin
+        else if (stage == EXE && !stall_bus) begin
             jmpflg <= 2'b0;
             case (op_raw)
             LJAL, RJAL: begin 
-                if (bytmov != 10'b0 && !j_flag[1]) begin
-                    ra <= pc_addr;
+                if (bytmov != 16'b0 && !j_flag[1]) begin
+                    ra <= pc_addr - 1;
                     jmpflg[1] <= 1'b1;
                     case (op_raw[0])
                     1'b0: pc_addr <= pc_addr - bytmov;
@@ -71,21 +70,21 @@ module pc(
                     endcase                
                 end
                 else begin
-                    if(!frz) begin
-                        pc_addr <= pc_addr + inst_num + 1;
+                    if(!frz && !cstall) begin
+                        pc_addr <= pc_addr + 1;
                     end
                 end
             end
             LBEQ, RBEQ, LBNE, RBNE, LBLTU, RBLTU: begin
-                if (bytmov != 8'b0) begin
+                if (bytmov != 16'b0) begin
                     case (op_raw[0])
                     1'b0: pc_addr <= pc_addr - bytmov;
                     1'b1: pc_addr <= pc_addr + bytmov;
                     endcase                
                 end
                 else begin
-                    if(!frz) begin
-                        pc_addr <= pc_addr + inst_num + 1;
+                    if(!frz && !cstall) begin
+                        pc_addr <= pc_addr + 1;
                     end
                 end                
             end
@@ -95,12 +94,12 @@ module pc(
                     pc_addr <= ra_in;
                 end
                 else begin 
-                    if (!frz) pc_addr <= pc_addr + inst_num + 1;
+                    if (!frz && !cstall) pc_addr <= pc_addr + 1;
                 end
             end
             default: begin
-                if(!frz) begin
-                    pc_addr <= pc_addr + inst_num + 1;
+                if(!frz && !cstall) begin
+                    pc_addr <= pc_addr + 1;
                 end
             end
             endcase

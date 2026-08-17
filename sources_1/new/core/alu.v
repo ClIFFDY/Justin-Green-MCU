@@ -45,7 +45,7 @@ module alu(
     SRLI = 6'b01_0000,
     SLTU = 6'b01_0001,
     SLTIU = 6'b01_0010,
-    LBU =  6'b01_1100;
+    LBU  = 6'b01_1100;
 
     wire [7:0] a, b;
 

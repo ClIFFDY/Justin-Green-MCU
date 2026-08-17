@@ -21,19 +21,26 @@
 
 
 module ins_rom(
-    input wire [8:0] addr,
-    output wire [31:0] inst_raw,
-    output wire [1:0] inst_num
+    input wire clk, rst, flush1,
+    input wire [11:0] addr,
+    output reg [31:0] inst_raw
     );
 
     // 指令由 tb 通过 $readmemh("ins_rom.hex") 层次引用载入，本模块不再内嵌程序。
-    // 但综合时 tb 不存在、ROM 是空数组 → opcode 恒 0（HALT）→ 整机被常量传播成死逻辑。
-    // 这里加 initial $readmemh：Vivado 综合支持用 $readmemh 初始化 ROM，
-    // 综合出的 ROM 会带真实程序内容，数据通路才有活动、逻辑才不被优化掉。
-    reg [7:0] mem [0:511];
-    initial $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);
 
-    assign inst_num = mem[addr][1:0];
-    assign inst_raw = {mem[addr], mem[addr + 1], mem[addr + 2], mem[addr + 3]};
+    (* ram_style = "block" *) reg [31:0] mem [0:4095];
+    
+    initial 
+        $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);
 
+    localparam NOP = 6'b01_0100;
+
+    always @(posedge clk) begin
+        if (rst || flush1) begin
+            inst_raw <= {NOP, 26'b0};
+        end
+        else begin
+            inst_raw <=  mem[addr];   
+        end
+    end
 endmodule

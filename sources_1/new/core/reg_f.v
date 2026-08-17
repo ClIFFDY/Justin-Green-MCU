@@ -26,18 +26,18 @@ module reg_f(
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
     input wire [7:0] rd,
-    input wire [8:0] ra_in,
+    input wire [11:0] ra_in,
     input wire [7:0] rd_data,
     output wire [1:0] j_flag,
-    output wire [8:0] ra,
+    output reg [11:0] ra,
     output wire [23:0] rd12_data
     );
 
     reg [7:0] regs [0:255];
-    reg [8:0] rad [0:255];
+    (* ram_style = "block" *) reg [15:0] rad [0:255];
 
     integer i;
-    reg [8:0] j;
+    reg [7:0] j;
 
     initial begin
         for (i = 0; i < 64; i = i + 1) regs[i] = 8'b0;
@@ -53,22 +53,18 @@ module reg_f(
     assign rd12_data[15:8] = (r1 == 8'b0) ? 0 : regs[r1];
     assign rd12_data[7:0] = (r2 == 8'b0) ? 0 : regs[r2];
 
-    assign ra = rad[j - 1];
     assign j_flag[1] = (j == 8'd255) ? 1'b1 : 1'b0;
     assign j_flag[0] = (j == 8'b0) ? 1'b1 : 1'b0;
 
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin 
-            for (i = 0; i < 256; i = i + 1) begin 
-                regs[i] <= 8'b0;
-                rad[i] <= 8'b0;
-            end
             j <= 8'b0;
+            ra <= 12'b0;
         end
         else begin
+            ra <= rad[j - 1];
             regs[255] <= {7'b0, tx_busy};
-
             if (we && rd != 0) regs[rd] <= rd_data;
 
             if (jmpflg[1] && ra_in != 0) begin

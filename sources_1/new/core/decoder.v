@@ -31,7 +31,7 @@ module decoder(
     output reg [15:0] r12_data,
     output wire [5:0] opcode,
     output reg [7:0] imm8,
-    output reg [7:0] bytmov,
+    output reg [15:0] bytmov,
     output reg frz, we, flush1, iret,
 
     output reg [15:0] bus_addr_out,
@@ -70,11 +70,17 @@ module decoder(
     RBLTU = 6'b01_1011,
     LBU   = 6'b01_1100,
     SB    = 6'b01_1101;
+    // CADDI  = 8'b00_0001_11,
+    // CADD   = 8'b00_0010_11,
+    // CSUBI  = 8'b00_0011_11,
+    // CSUB   = 8'b00_0100_11,
+    // CNOP   = 8'b01_0100_01,
+    // CIRET  = 8'b01_0101_01,
     
     assign opcode = inst_raw[31:26];
     wire [7:0] r_bus = inst_raw[23:16];
-    wire [7:0] r1 = inst_raw[15:8];
-    wire [7:0] r2 = inst_raw[7:0];
+    wire [7:0] r1 = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[7:4] : inst_raw[15:8];
+    wire [7:0] r2 = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[3:0] : inst_raw[7:0];
 
     wire [7:0] bus_data_imm = (r_bus == rd_last2)? rd_data : rd12_data[23:16];
     wire [7:0] r1_data_imm = (r1 == rd_last2)? rd_data : rd12_data[15:8];
@@ -87,7 +93,7 @@ module decoder(
 
     always @(*) begin
         if (rst) begin
-            bytmov = 8'b0;
+            bytmov = 16'b0;
             addr_dr12 = 24'b0;
             r12_data = 16'b0;
             imm8 = 8'b0;
@@ -100,7 +106,7 @@ module decoder(
             bus_sig_out = 4'b0;
         end
         else begin
-            bytmov = 8'b0;
+            bytmov = 16'b0;
             addr_dr12 = 24'b0;
             r12_data = {r1_data_final, r2_data_final};
             imm8   = 8'b0;
@@ -124,29 +130,29 @@ module decoder(
                 bus_sig_out[0] = 1'b1;
             end
             LJAL, RJAL: begin
-                bytmov = inst_raw[23:16];
+                bytmov = inst_raw[23:8];
                 if (!j_flag[1]) begin
                     flush1 = 1'b1;
                 end
             end
             LBEQ, RBEQ: begin
-                addr_dr12[15:0] = inst_raw[15:0];
+                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final == r2_data_final) begin
-                    bytmov = inst_raw[23:16];
+                    bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
                 end             
             end
             LBNE, RBNE: begin
-                addr_dr12[15:0] = inst_raw[15:0];
+                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final != r2_data_final) begin
-                    bytmov = inst_raw[23:16];
+                    bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
                 end
             end
             LBLTU, RBLTU: begin
-                addr_dr12[15:0] = inst_raw[15:0];
+                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final < r2_data_final) begin
-                    bytmov = inst_raw[23:16];
+                    bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
                 end
             end

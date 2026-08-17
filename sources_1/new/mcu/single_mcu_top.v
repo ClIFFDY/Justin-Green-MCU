@@ -64,8 +64,8 @@ module single_mcu_top(
 
     always @(*) begin
         irq_bus = 6'b0;
-        if (rx_irq) irq_bus[5:3] = 3'b001;
         if (timer_irq) irq_bus[5:3] = 3'b010;
+        if (rx_irq) irq_bus[5:3] = 3'b001;
         if (gpio_irq != 2'b0) irq_bus = {4'b010_0, gpio_irq};
     end
 
