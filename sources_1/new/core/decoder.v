@@ -69,7 +69,8 @@ module decoder(
     LBLTU = 6'b01_1010,
     RBLTU = 6'b01_1011,
     LBU   = 6'b01_1100,
-    SB    = 6'b01_1101;
+    SB    = 6'b01_1101,
+    SBI   = 6'b01_1110;
     // CADDI  = 8'b00_0001_11,
     // CADD   = 8'b00_0010_11,
     // CSUBI  = 8'b00_0011_11,
@@ -126,6 +127,11 @@ module decoder(
             end
             SB: begin
                 addr_dr12[23:16] = inst_raw[23:16];
+                bus_addr_out = inst_raw[15:0];
+                bus_sig_out[0] = 1'b1;
+            end
+            SBI: begin
+                bus_data_out = inst_raw[23:16];
                 bus_addr_out = inst_raw[15:0];
                 bus_sig_out[0] = 1'b1;
             end

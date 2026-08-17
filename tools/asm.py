@@ -42,12 +42,13 @@ OPCODE = {
     'SLLI': 0x0F, 'SRLI': 0x10, 'SLTU': 0x11, 'SLTIU': 0x12, 'JALR': 0x13,
     'NOP': 0x14, 'IRET': 0x15, 'LBEQ': 0x16, 'RBEQ': 0x17, 'LBNE': 0x18,
     'RBNE': 0x19, 'LBLTU': 0x1A, 'RBLTU': 0x1B, 'LBU': 0x1C, 'SB': 0x1D,
+    'SBI': 0x1E,
     # 'MOV' 无独立 opcode：RTL 已放弃 MOV，汇编器把 `MOV rd, rs` 翻译为 ADDI rd,rs,0（见 parse_lines）
 }
 
 # (格式, 原长字节数)
 # 格式：none=无操作数；jalr=返回；jump=绝对目标→bytmov；branch=r1,r2,绝对目标→bytmov；
-#       alu_r=rd,rs1,rs2；alu_i=rd,rs1,imm8；lb=rd,addr16；sb=rs,addr16
+#       alu_r=rd,rs1,rs2；alu_i=rd,rs1,imm8；lb=rd,addr16；sb=rs,addr16；sbi=imm8,addr16
 INS = {
     # 控制
     'HALT': ('none', 1),
@@ -75,6 +76,7 @@ INS = {
     # 访存
     'LBU': ('lb', 4),
     'SB':  ('sb', 4),
+    'SBI': ('sbi', 4),
 }
 
 # flag=01 无操作数压缩（对应 decoder 注释 CNOP/CIRET/CMOV 里的前两个；MOV 按 ALU 类 flag=11 处理）
@@ -84,7 +86,7 @@ COMPRESSIBLE_01 = ('NOP', 'IRET')
 ROM_TOP = 0xFFF  # PC 12 位词地址，0x000-0xFFF（4096 词）
 
 OPERAND_N = {'none': 0, 'jalr': 0, 'jump': 1, 'branch': 3,
-             'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2}
+             'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2}
 LABEL_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
@@ -266,6 +268,15 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         if not (0 <= a <= 0xFFFF):
             raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
         return [b0, rs, (a >> 8) & 0xFF, a & 0xFF]
+    if fmt == 'sbi':
+        # SBI imm8, addr16：byte1=立即数，byte2:3=16 位地址（与 SB 布局一致，仅源改为立即数）
+        imm = parse_int(ops[0], symbols)
+        a = parse_int(ops[1], symbols)
+        if not (0 <= imm <= 0xFF):
+            raise AsmError(f'{m} 立即数越界: {ops[0]}（须 0-255）')
+        if not (0 <= a <= 0xFFFF):
+            raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
+        return [b0, imm, (a >> 8) & 0xFF, a & 0xFF]
     raise AsmError(f'未知格式 {fmt}')
 
 

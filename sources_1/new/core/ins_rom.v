@@ -21,7 +21,7 @@
 
 
 module ins_rom(
-    input wire clk, rst, flush1,
+    input wire clk, rst, flush1, stall,
     input wire [11:0] addr,
     output reg [31:0] inst_raw
     );
@@ -39,8 +39,11 @@ module ins_rom(
         if (rst || flush1) begin
             inst_raw <= {NOP, 26'b0};
         end
+        else if (stall) begin
+            inst_raw <= inst_raw;     
+        end
         else begin
-            inst_raw <=  mem[addr];   
+            inst_raw <=  mem[addr];
         end
     end
 endmodule

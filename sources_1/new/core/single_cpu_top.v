@@ -79,6 +79,7 @@ module single_cpu_top(
         .rst(rst),
         .addr(pc_addr),
         .flush1(flush1),
+        .stall(stall_bus),
         //
         .inst_raw(inst_raw_zip)
         );
@@ -190,8 +191,13 @@ module single_cpu_top(
         .irq_addr_in(irq_bus),
         .pc_addr_in(pc_addr),
         .bytmov(bytmov),
+        //
         .irq_addr(irq_addr),
-        .irq_flush(irq_flush)
+        .irq_flush(irq_flush),
+        //
+        .bus_addr_in(bus_addr_out[15:12]),
+        .bus_data_in(bus_data_out),
+        .bus_sig_in(bus_sig_out[0])
     );
 endmodule
 
