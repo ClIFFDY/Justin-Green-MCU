@@ -24,4 +24,5 @@
 - FPGA芯片: Xilinx™ Zynq-7000 xc7z010clg400-1  
 - 开发板: Microphase™ Z-7 Lite Motherboard  
 - 若使用，请在RTL文件中重定向ins_rom.hex的加载路径
+> 注: 所以非release内容都是 alpha version，缺乏充分debug
 
