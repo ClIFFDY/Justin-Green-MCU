@@ -44,25 +44,27 @@ module uart_top(
     end
 
     always @(posedge clk) begin
-        if (rst) begin
-            wr_ptr <= 6'd0;
-            rd_ptr <= 6'd0;
-            rx_irq <= 1'b0;
+    if (rst) begin
+        wr_ptr <= 6'd0;
+        rd_ptr <= 6'd0;
+        rx_irq <= 1'b0;
+        for (i = 0; i < 64; i = i + 1) rx_buf[i] <= 8'b0;
+    end
+    else begin
+        rx_irq <= 1'b0;
+        if (rx_done && wr_ptr + 1'b1 != rd_ptr) begin
+            rx_buf[wr_ptr] <= rx_data;
+            wr_ptr <= wr_ptr + 1'b1;
+            rx_irq <= 1'b1;
         end
-        else begin
-            if (rx_done && wr_ptr + 1'b1 != rd_ptr) begin
-                rx_buf[wr_ptr] <= rx_data;
-                wr_ptr <= wr_ptr + 1'b1;
-                rx_irq <= 1'b1;
-            end
-            if (rx_read && rd_ptr != wr_ptr) begin
-                rd_ptr <= rd_ptr + 1;
-                if (rd_ptr + 1'b1 == wr_ptr && !(rx_done && wr_ptr + 1'b1 != rd_ptr)) begin 
-                    rx_irq <= 1'b0;
-                end
-            end
+        if (rx_read && rd_ptr != wr_ptr) begin
+            rd_ptr <= rd_ptr + 1'b1;
+        end
+        if (wr_ptr != rd_ptr) begin
+            rx_irq <= 1'b1;
         end
     end
+end
 
     always @(*) begin
         tx_en = 1'b0;

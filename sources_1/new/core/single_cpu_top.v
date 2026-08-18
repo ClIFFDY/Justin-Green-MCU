@@ -41,9 +41,9 @@ module single_cpu_top(
     wire [15:0] bytmov;
     wire [11:0] ra_fo, ra_ba;
     wire [7:0] result;
-    wire [1:0] jmpflg, j_flag;
+    wire [1:0] jmpflg, j_flag, irq_en;
     wire we_temp1, we_temp2, we;
-    wire frz, flush1, flush2, iret, irq_flush, cstall;;
+    wire frz, flush1, flush2, iret, irq_flush, cstall;
 
     wire [7:0] bus_data_temp;
 
@@ -79,6 +79,7 @@ module single_cpu_top(
         .rst(rst),
         .addr(pc_addr),
         .flush1(flush1),
+        .flush_irq(irq_flush),
         .stall(stall_bus),
         //
         .inst_raw(inst_raw_zip)
@@ -88,12 +89,14 @@ module single_cpu_top(
         .clk(clk),
         .rst(rst),
         .flush1(flush1),
+        .flush_irq(irq_flush),
         .stall(stall_bus),
         .stage(stage),
         .inst_raw_in(inst_raw_zip),
         //
         .inst_raw(inst_raw),
-        .cstall(cstall)
+        .cstall(cstall),
+        .irq_en(irq_en[0])
     );
 
     decoder u_decoder(
@@ -116,6 +119,7 @@ module single_cpu_top(
         .we(we_temp1),
         .flush1(flush1),
         .iret(iret),
+        .irq_en(irq_en[1]),
         //
         .bus_addr_out(bus_addr_out),
         .bus_data_out(bus_data_out),
@@ -190,7 +194,8 @@ module single_cpu_top(
         .rst(rst),
         .irq_addr_in(irq_bus),
         .pc_addr_in(pc_addr),
-        .bytmov(bytmov),
+        .irq_en(irq_en),
+        .stall(stall_bus),
         //
         .irq_addr(irq_addr),
         .irq_flush(irq_flush),

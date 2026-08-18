@@ -32,7 +32,7 @@ module decoder(
     output wire [5:0] opcode,
     output reg [7:0] imm8,
     output reg [15:0] bytmov,
-    output reg frz, we, flush1, iret,
+    output reg frz, we, flush1, iret, irq_en,
 
     output reg [15:0] bus_addr_out,
     output reg [7:0] bus_data_out,
@@ -94,6 +94,7 @@ module decoder(
 
     always @(*) begin
         if (rst) begin
+            irq_en = 1'b1;
             bytmov = 16'b0;
             addr_dr12 = 24'b0;
             r12_data = 16'b0;
@@ -107,6 +108,7 @@ module decoder(
             bus_sig_out = 4'b0;
         end
         else begin
+            irq_en = 1'b1;
             bytmov = 16'b0;
             addr_dr12 = 24'b0;
             r12_data = {r1_data_final, r2_data_final};
@@ -114,7 +116,7 @@ module decoder(
             frz    = 1'b0;
             we     = 1'b0;
             iret   = 1'b0;
-            flush1 = irq_flush;
+            flush1 = 1'b0;
             bus_addr_out = 16'b0;
             bus_data_out = bus_data_final;
             bus_sig_out = 4'b0;
@@ -136,12 +138,14 @@ module decoder(
                 bus_sig_out[0] = 1'b1;
             end
             LJAL, RJAL: begin
+                irq_en = 1'b0;
                 bytmov = inst_raw[23:8];
                 if (!j_flag[1]) begin
                     flush1 = 1'b1;
                 end
             end
             LBEQ, RBEQ: begin
+                irq_en = 1'b0;
                 addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final == r2_data_final) begin
                     bytmov = inst_raw[23:8];
@@ -149,6 +153,7 @@ module decoder(
                 end             
             end
             LBNE, RBNE: begin
+                irq_en = 1'b0;
                 addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final != r2_data_final) begin
                     bytmov = inst_raw[23:8];
@@ -156,6 +161,7 @@ module decoder(
                 end
             end
             LBLTU, RBLTU: begin
+                irq_en = 1'b0;
                 addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final < r2_data_final) begin
                     bytmov = inst_raw[23:8];
@@ -172,6 +178,7 @@ module decoder(
                 we = 1'b1;
             end
             JALR: begin
+                irq_en = 1'b0;
                 if (!j_flag[0]) begin 
                     bytmov = 8'd1;
                     flush1 = 1'b1;

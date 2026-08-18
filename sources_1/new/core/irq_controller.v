@@ -21,10 +21,10 @@
 
 
 module irq_controller(
-    input wire clk, rst, iret, 
+    input wire clk, rst, iret, stall,
     input wire [5:0] irq_addr_in,
     input wire [11:0] pc_addr_in, 
-    input wire [15:0] bytmov,
+    input wire [1:0] irq_en,
     output reg [11:0] irq_addr,
     output reg irq_flush,
 
@@ -39,11 +39,11 @@ module irq_controller(
         GPIO1 = 2,
         GPIO2 = 3;
 
-    localparam [1:0] 
-        IDLE = 2'b00,
-        IRQ = 2'b01,
-        OPR = 2'b10,
-        BACK = 2'b11;
+    localparam [3:0] 
+        IDLE = 3'b000,
+        IRQ = 3'b001,
+        OPR = 3'b010,
+        WAIT = 3'b011;
 
     localparam [3:0]
     IRQ_W = 4'b0101;
@@ -66,45 +66,35 @@ module irq_controller(
     end
 
     always @(posedge clk) begin
-        irq_flush <= 1'b0;
-        irq_addr <= 12'b0;
         if (rst) begin
             stage <= IDLE;
             prio <= 4'b0;
             j <= 1'b0;
-            irq_flush <= 1'b0;
-            irq_addr <= 12'b0;
         end
         else begin
             case (stage)
             IDLE: begin
-                if (irq_addr_in != 12'b0 && bytmov == 16'b0) begin 
+                if (irq_addr_in != 12'b0 && irq_en == 2'b11 && !stall) begin 
                     stage <= IRQ;
                     prio <= irq_addr_in[5:3];
-                    irq_flush <= 1'b1;
-                    pc_addr[j] <= pc_addr_in;
+                    pc_addr[j] <= pc_addr_in - 1;
                     j <= j + 1;
-                    irq_addr <= irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
                 end
             end
             IRQ: begin
                 if (iret == 1'b1) begin
-                    stage <= BACK;
-                    irq_flush <= 1'b1;
+                    stage <= WAIT;
                     if (j >= 1'b1) begin 
                         j <= j - 1;
-                        irq_addr <= pc_addr[j - 1]; 
                     end
                 end
                 else begin
-                    if (irq_addr_in != 12'b0 && bytmov == 16'b0 
+                    if (irq_addr_in != 12'b0 && irq_en == 2'b11  && !stall 
                         && irq_addr_in[5:3] > prio && j <= 4'd15) begin 
                         stage <= IRQ;
                         prio <= irq_addr_in[5:3];
-                        irq_flush <= 1'b1;
-                        pc_addr[j] <= pc_addr_in;
+                        pc_addr[j] <= pc_addr_in - 1;
                         j <= j + 1;
-                        irq_addr <= irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
                     end
                     else if (bus_sig_in && bus_addr_in == IRQ_W) begin
                         pc_addr[0][11:8] <= bus_data_in;
@@ -116,11 +106,45 @@ module irq_controller(
                 pc_addr[0][7:0] <= bus_data_in;
                 stage <= IRQ;
             end
-            BACK: begin
-                if (j == 1'b0) stage <= IDLE;
+            WAIT: begin
+                if (j == 0) stage <= IDLE;
                 else stage <= IRQ;
             end
             endcase
         end
     end
-endmodule
+
+    always @(*) begin
+        if (rst) begin 
+            irq_flush = 1'b0;
+            irq_addr = 12'b0;
+        end
+        else begin
+            irq_flush = 1'b0;
+            irq_addr = 12'b0;
+            case (stage)
+            IDLE: begin
+                if (irq_addr_in != 12'b0 && irq_en == 2'b11 && !stall) begin 
+                    irq_flush = 1'b1;
+                    irq_addr = irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
+                end
+            end
+            IRQ: begin
+                if (iret == 1'b1) begin
+                    if (j >= 1'b1) begin 
+                        irq_addr = pc_addr[j - 1];
+                    end
+                    irq_flush = 1'b1;
+                end
+                else begin
+                    if (irq_addr_in != 12'b0 && irq_en == 2'b11 && !stall
+                        && irq_addr_in[5:3] > prio && j <= 4'd15) begin 
+                        irq_addr = irq_vex[irq_addr_in[5:3] + irq_addr_in[2:0] - 1];
+                        irq_flush = 1'b1;
+                    end
+                end
+            end
+            endcase
+        end
+    end
+endmodule 

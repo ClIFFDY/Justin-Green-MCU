@@ -21,7 +21,7 @@
 
 
 module ins_rom(
-    input wire clk, rst, flush1, stall,
+    input wire clk, rst, flush1, flush_irq, stall,
     input wire [11:0] addr,
     output reg [31:0] inst_raw
     );
@@ -36,7 +36,7 @@ module ins_rom(
     localparam NOP = 6'b01_0100;
 
     always @(posedge clk) begin
-        if (rst || flush1) begin
+        if (rst || flush1 || flush_irq) begin
             inst_raw <= {NOP, 26'b0};
         end
         else if (stall) begin

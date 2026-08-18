@@ -21,11 +21,12 @@
 
 
 module if_reg(
-    input wire clk, rst, flush1, stall,
+    input wire clk, rst, flush1, flush_irq, stall,
     input wire [1:0] stage,
     input wire [31:0] inst_raw_in,
     output reg [31:0] inst_raw,
-    output reg cstall
+    output reg cstall,
+    output reg irq_en
     );
 
     reg cstalled;
@@ -37,22 +38,26 @@ module if_reg(
             inst_raw <= {NOP, 26'b0};
             cstalled <= 1'b0;
             inst_raw_l <= 16'b0;
+            irq_en <= 1'b1;
         end
         else if (stall) begin
             inst_raw <= inst_raw;
         end
         else begin
-            if (stage == 2'b01 && !flush1 && !stall) begin
+            if (stage == 2'b01 && !flush1 && !flush_irq && !stall) begin
+                irq_en <= 1'b1;
                 inst_raw_l <= 16'b0;
                 if (cstall) begin
                     cstalled <= 1'b1;
                     inst_raw_l <= inst_raw_in[15:0];
+                    irq_en <= 1'b0;
                     if (inst_raw_in[25]) 
                         inst_raw = {inst_raw_in[31:24], 6'b0, inst_raw_in[23:22],
                                     5'b0, inst_raw_in[21:19], 5'b0, inst_raw_in[18:16]};
                     else inst_raw = {inst_raw_in[31:16], 16'b0};
                 end
                 else if (cstalled) begin
+                    irq_en <= 1'b1;
                     cstalled <= 1'b0;
                     if (inst_raw_l[9]) 
                         inst_raw = {inst_raw_l[15:8], 6'b0, inst_raw_l[7:6], 5'b0,
@@ -61,9 +66,11 @@ module if_reg(
                 end
                 else begin
                     inst_raw <= inst_raw_in;
+                    irq_en <= 1'b1;
                 end
             end
             else begin
+                irq_en <= 1'b0;
                 inst_raw <= {NOP, 26'b0};
             end          
         end

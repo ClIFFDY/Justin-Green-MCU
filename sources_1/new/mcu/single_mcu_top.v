@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
+    
 module single_mcu_top(
     input wire rst_n,
     input wire clk,
@@ -67,7 +67,7 @@ module single_mcu_top(
         irq_bus = 6'b0;
         if (timer_irq) irq_bus[5:3] = 3'b001;
         if (rx_irq) irq_bus[5:3] = 3'b010;
-        if (gpio_irq != 2'b0) irq_bus = {4'b010_0, gpio_irq};
+        if (gpio_irq != 2'b0) irq_bus = {4'b010_0, gpio_irq} + 1;
     end
 
     rst_buf u_rst_buf(

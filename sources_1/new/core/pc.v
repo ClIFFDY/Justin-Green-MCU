@@ -51,7 +51,7 @@ module pc(
     IRET  = 6'b01_0101;
 
     
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin 
             pc_addr <= 10'b0;
             ra <= 10'b0;
