@@ -140,6 +140,30 @@ def parse_reg(tok, symbols):
     return v
 
 
+def strip_comment(line):
+    """去掉 # 和 // 注释；引号内的 # 和 // 是字符常量，不处理。"""
+    i, n = 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in "'\"":
+            j = i + 1
+            while j < n:
+                if line[j] == '\\':
+                    j += 2
+                    continue
+                if line[j] == c:
+                    break
+                j += 1
+            i = j + 1
+            continue
+        if c == '#':
+            return line[:i]
+        if c == '/' and i + 1 < n and line[i + 1] == '/':
+            return line[:i]
+        i += 1
+    return line
+
+
 def split_operands(s):
     """按逗号/空白切分操作数；引号内的空格/逗号不切（支持 ' ' 这类字符常量）。"""
     toks = []
@@ -194,7 +218,12 @@ def parse_str(operands):
                 except ValueError:
                     pass
             raise AsmError(f'.str 未知转义: \\{n}')
-        out.append(ord(c)); i += 1
+        o = ord(c)
+        if o < 128:
+            out.append(o)                # ASCII 单字节
+        else:
+            out += c.encode('utf-8')     # 非 ASCII（中文等）→ UTF-8 多字节
+        i += 1
     return bytes(out)
 
 
@@ -202,6 +231,11 @@ def parse_str(operands):
 # 自动修正计数（main 里汇总打印）
 AUTO_NOP_COUNT = 0
 AUTO_FLIP_COUNT = 0
+# .puts 展开用唯一标签计数器
+_PUTS_CTR = 0
+# 自动 jpad 计数 + 标签计数器
+AUTO_JPAD_COUNT = 0
+_JPAD_CTR = 0
 
 
 def _flip_side(m):
@@ -307,11 +341,12 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
 
 # ---------------------------------------------------------------- 解析
 def parse_lines(src_lines):
+    global _PUTS_CTR
     symbols = {}
     items = []
     errs = []
     for ln, raw in enumerate(src_lines, 1):
-        line = raw.split('#', 1)[0].split('//', 1)[0].strip()
+        line = strip_comment(raw).strip()
         if not line:
             continue
         label = None
@@ -353,6 +388,27 @@ def parse_lines(src_lines):
             if mnem == '.STR':
                 bs = list(parse_str(operands))
                 items.append({'kind': 'data', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
+                continue
+            if mnem == '.PUTS':
+                # 伪指令 .puts "text" → 展开为逐字符打印：
+                #   ADDI r7, r0, <c>  /  LBNE r0,r0,__putsN_i  /  __putsN_i:  /  LJAL putc
+                # 每字符 3 词（char 载入 + __jpad 垫层 + 后向调用 putc），文本在 ROM 不可 LBU 读回，
+                # 只能内联逐字符。默认目标 putc（.asm 里定义的标签），可用第二个参数换。
+                bs = list(parse_str(operands))
+                ops = split_operands(operands)
+                tgt = 'putc'
+                if len(ops) == 2:
+                    tgt = ops[1]
+                for i, b in enumerate(bs):
+                    lab = f'__puts{_PUTS_CTR}_{i}'
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r7', 'r0', str(b)], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'LBNE', 'fmt': 'branch', 'nbytes': 4,
+                                  'ops': ['r0', 'r0', lab], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'label', 'name': lab, 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'LJAL', 'fmt': 'jump', 'nbytes': 3,
+                                  'ops': [tgt], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                _PUTS_CTR += 1
                 continue
             if mnem == 'MOV':
                 # 伪指令：MOV rd, rs = rd 复制 rs。RTL 已放弃 MOV，翻译为 ADDI rd, rs, 0（语义等价，
@@ -486,12 +542,77 @@ def is_label(tok):
     return LABEL_RE.match(tok) is not None
 
 
+# ---- 自动 __jpad 垫层（IRET W+2 语义硬性约定）----
+# 中断只在顺序指令（授权点，irq_en==11）派发；派发时 W+1 被跳过。
+# 若控制转移在 W+1 槽位会被吞 → 每条【顺序指令后的控制转移】前必须垫
+# `LBNE r0,r0,<lab>` + `<lab>:`（自跳 1 词、永不取）。汇编器自动补：
+#   · 控制转移 = 9 条（LJAL/RJAL/JALR/LBEQ/RBEQ/LBNE/RBNE/LBLTU/RBLTU）
+#   · 前一条真实指令是顺序指令 → 插入垫层；是控制转移（含 IRET/HALT）→ 天然安全不插
+#   · 源里已手写垫层（LBNE r0,r0,<lab> 紧跟 <lab>:）→ 跳过（对既有程序字节兼容）
+# 不 pad IRET/HALT（前者是返回、后者停机，均无授权点跳过问题）。
+
+CTRL_FMTS = ('jump', 'branch', 'jalr')
+
+
+def _is_ctrl_ins(it):
+    return (it['kind'] == 'ins'
+            and (it['fmt'] in CTRL_FMTS or it['mnem'] in ('IRET', 'HALT')))
+
+
+def _is_jpad_pair(items, i):
+    """items[i] 是否为源里手写的 jpad：LBNE r0,r0,<lab> 紧跟 <lab> 标签。"""
+    return (i + 1 < len(items)
+            and items[i]['kind'] == 'ins' and items[i]['mnem'] == 'LBNE'
+            and len(items[i]['ops']) == 3 and items[i]['ops'][0] == 'r0'
+            and items[i]['ops'][1] == 'r0'
+            and items[i + 1]['kind'] == 'label'
+            and items[i + 1]['name'] == items[i]['ops'][2])
+
+
+def auto_jpad(items):
+    """按序扫描，给需要垫层的控制转移前插 jpad。返回新 items。
+    控制转移本身是分支，若前一条真实指令是顺序指令（授权点）则需垫层。
+    源里手写的 jpad（LBNE r0,r0,<lab>+<lab>:）是已完成的垫层：不重复垫、
+    且其后紧邻的控制转移视为已有垫层。"""
+    global AUTO_JPAD_COUNT, _JPAD_CTR
+    out = []
+    prev_ctrl = True            # 程序首指令前无授权点，视为安全
+    i = 0
+    n = len(items)
+    while i < n:
+        it = items[i]
+        if _is_jpad_pair(items, i):
+            # 源里手写 jpad：原样搬运（不垫它自己），并把下一个真实指令视为安全
+            out.append(it)
+            out.append(items[i + 1])
+            prev_ctrl = True
+            i += 2
+            continue
+        if it['kind'] == 'ins' and it['fmt'] in CTRL_FMTS and not prev_ctrl:
+            lab = f'__jpadAUTO{_JPAD_CTR}'
+            _JPAD_CTR += 1
+            out.append({'kind': 'ins', 'mnem': 'LBNE', 'fmt': 'branch', 'nbytes': 4,
+                        'ops': ['r0', 'r0', lab], 'cbytes': None,
+                        'src': '// 自动 jpad（IRET W+2 垫层）', 'ln': 0})
+            out.append({'kind': 'label', 'name': lab, 'ln': 0})
+            AUTO_JPAD_COUNT += 1
+        out.append(it)
+        if it['kind'] == 'ins':
+            prev_ctrl = _is_ctrl_ins(it)
+        elif it['kind'] == 'data':
+            prev_ctrl = False   # 数据词视作顺序，保守补垫
+        i += 1
+    return out
+
+
 # ---------------------------------------------------------------- 汇编
 def assemble(src_lines):
     global AUTO_NOP_COUNT
     items, symbols = parse_lines(src_lines)
     if not items:
         raise AsmError('程序为空')
+    # 自动 __jpad 垫层（IRET W+2）：顺序指令后的控制转移自动补垫，既有手写垫层跳过
+    items = auto_jpad(items)
     # 死区自动 NOP：前向分支目标落在 [W+1, W+2]（bytmov 0/-1 不可编码）时在目标
     # label 前插 NOP 拉开。固定点迭代：插 NOP 只会增大前向距离，必然收敛。
     while True:
@@ -615,9 +736,10 @@ def main():
         write_hex(words, srcs, max_word, fh)
 
     print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0xFFF -> {out_path}')
-    if AUTO_NOP_COUNT or AUTO_FLIP_COUNT:
+    if AUTO_NOP_COUNT or AUTO_FLIP_COUNT or AUTO_JPAD_COUNT:
         print(f'自动修正: 补 NOP {AUTO_NOP_COUNT} 个（bytmov 死区），'
-              f'方向翻转 {AUTO_FLIP_COUNT} 处（L/R 前缀自动纠正）')
+              f'方向翻转 {AUTO_FLIP_COUNT} 处（L/R 前缀自动纠正），'
+              f'补 jpad {AUTO_JPAD_COUNT} 个（IRET W+2 垫层）')
     print('---- listing（词地址 | 32bit 词 | 源）----')
     for w in range(0, max_word + 1):
         if w in srcs:

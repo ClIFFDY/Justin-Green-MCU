@@ -1,21 +1,23 @@
 # ============================================================
-# rtos_shell.asm — 抢占式 RTOS + 命令行 shell（基于 rtos_preempt v1.3）
+# rtos_shell.asm — 抢占式 RTOS + 菜单式 shell（基于 rtos_preempt v1.3）
 #   内核: 时间片轮转 3 任务；任务0=shell(前台)，任务1/2=后台计数。
 #   硬件依赖:
 #     · irq 读 slot0:    LBU 0x5000/0x5001（被抢占任务断点）
 #     · IRQ_W 改写:      2×紧邻 SB 0x5000 改写 pc_addr[0] → IRET
 #     · regs[254]=返回栈指针 j（LJAL/RJAL 压、JALR 弹；指令可读写）
-#   v1.3 寄存器分块 + 调用栈分区 + 共享子程序(r7-r11)。
-#   shell 输入: RAM 环形缓冲 RX_RING(8字节) + WR/RD 指针。
-#     · 生产者 = uart_isr(prio2)：每字符压入 RING{WR}，WR=(WR+1)&7
-#     · 消费者 = shell：RING{RD} 弹出，RD=(RD+1)&7
-#     · WR 只被 ISR 写、RD 只被 shell 写 → 无数据竞争（满/空误判自愈）
-#     · ISA 无索引寻址 → ring 访问按 WR/RD 展开(8路分支)
-#     8 槽够撑 "help\r\n"(6 字符)突发；4 槽会因回显 TX 阻塞 + 抢占挤掉后缀。
-#   行结束: '\r' 和 '\n' 都执行；'\n' 紧跟 '\r'(CRLF) 时跳过防双执行。
-#   命令: help / cnt / led。行缓冲 LINE_BUF(8字节)+CURSOR。
+#   shell v2.3 菜单式界面（全英文）:
+#     · init 横幅(模块大写) + 主菜单(每项一行) + 可进入/回退子菜单(倒计时/LED)
+#     · 命令: 主菜单 1.init 2.count 3.led 4.version 5.status 0.menu
+#            倒计时子菜单 1-9 设秒数(结束后 LED 频闪 5s)、0 返回
+#            LED 子菜单 1.翻转 2.闪烁 0.返回
+#     · 信息视图(MENU=3): version/status/init 打印 + "0. BACK TO MENU"，只认 0
+#       返回 → 屏蔽主菜单指令；status 带 RAM 用量 # 进度条(print_bar)
+#     · 单字符命令 + 空闲超时执行（串口无回车也能用）
+#     · tick 驱动: 1s=5000 tick(0.2ms/格), blink 每 0.25s(1250 tick)翻转
+#   汇编器增强: .puts "..." 宏(逐字符 putc) + 自动 jpad(IRET W+2 垫层)。
+#   新代码不手写 __jpad（汇编器自动补）；保留的旧代码仍带手写垫层。
 #   寄存器分块:
-#     任务0(shell): 低 r1/r2 + 高 r17-r21（r17-21 本次未用，保留分区）
+#     任务0(shell): 低 r1/r2 + 高 r17-r21
 #     任务1:         低 r3/r4 + 高 r22-r25（r22/23/24=延迟, r25=CNT1）
 #     任务2:         低 r5/r6 + 高 r26-r29（r26/27/28=延迟, r29=CNT2）
 #     调度器:       r12-r15 临时；共享子程序 r7-r11（调度器按任务保存/恢复）
@@ -100,6 +102,19 @@
 .equ LAST_CR     0x9119
 .equ IDLE_CNT    0x911A
 .equ LAST_TICK   0x911B
+# ---- 菜单/倒计时/闪烁 状态（0x911C 区）----
+.equ MENU        0x911C    # 0=主菜单 1=倒计时 2=LED
+.equ CD_SEC      0x911D    # 倒计时剩余秒数
+.equ WAIT_TH_LO  0x911E    # wait_ticks 阈值(16bit)
+.equ WAIT_TH_HI  0x911F
+.equ CD_LAST     0x9120    # wait_ticks 上次见到的 TICK_LO
+.equ CD_ACC_LO   0x9121    # wait_ticks 累计(16bit)
+.equ CD_ACC_HI   0x9122
+.equ FLASH_CNT   0x9123    # 频闪剩余 0.25s 次数(5s=20)
+.equ LED_MODE    0x9124    # 0=翻转(手动) 1=闪烁(自动)
+.equ BLINK_ACC_LO 0x9125   # 闪烁累计(16bit, 1250=0.25s)
+.equ BLINK_ACC_HI 0x9126
+.equ VIEW_TYPE   0x9127    # 信息视图类型: 0=init 1=version 2=status（MENU==3 时重显用）
 
 # ============================================================
 # 复位 → boot（也是任务 0 shell 的首次执行）
@@ -128,6 +143,17 @@ reset:
     SB    r0, LAST_CR
     SB    r0, IDLE_CNT
     SB    r0, LAST_TICK
+    # ---- 菜单/倒计时/闪烁 状态初值 ----
+    SB    r0, MENU
+    SB    r0, CD_SEC
+    SB    r0, LED_MODE
+    SB    r0, VIEW_TYPE
+    SB    r0, FLASH_CNT
+    SB    r0, CD_LAST
+    SB    r0, CD_ACC_LO
+    SB    r0, CD_ACC_HI
+    SB    r0, BLINK_ACC_LO
+    SB    r0, BLINK_ACC_HI
     # ---- 调用栈分区 + 共享子程序暂存组 ----
     SB    r0, TCB0_J
     SB    r0, TCB0_R7
@@ -166,83 +192,21 @@ reset:
     SB    r1, TIMER_MODE
     # ---- 进入任务 0（shell）----
 task0_entry:
-    # 横幅 "mc-shell\r\n"
-    ADDI  r7, r0, 'm'
-    LBNE  r0, r0, __jpadB0
-__jpadB0:
-    RJAL  putc
-    ADDI  r7, r0, 'c'
-    LBNE  r0, r0, __jpadB1
-__jpadB1:
-    RJAL  putc
-    ADDI  r7, r0, '-'
-    LBNE  r0, r0, __jpadB2
-__jpadB2:
-    RJAL  putc
-    ADDI  r7, r0, 's'
-    LBNE  r0, r0, __jpadB3
-__jpadB3:
-    RJAL  putc
-    ADDI  r7, r0, 'h'
-    LBNE  r0, r0, __jpadB4
-__jpadB4:
-    RJAL  putc
-    ADDI  r7, r0, 'e'
-    LBNE  r0, r0, __jpadB5
-__jpadB5:
-    RJAL  putc
-    ADDI  r7, r0, 'l'
-    LBNE  r0, r0, __jpadB6
-__jpadB6:
-    RJAL  putc
-    ADDI  r7, r0, 'l'
-    LBNE  r0, r0, __jpadB7
-__jpadB7:
-    RJAL  putc
-    RJAL  put_crlf
-    # 提示符 "> "
-    ADDI  r7, r0, '>'
-    LBNE  r0, r0, __jpadB8
-__jpadB8:
-    RJAL  putc
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadB9
-__jpadB9:
-    RJAL  putc
+    RJAL  menu_init           # init 横幅（模块大写）
+    RJAL  menu_main           # 主菜单
+    RJAL  print_prompt
 shell_loop:
+    RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
     # ---- 等字符: WR != RD ? ----
     LBU   r1, RX_WR
     LBU   r2, RX_RD
-    LBNE  r0, r0, __jpadS1a
-__jpadS1a:
     RBNE  r1, r2, __sh_have
-    # ---- 无新字符: 空闲超时（串口无回车时也执行）----
-    LBU   r1, TICK_LO
-    LBU   r2, LAST_TICK
-    LBNE  r0, r0, __jpadS1c
-__jpadS1c:
-    RBNE  r1, r2, __idle_tick
-    LBNE  r0, r0, __jpadS1b
-__jpadS1b:
-    LBEQ  r0, r0, shell_loop
-__idle_tick:
-    SUB   r7, r1, r2          # r7 = 距上次检查经过的 tick 数（任务0 每 3 tick 才跑，须累加差值）
-    SB    r1, LAST_TICK
+    # ---- 空闲超时: IDLE_CNT>=50(10ms) 且行非空 → 执行 ----
     LBU   r1, IDLE_CNT
-    ADD   r1, r1, r7          # IDLE_CNT += elapsed
-    SB    r1, IDLE_CNT
     ADDI  r7, r0, 50
-    LBNE  r0, r0, __jpadS1d
-__jpadS1d:
-    RBLTU r1, r7, __idle_ok   # <50 tick(≈10ms) 未到超时
-    # 超时: 若行非空则执行
+    RBLTU r1, r7, shell_loop
     LBU   r2, CURSOR
-    LBNE  r0, r0, __jpadS1e
-__jpadS1e:
     RBNE  r2, r0, __sh_exec
-__idle_ok:
-    LBNE  r0, r0, __jpadS1f
-__jpadS1f:
     LBEQ  r0, r0, shell_loop
 __sh_have:
     # ---- 弹字符: 按 RD(0-7) 读 RING{RD}，RD=(RD+1)&7 ----
@@ -346,7 +310,7 @@ __lf_skip:
 __jpadS3k:
     LBEQ  r0, r0, shell_loop
 __sh_exec:
-    # 执行: 换行 → 解析 → 重置 → 提示符
+    # 执行: 换行 → 解析 → 重置 → 提示符（按 MENU）
     ADDI  r7, r0, '\n'
     LBNE  r0, r0, __jpadS3b
 __jpadS3b:
@@ -355,14 +319,9 @@ __jpadS3b:
 __jpadS3c:
     RJAL  shell_parse
     SB    r0, CURSOR
-    ADDI  r7, r0, '>'
     LBNE  r0, r0, __jpadS3d
 __jpadS3d:
-    RJAL  putc
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadS3e
-__jpadS3e:
-    RJAL  putc
+    RJAL  print_prompt
     LBNE  r0, r0, __jpadS3f
 __jpadS3f:
     LBEQ  r0, r0, shell_loop
@@ -485,92 +444,196 @@ __jpadP18:
     JALR
 
 # ============================================================
-# shell 解析 + 命令处理（0x100 区，任务0 独用，返回栈走任务0 区域）
+# shell 解析（0x100 区，任务0 独用，返回栈走任务0 区域）
+#   按 MENU 状态分派：主菜单 / 倒计时子菜单 / LED 子菜单
 # ============================================================
 shell_parse:                    # 解析 LINE_BUF[0..CURSOR-1]
     LBU   r7, CURSOR
-    # 空行 → 直接返回（只重新提示）
-    LBNE  r0, r0, __jpadV0a
-__jpadV0a:
     RBNE  r7, r0, __sp_have
-    JALR
+    JALR                        # 空行 → 直接返回（只重新提示）
 __sp_have:
+    LBU   r1, MENU
+    RBNE  r1, r0, __sp_sub      # MENU != 0 → 子菜单
+    # ===== 主菜单 =====
+    ADDI  r8, r0, 1
+    RBNE  r7, r8, __sp_m_word   # len != 1 → 试试单词别名
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, '1'
+    RBNE  r7, r8, __sp_m2
+    RJAL  cmd_init
+    JALR
+__sp_m2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __sp_m3
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  menu_countdown
+    JALR
+__sp_m3:
+    ADDI  r8, r0, '3'
+    RBNE  r7, r8, __sp_m4
+    ADDI  r1, r0, 2
+    SB    r1, MENU
+    RJAL  menu_led
+    JALR
+__sp_m4:
+    ADDI  r8, r0, '4'
+    RBNE  r7, r8, __sp_m5
+    RJAL  cmd_version
+    JALR
+__sp_m5:
+    ADDI  r8, r0, '5'
+    RBNE  r7, r8, __sp_m0
+    RJAL  cmd_status
+    JALR
+__sp_m0:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    RJAL  menu_main
+    JALR
+__sp_m_word:
+    # 单词别名: help(4)/init(4)/stat(4), led(3)/ver(3)/cnt(3)
     ADDI  r8, r0, 4
-    LBNE  r0, r0, __jpadV0
-__jpadV0:
-    RBNE  r7, r8, __sp_len3      # len != 4
-    # len==4 → "help"
+    RBNE  r7, r8, __sp_w3
     LBU   r7, LINE_BUF0
     ADDI  r8, r0, 'h'
-    LBNE  r0, r0, __jpadV1
-__jpadV1:
-    RBNE  r7, r8, __sp_unknown
+    RBNE  r7, r8, __sp_w_init
     LBU   r7, LINE_BUF1
     ADDI  r8, r0, 'e'
-    LBNE  r0, r0, __jpadV2
-__jpadV2:
     RBNE  r7, r8, __sp_unknown
     LBU   r7, LINE_BUF2
     ADDI  r8, r0, 'l'
-    LBNE  r0, r0, __jpadV3
-__jpadV3:
     RBNE  r7, r8, __sp_unknown
     LBU   r7, LINE_BUF3
     ADDI  r8, r0, 'p'
-    LBNE  r0, r0, __jpadV4
-__jpadV4:
     RBNE  r7, r8, __sp_unknown
-    LBNE  r0, r0, __jpadV5
-__jpadV5:
-    RJAL  cmd_help
+    RJAL  menu_main
     JALR
-__sp_len3:
-    ADDI  r8, r0, 3
-    LBNE  r0, r0, __jpadV6
-__jpadV6:
-    RBNE  r7, r8, __sp_unknown   # len != 3
-    # len==3 → "cnt"
+__sp_w_init:
     LBU   r7, LINE_BUF0
-    ADDI  r8, r0, 'c'
-    LBNE  r0, r0, __jpadV7
-__jpadV7:
-    RBNE  r7, r8, __sp_led
+    ADDI  r8, r0, 'i'
+    RBNE  r7, r8, __sp_w_stat
     LBU   r7, LINE_BUF1
     ADDI  r8, r0, 'n'
-    LBNE  r0, r0, __jpadV8
-__jpadV8:
-    RBNE  r7, r8, __sp_led
+    RBNE  r7, r8, __sp_unknown
     LBU   r7, LINE_BUF2
+    ADDI  r8, r0, 'i'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF3
     ADDI  r8, r0, 't'
-    LBNE  r0, r0, __jpadV9
-__jpadV9:
-    RBNE  r7, r8, __sp_led
-    LBNE  r0, r0, __jpadV10
-__jpadV10:
-    RJAL  cmd_cnt
+    RBNE  r7, r8, __sp_unknown
+    RJAL  cmd_init
     JALR
-__sp_led:
-    # "led"
+__sp_w_stat:
     LBU   r7, LINE_BUF0
-    ADDI  r8, r0, 'l'
-    LBNE  r0, r0, __jpadV11
-__jpadV11:
+    ADDI  r8, r0, 's'
     RBNE  r7, r8, __sp_unknown
     LBU   r7, LINE_BUF1
+    ADDI  r8, r0, 't'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF2
+    ADDI  r8, r0, 'a'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF3
+    ADDI  r8, r0, 't'
+    RBNE  r7, r8, __sp_unknown
+    RJAL  cmd_status
+    JALR
+__sp_w3:
+    ADDI  r8, r0, 3
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, 'l'
+    RBNE  r7, r8, __sp_w_ver
+    LBU   r7, LINE_BUF1
     ADDI  r8, r0, 'e'
-    LBNE  r0, r0, __jpadV12
-__jpadV12:
     RBNE  r7, r8, __sp_unknown
     LBU   r7, LINE_BUF2
     ADDI  r8, r0, 'd'
-    LBNE  r0, r0, __jpadV13
-__jpadV13:
     RBNE  r7, r8, __sp_unknown
-    LBNE  r0, r0, __jpadV14
-__jpadV14:
-    RJAL  cmd_led
+    ADDI  r1, r0, 2
+    SB    r1, MENU
+    RJAL  menu_led
+    JALR
+__sp_w_ver:
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, 'v'
+    RBNE  r7, r8, __sp_w_cnt
+    LBU   r7, LINE_BUF1
+    ADDI  r8, r0, 'e'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF2
+    ADDI  r8, r0, 'r'
+    RBNE  r7, r8, __sp_unknown
+    RJAL  cmd_version
+    JALR
+__sp_w_cnt:
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, 'c'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF1
+    ADDI  r8, r0, 'n'
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF2
+    ADDI  r8, r0, 't'
+    RBNE  r7, r8, __sp_unknown
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  menu_countdown
+    JALR
+__sp_sub:
+    # ===== 子菜单/视图（屏蔽主菜单指令：只认本层命令 + 0）=====
+    ADDI  r8, r0, 1
+    RBNE  r1, r8, __sp_v3       # MENU==1 → 倒计时子菜单
+    ADDI  r8, r0, 1
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, '1'
+    RBLTU r7, r8, __sp_cd_zero   # digit < '1' → 只可能是 '0'
+    ADDI  r8, r0, '9'
+    RBLTU r8, r7, __sp_unknown   # digit > '9' → 未知
+    RJAL  cmd_countdown
+    JALR
+__sp_cd_zero:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__sp_v3:
+    ADDI  r8, r0, 3
+    RBNE  r1, r8, __sp_led       # MENU==3 → 信息视图（version/status/init）
+    ADDI  r8, r0, 1
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown   # 视图只认 '0' 返回
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__sp_led:
+    ADDI  r8, r0, 2
+    RBNE  r1, r8, __sp_unknown   # MENU==2 → LED 子菜单
+    ADDI  r8, r0, 1
+    RBNE  r7, r8, __sp_unknown
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, '1'
+    RBNE  r7, r8, __sp_led2
+    RJAL  cmd_led_toggle
+    JALR
+__sp_led2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __sp_led0
+    RJAL  cmd_led_blink
+    JALR
+__sp_led0:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    SB    r0, MENU
+    RJAL  menu_main
     JALR
 __sp_unknown:
+    # 未知字符: "?" + 重新显示当前页面（含返回菜单提示）
     ADDI  r7, r0, '?'
     LBNE  r0, r0, __jpadV15
 __jpadV15:
@@ -578,125 +641,33 @@ __jpadV15:
     LBNE  r0, r0, __jpadV16
 __jpadV16:
     LJAL  put_crlf
+    LBU   r1, MENU
+    ADDI  r8, r0, 1
+    RBNE  r1, r8, __spu_v3
+    RJAL  menu_countdown        # MENU==1 → 倒计时子菜单
     JALR
-
-cmd_help:                       # "help cnt led\r\n"
-    ADDI  r7, r0, 'h'
-    LBNE  r0, r0, __jpadH0
-__jpadH0:
-    LJAL  putc
-    ADDI  r7, r0, 'e'
-    LBNE  r0, r0, __jpadH1
-__jpadH1:
-    LJAL  putc
-    ADDI  r7, r0, 'l'
-    LBNE  r0, r0, __jpadH2
-__jpadH2:
-    LJAL  putc
-    ADDI  r7, r0, 'p'
-    LBNE  r0, r0, __jpadH3
-__jpadH3:
-    LJAL  putc
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadH4
-__jpadH4:
-    LJAL  putc
-    ADDI  r7, r0, 'c'
-    LBNE  r0, r0, __jpadH5
-__jpadH5:
-    LJAL  putc
-    ADDI  r7, r0, 'n'
-    LBNE  r0, r0, __jpadH6
-__jpadH6:
-    LJAL  putc
-    ADDI  r7, r0, 't'
-    LBNE  r0, r0, __jpadH7
-__jpadH7:
-    LJAL  putc
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadH8
-__jpadH8:
-    LJAL  putc
-    ADDI  r7, r0, 'l'
-    LBNE  r0, r0, __jpadH9
-__jpadH9:
-    LJAL  putc
-    ADDI  r7, r0, 'e'
-    LBNE  r0, r0, __jpadH10
-__jpadH10:
-    LJAL  putc
-    ADDI  r7, r0, 'd'
-    LBNE  r0, r0, __jpadH11
-__jpadH11:
-    LJAL  putc
-    LJAL  put_crlf
+__spu_v3:
+    ADDI  r8, r0, 3
+    RBNE  r1, r8, __spu_led
+    LBU   r1, VIEW_TYPE
+    RBNE  r1, r0, __spu_ver
+    RJAL  cmd_init              # VIEW_TYPE=0 → init
     JALR
-
-cmd_cnt:                        # "t=xxxx c1=xx c2=xx\r\n"
-    ADDI  r7, r0, 't'
-    LBNE  r0, r0, __jpadC0
-__jpadC0:
-    LJAL  putc
-    ADDI  r7, r0, '='
-    LBNE  r0, r0, __jpadC1
-__jpadC1:
-    LJAL  putc
-    LBU   r7, TICK_HI
-    LBNE  r0, r0, __jpadC2
-__jpadC2:
-    LJAL  print_hex
-    LBU   r7, TICK_LO
-    LBNE  r0, r0, __jpadC3
-__jpadC3:
-    LJAL  print_hex
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadC4
-__jpadC4:
-    LJAL  putc
-    ADDI  r7, r0, 'c'
-    LBNE  r0, r0, __jpadC5
-__jpadC5:
-    LJAL  putc
-    ADDI  r7, r0, '1'
-    LBNE  r0, r0, __jpadC6
-__jpadC6:
-    LJAL  putc
-    ADDI  r7, r0, '='
-    LBNE  r0, r0, __jpadC7
-__jpadC7:
-    LJAL  putc
-    LBU   r7, CNT1
-    LBNE  r0, r0, __jpadC8
-__jpadC8:
-    LJAL  print_hex
-    ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadC9
-__jpadC9:
-    LJAL  putc
-    ADDI  r7, r0, 'c'
-    LBNE  r0, r0, __jpadC10
-__jpadC10:
-    LJAL  putc
-    ADDI  r7, r0, '2'
-    LBNE  r0, r0, __jpadC11
-__jpadC11:
-    LJAL  putc
-    ADDI  r7, r0, '='
-    LBNE  r0, r0, __jpadC12
-__jpadC12:
-    LJAL  putc
-    LBU   r7, CNT2
-    LBNE  r0, r0, __jpadC13
-__jpadC13:
-    LJAL  print_hex
-    LJAL  put_crlf
+__spu_ver:
+    ADDI  r8, r0, 1
+    RBNE  r1, r8, __spu_stat
+    RJAL  cmd_version           # VIEW_TYPE=1 → version
     JALR
-
-cmd_led:                        # 翻转 LED
-    LBU   r7, LED_STATE
-    XORI  r7, r7, 0x40
-    SB    r7, GPIO
-    SB    r7, LED_STATE
+__spu_stat:
+    RJAL  cmd_status            # VIEW_TYPE=2 → status
+    JALR
+__spu_led:
+    ADDI  r8, r0, 2
+    RBNE  r1, r8, __spu_main
+    RJAL  menu_led              # MENU==2 → LED 子菜单
+    JALR
+__spu_main:
+    RJAL  menu_main             # MENU==0 → 主菜单
     JALR
 
 # ============================================================
@@ -1091,3 +1062,278 @@ __redirect:
     LBNE  r0, r0, __jpadS10
 __jpadS10:
     IRET                       # → 新任务断点
+
+# ============================================================
+# 菜单/命令区（@0x540，任务0 独用；.puts 逐字符调 putc）
+# ============================================================
+.org 0x540
+
+# ---- init 横幅（模块大写）----
+menu_init:
+    .puts "=== JUSTIN GREEN MCU ===\r\n"
+    .puts "RTOS SHELL v2.3\r\n"
+    .puts "MODULES: UART TIMER GPIO RAM OK\r\n\r\n"
+    JALR
+
+# ---- 主菜单（每项一行）----
+menu_main:
+    .puts "--- MAIN MENU ---\r\n"
+    .puts " 1. INIT       BOOT INFO\r\n"
+    .puts " 2. COUNTDOWN  COUNTDOWN\r\n"
+    .puts " 3. LED        LED SETTINGS\r\n"
+    .puts " 4. VERSION    VERSION\r\n"
+    .puts " 5. STATUS     STATUS\r\n"
+    .puts " 0. MENU       SHOW MENU\r\n"
+    JALR
+
+# ---- 倒计时子菜单 ----
+menu_countdown:
+    .puts "--- COUNTDOWN ---\r\n"
+    .puts " 1-9: SET SECONDS (FLASH LED 5s AFTER)\r\n"
+    .puts " 0. BACK TO MENU\r\n"
+    JALR
+
+# ---- LED 子菜单 ----
+menu_led:
+    .puts "--- LED SETTINGS ---\r\n"
+    .puts " 1. TOGGLE MODE\r\n"
+    .puts " 2. BLINK MODE\r\n"
+    .puts " 0. BACK TO MENU\r\n"
+    JALR
+
+# ---- 提示符（按 MENU: 0=主 1=倒计时 2=LED 3=信息视图）----
+print_prompt:
+    LBU   r7, MENU
+    ADDI  r8, r0, 3
+    RBLTU r7, r8, __pp_normal   # MENU < 3 → 正常菜单提示符
+    .puts "0> "
+    JALR
+__pp_normal:
+    ADDI  r8, r0, 1
+    RBNE  r7, r8, __pp_led
+    .puts "CD> "
+    JALR
+__pp_led:
+    ADDI  r8, r0, 2
+    RBNE  r7, r8, __pp_main
+    .puts "LED> "
+    JALR
+__pp_main:
+    .puts "> "
+    JALR
+
+# ---- 命令: init（信息视图）----
+cmd_init:
+    RJAL  menu_init
+    .puts " 0. BACK TO MENU\r\n"
+    ADDI  r1, r0, 3
+    SB    r1, MENU
+    SB    r0, VIEW_TYPE         # 视图类型 0=init
+    JALR
+
+# ---- 命令: version（信息视图）----
+cmd_version:
+    .puts "--- VERSION ---\r\n"
+    .puts " RTOS SHELL v2.3\r\n"
+    .puts " Author: Justin (hardware) & Agent (software)\r\n"
+    .puts " HW: Justin Green MCU (Zynq 7010)\r\n"
+    .puts " 0. BACK TO MENU\r\n"
+    ADDI  r1, r0, 3
+    SB    r1, MENU
+    ADDI  r1, r0, 1
+    SB    r1, VIEW_TYPE         # 视图类型 1=version
+    JALR
+
+# ---- 命令: status（信息视图 + RAM bar）----
+cmd_status:
+    .puts "--- STATUS ---\r\n"
+    .puts " CPU: 50 MHz\r\n"
+    .puts " TASKS: 3\r\n"
+    .puts " RAM: "
+    ADDI  r7, r0, 1             # fill = 1（RAM_USED 296B/16KB ≈ 2%，20 段里 1 段）
+    ADDI  r8, r0, 20            # width = 20
+    RJAL  print_bar
+    .puts " 2% (296B/16KB)\r\n"
+    .puts " 0. BACK TO MENU\r\n"
+    ADDI  r1, r0, 3
+    SB    r1, MENU
+    ADDI  r1, r0, 2
+    SB    r1, VIEW_TYPE         # 视图类型 2=status
+    JALR
+
+# ---- 进度条: 打印 [####....]，入参 r7=填充段数 r8=总段数 ----
+#    用 r17-r19(任务0高区，跨 putc 不破坏) + r1/r2(低区供分支比较)
+print_bar:
+    ADDI  r17, r0, 0            # cnt = 0
+    ADDI  r18, r7, 0            # fill
+    ADDI  r19, r8, 0            # width
+    ADDI  r7, r0, '['
+    RJAL  putc
+pb_loop:
+    ADDI  r1, r17, 0
+    ADDI  r2, r18, 0
+    RBLTU r1, r2, pb_hash       # cnt < fill → '#'
+    ADDI  r7, r0, '.'
+    RJAL  putc
+    RBEQ  r0, r0, pb_next
+pb_hash:
+    ADDI  r7, r0, '#'
+    RJAL  putc
+pb_next:
+    ADDI  r17, r17, 1           # cnt++
+    ADDI  r1, r17, 0
+    ADDI  r2, r19, 0
+    LBLTU r1, r2, pb_loop       # cnt < width → 继续
+    ADDI  r7, r0, ']'
+    RJAL  putc
+    JALR
+
+# ---- 命令: LED 翻转（一次）----
+cmd_led_toggle:
+    LBU   r8, LED_STATE
+    XORI  r8, r8, 0x40
+    SB    r8, GPIO
+    SB    r8, LED_STATE
+    SB    r0, LED_MODE         # 停止闪烁
+    .puts "TOGGLE OK\r\n 0. BACK TO MENU\r\n"
+    JALR
+
+# ---- 命令: LED 闪烁（持续，tick 驱动）----
+cmd_led_blink:
+    ADDI  r8, r0, 1
+    SB    r8, LED_MODE
+    SB    r0, BLINK_ACC_LO
+    SB    r0, BLINK_ACC_HI
+    .puts "BLINK ON\r\n 0. BACK TO MENU\r\n"
+    JALR
+
+# ---- tick 记账（每轮 shell_loop 调）----
+#   累加 IDLE_CNT（空闲超时用）；LED_MODE==1 时按 0.25s(1250 tick) 翻转 LED
+tick_bookkeeping:
+    LBU   r1, TICK_LO
+    LBU   r2, LAST_TICK
+    RBNE  r1, r2, __tb_ch
+    JALR                        # tick 未变 → 直接返回
+__tb_ch:
+    SUB   r7, r1, r2
+    SB    r1, LAST_TICK
+    LBU   r1, IDLE_CNT
+    ADD   r1, r1, r7
+    SB    r1, IDLE_CNT
+    LBU   r8, LED_MODE
+    RBNE  r8, r0, __tb_blink
+    JALR                        # 非闪烁模式 → 返回
+__tb_blink:
+    LBU   r8, BLINK_ACC_LO
+    ADD   r8, r8, r7
+    SB    r8, BLINK_ACC_LO
+    SLTU  r9, r8, r7            # carry = new_lo < diff
+    LBU   r8, BLINK_ACC_HI
+    ADD   r8, r8, r9
+    SB    r8, BLINK_ACC_HI
+    ADDI  r9, r0, 0x04
+    RBLTU r8, r9, __tb_done     # hi < 4 → 未到 0.25s
+    LBNE  r8, r9, __tb_toggle
+    LBU   r8, BLINK_ACC_LO
+    ADDI  r9, r0, 0xE2
+    RBLTU r8, r9, __tb_done     # hi==4 且 lo<0xE2 → 未到
+__tb_toggle:
+    SB    r0, BLINK_ACC_LO
+    SB    r0, BLINK_ACC_HI
+    LBU   r8, LED_STATE
+    XORI  r8, r8, 0x40
+    SB    r8, GPIO
+    SB    r8, LED_STATE
+__tb_done:
+    JALR
+
+# ---- 阻塞等 tick（wait_ticks）----
+#   阈值 WAIT_TH_LO/HI(16bit)，用 CD_LAST + CD_ACC(16bit) 累计 TICK_LO 差值。
+#   任务0 每 3 tick 才跑，须累加差值而非递减。返回时 CD_ACC 已 ≥ 阈值。
+wait_ticks:
+    LBU   r1, TICK_LO
+    SB    r1, CD_LAST
+    SB    r0, CD_ACC_LO
+    SB    r0, CD_ACC_HI
+__wt_loop:
+    LBU   r1, TICK_LO
+    LBU   r2, CD_LAST
+    RBNE  r1, r2, __wt_ch
+    LBEQ  r0, r0, __wt_loop
+__wt_ch:
+    SUB   r7, r1, r2
+    SB    r1, CD_LAST
+    LBU   r1, CD_ACC_LO
+    ADD   r1, r1, r7
+    SB    r1, CD_ACC_LO
+    SLTU  r8, r1, r7            # carry = new_lo < diff
+    LBU   r2, CD_ACC_HI
+    ADD   r2, r2, r8
+    SB    r2, CD_ACC_HI
+    # CD_ACC >= WAIT_TH ?
+    LBU   r1, CD_ACC_HI
+    LBU   r2, WAIT_TH_HI
+    RBLTU r1, r2, __wt_loop
+    LBNE  r1, r2, __wt_done
+    LBU   r1, CD_ACC_LO
+    LBU   r2, WAIT_TH_LO
+    RBLTU r1, r2, __wt_loop
+__wt_done:
+    JALR
+
+# ---- 命令: 倒计时（阻塞，结束后 LED 频闪 5s）----
+#   入参 r7 = '1'-'9' 数字字符
+cmd_countdown:
+    SUBI  r7, r7, '0'
+    SB    r7, CD_SEC            # CD_SEC = 1-9 秒
+    .puts "CD "
+    LBU   r7, CD_SEC
+    ADDI  r7, r7, '0'
+    RJAL  putc
+    .puts "s ["
+    # 阈值 5000 = 0x1388（1s）
+    ADDI  r8, r0, 0x88
+    SB    r8, WAIT_TH_LO
+    ADDI  r8, r0, 0x13
+    SB    r8, WAIT_TH_HI
+    # 重置 shell 空闲基准（防止结束后误超时执行空行）
+    LBU   r8, TICK_LO
+    SB    r8, LAST_TICK
+    SB    r0, IDLE_CNT
+__cd_sec_loop:
+    RJAL  wait_ticks
+    LBU   r8, CD_SEC
+    ADDI  r8, r8, 0xFF
+    SB    r8, CD_SEC
+    ADDI  r7, r0, '#'
+    RJAL  putc
+    LBU   r8, CD_SEC          # putc 破坏 r8 → 从 RAM 重载后再判断
+    LBNE  r8, r0, __cd_sec_loop
+    # 倒计时结束 → 换行 → 频闪 5s
+    RJAL  put_crlf
+    .puts "[FLASH 5s]\r\n"
+    # 阈值 1250 = 0x04E2（0.25s），20 次 × 0.25s = 5s
+    ADDI  r8, r0, 0xE2
+    SB    r8, WAIT_TH_LO
+    ADDI  r8, r0, 0x04
+    SB    r8, WAIT_TH_HI
+    ADDI  r8, r0, 20
+    SB    r8, FLASH_CNT
+__cd_flash_loop:
+    RJAL  wait_ticks
+    LBU   r8, LED_STATE
+    XORI  r8, r8, 0x40
+    SB    r8, GPIO
+    SB    r8, LED_STATE
+    LBU   r8, FLASH_CNT
+    ADDI  r8, r8, 0xFF
+    SB    r8, FLASH_CNT
+    LBNE  r8, r0, __cd_flash_loop
+    # 关闭 LED
+    SB    r0, GPIO
+    SB    r0, LED_STATE
+    .puts "\r\nDONE\r\n"
+    # 回主菜单
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
