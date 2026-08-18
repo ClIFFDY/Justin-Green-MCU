@@ -12,7 +12,7 @@
 >  
   
   
-- 哈佛架构，自拟 6-bit opcode 可压缩 ISA (参考RISC_V整数集)，(32 + 1) 条指令，支持控制、ALU、访存、IRET，RISC 风格
+- 哈佛架构，自拟 6-bit opcode 可压缩 ISA (参考RISC_V整数集)，(32 + 1伪 + 19自动压缩) 条指令，支持控制、ALU、访存、IRET，RISC 风格
 - 4 级流水线 (IF/ID/EX/WB)，两级前送+旁路消除 RAW 冒险，分支/中断 1 拍冲刷
 - 自拟 16 位总线，MMIO 挂载 RAM、UART (RX FIFO)、Timer、8 位可动态配置 GPIO
 - 硬件中断控制器，支持 4 路外部中断源 (UART/Timer/GPIO1/2)，软中断，中断优先级嵌套，向量表 + IRET 恢复断点
