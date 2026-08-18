@@ -28,8 +28,9 @@ module irq_controller(
     output reg [11:0] irq_addr,
     output reg irq_flush,
 
-    input wire [3:0] bus_addr_in,
+    input wire [15:0] bus_addr_in,
     input wire [7:0] bus_data_in,
+    output reg [7:0] bus_data_out,
     input wire bus_sig_in
     );
 
@@ -89,16 +90,16 @@ module irq_controller(
                     end
                 end
                 else begin
-                    if (irq_addr_in != 12'b0 && irq_en == 2'b11  && !stall 
+                    if (bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
+                        pc_addr[0][11:8] <= bus_data_in;
+                        stage <= OPR;
+                    end
+                    else if (irq_addr_in != 12'b0 && irq_en == 2'b11  && !stall 
                         && irq_addr_in[5:3] > prio && j <= 4'd15) begin 
                         stage <= IRQ;
                         prio <= irq_addr_in[5:3];
                         pc_addr[j] <= pc_addr_in - 1;
                         j <= j + 1;
-                    end
-                    else if (bus_sig_in && bus_addr_in == IRQ_W) begin
-                        pc_addr[0][11:8] <= bus_data_in;
-                        stage <= OPR;
                     end
                 end
             end
@@ -122,6 +123,10 @@ module irq_controller(
         else begin
             irq_flush = 1'b0;
             irq_addr = 12'b0;
+            if (!bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
+                if (!bus_addr_in[0]) bus_data_out = pc_addr[bus_addr_in[4:1]][7:0];
+                else bus_data_out = pc_addr[bus_addr_in[4:1]][11:8];
+            end
             case (stage)
             IDLE: begin
                 if (irq_addr_in != 12'b0 && irq_en == 2'b11 && !stall) begin 

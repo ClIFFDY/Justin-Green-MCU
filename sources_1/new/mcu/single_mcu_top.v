@@ -35,7 +35,7 @@ module single_mcu_top(
     wire tx_flg;
     wire stall_bus;
 
-    wire [7:0] bus_data_uart, bus_data_ram, bus_data_gpio;
+    wire [7:0] bus_data_uart, bus_data_ram, bus_data_gpio, bus_data_irq;
 
     reg [5:0] irq_bus;
     wire rx, tx;
@@ -46,7 +46,7 @@ module single_mcu_top(
         UART = 4'b0010,
         TIMER = 4'b0011,
         GPIO = 4'b0100,
-        IRQ_W = 4'b0101,
+        IRQ = 4'b0101,
 
         RAM_1 = 4'b1000,
         RAM_2 = 4'b1001,
@@ -59,6 +59,7 @@ module single_mcu_top(
         RAM_1, RAM_2, RAM_3, RAM_4: bus_data_b = bus_data_ram;
         UART: bus_data_b = bus_data_uart;
         GPIO: bus_data_b = bus_data_gpio;
+        IRQ: bus_data_b = bus_data_irq;
         default: bus_data_b = 8'b0;
         endcase
     end
@@ -87,6 +88,7 @@ module single_mcu_top(
         //
         .bus_addr_out(bus_addr_f),
         .bus_data_out(bus_data_f),
+        .bus_data_irq(bus_data_irq),
         .bus_sig_out(bus_sig_f)
     );
 

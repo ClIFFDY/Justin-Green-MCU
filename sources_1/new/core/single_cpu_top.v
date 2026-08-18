@@ -26,7 +26,7 @@ module single_cpu_top(
     input wire [7:0] bus_data_in, 
     input wire [5:0] irq_bus,
     output wire [15:0] bus_addr_out,
-    output wire [7:0] bus_data_out,
+    output wire [7:0] bus_data_out, bus_data_irq,
     output wire [3:0] bus_sig_out
     );
 
@@ -200,9 +200,10 @@ module single_cpu_top(
         .irq_addr(irq_addr),
         .irq_flush(irq_flush),
         //
-        .bus_addr_in(bus_addr_out[15:12]),
+        .bus_addr_in(bus_addr_out),
         .bus_data_in(bus_data_out),
-        .bus_sig_in(bus_sig_out[0])
+        .bus_sig_in(bus_sig_out[0]),
+        .bus_data_out(bus_data_irq)
     );
 endmodule
 

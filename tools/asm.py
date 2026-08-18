@@ -96,7 +96,7 @@ class AsmError(Exception):
 
 # ---------------------------------------------------------------- 解析工具
 def parse_int(tok, symbols):
-    """数字（十进制/0x/0b）、.equ 常量或单引号字符（'c' / '\\r' / '\\xNN'）→ int。"""
+    """数字（十进制/0x/0b）、.equ 常量或单引号字符（'c' / '\\r' / '\\b' / '\\xNN'）→ int。"""
     tok = tok.strip()
     if not tok:
         raise AsmError('空操作数')
@@ -107,10 +107,16 @@ def parse_int(tok, symbols):
         if len(inner) == 1:
             return ord(inner)
         if len(inner) == 2 and inner[0] == '\\':
-            simple = {'r': 13, 'n': 10, 't': 9, '\\': 92, "'": 39, '0': 0}
+            simple = {'r': 13, 'n': 10, 't': 9, 'b': 8, 'a': 7, 'f': 12,
+                      '\\': 92, "'": 39, '0': 0}
             if inner[1] in simple:
                 return simple[inner[1]]
             raise AsmError(f'无效字符转义: {tok}')
+        if len(inner) == 4 and inner[0] == '\\' and inner[1] == 'x':
+            try:
+                return int(inner[2:4], 16)
+            except ValueError:
+                pass
         raise AsmError(f'无效字符字面量: {tok}')
     try:
         low = tok.lower()
@@ -193,17 +199,36 @@ def parse_str(operands):
 
 
 # ---------------------------------------------------------------- 编码
-def calc_bytmov(direction, word, target):
+# 自动修正计数（main 里汇总打印）
+AUTO_NOP_COUNT = 0
+AUTO_FLIP_COUNT = 0
+
+
+def _flip_side(m):
+    """翻转分支前缀 L↔R（语义不变，仅编码方向位）。"""
+    return ('L' if m[0] == 'R' else 'R') + m[1:]
+
+
+def bytmov_for(mnem, word, target):
     """bytmov 16 位【词单位】，基准 W+2。R=向前 target-(W+2)，L=向后 (W+2)-target。
-    须 1 ≤ bytmov ≤ 0xFFFF（pc.v 判 0 为不跳 → 目标=W+2 不可编码）。"""
+    须 1 ≤ bytmov ≤ 0xFFFF（pc.v 判 0 为不跳 → 目标=W+2 不可编码）。
+    方向与前缀相反时自动翻转前缀（L↔R），仍越界才报错（此时需人工处理）。"""
+    global AUTO_FLIP_COUNT
     if not (0 <= target <= ROM_TOP):
         raise AsmError(f'跳转目标越界: 0x{target:03X}（须 0x000-0xFFF）')
-    bm = target - (word + 2) if direction == 'R' else (word + 2) - target
-    if not (1 <= bm <= 0xFFFF):
-        raise AsmError(f'跳转越界：word=0x{word:03X} target=0x{target:03X} '
-                       f'bytmov={bm}（须 1-0xFFFF；目标=当前词+2 时 bytmov=0 不可编码；'
-                       f'方向不对换 {"L" if direction == "R" else "R"} 前缀？）')
-    return bm
+    fwd = target - (word + 2)
+    bwd = (word + 2) - target
+    d0 = mnem[0]
+    for d, bm in ((d0, fwd if d0 == 'R' else bwd),
+                  ('L' if d0 == 'R' else 'R', bwd if d0 == 'R' else fwd)):
+        if 1 <= bm <= 0xFFFF:
+            if d != d0:
+                AUTO_FLIP_COUNT += 1
+                return bm, _flip_side(mnem)
+            return bm, mnem
+    raise AsmError(f'跳转越界：word=0x{word:03X} target=0x{target:03X} '
+                   f'bytmov={fwd if d0 == "R" else bwd}（须 1-0xFFFF；'
+                   f'目标=当前词+2 时 bytmov=0 不可编码，属死区）')
 
 
 def compressed_bytes(m, fmt, ops, symbols):
@@ -236,16 +261,16 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         return [b0, 0, 0, 0]
     if fmt == 'jump':
         target = tget(ops[0])
-        bm = calc_bytmov(m[0], word, target)
-        return [b0, (bm >> 8) & 0xFF, bm & 0xFF, 0x00]
+        bm, eff = bytmov_for(m, word, target)
+        return [OPCODE[eff] << 2, (bm >> 8) & 0xFF, bm & 0xFF, 0x00]
     if fmt == 'branch':
         r1 = parse_reg(ops[0], symbols)
         r2 = parse_reg(ops[1], symbols)
         if r1 > 0xF or r2 > 0xF:
             raise AsmError(f'{m} 分支寄存器须 0-15（4 位）：r1={r1} r2={r2}')
         target = tget(ops[2])
-        bm = calc_bytmov(m[0], word, target)
-        return [b0, (bm >> 8) & 0xFF, bm & 0xFF, (r1 << 4) | r2]
+        bm, eff = bytmov_for(m, word, target)
+        return [OPCODE[eff] << 2, (bm >> 8) & 0xFF, bm & 0xFF, (r1 << 4) | r2]
     if fmt == 'alu_r':
         return [b0, parse_reg(ops[0], symbols), parse_reg(ops[1], symbols),
                 parse_reg(ops[2], symbols)]
@@ -379,7 +404,8 @@ def compute_layout(items, must_first):
         nxt = items[i + 1] if i + 1 < n else None
         if (nxt is not None and nxt['kind'] == 'ins'
                 and it['cbytes'] is not None and nxt['cbytes'] is not None
-                and (i + 1) not in must_first):
+                and (i + 1) not in must_first
+                and not nxt.get('force_first')):
             layout[i] = (word, False)
             layout[i + 1] = (word, True)
             word_packed.add(word)
@@ -419,16 +445,61 @@ def run_layout(items):
     return layout, word_packed, label_word
 
 
+def _insert_deadzone_nops(items, layout, label_word):
+    """死区自动补 NOP：前向分支(jump/branch)目标落在死区（target < word+3，
+    bytmov 0/-1 硬件判不跳）时，在目标 label 前自动插 NOP 把距离拉到 ≥1。
+    返回本次插入的 NOP 总数（0=无需再插）。label 紧跟 .org 时跳过（避免移位破坏固定地址）。"""
+    label_pos = {}
+    for idx, it in enumerate(items):
+        if it['kind'] == 'label':
+            label_pos[it['name']] = idx
+    need = {}   # label item 下标 → 需插 NOP 数
+    for idx, it in enumerate(items):
+        if it['kind'] == 'ins' and it['fmt'] in ('jump', 'branch'):
+            tok = it['ops'][0] if it['fmt'] == 'jump' else it['ops'][2]
+            t = tok.strip()
+            if is_label(t) and t in label_word and t in label_pos:
+                word = layout[idx][0]
+                target = label_word[t]
+                # 死区 = target 恰在 word+2：L 与 R 的 bytmov 都=0，无前缀可救。
+                # (target=word+1 可用 L 编码 bytmov=1，方向翻转可救，不需要补 NOP)
+                if target == word + 2:
+                    li = label_pos[t]
+                    if li > 0 and items[li - 1]['kind'] == 'org':
+                        continue      # label 紧跟 .org：不自动移位，留给编码报错
+                    n = word + 3 - target
+                    need[li] = max(need.get(li, 0), n)
+    if not need:
+        return 0
+    for li in sorted(need, reverse=True):   # 从后往前插，保证下标稳定
+        for _ in range(need[li]):
+            items.insert(li, {
+                'kind': 'ins', 'mnem': 'NOP', 'fmt': 'none', 'nbytes': 1,
+                'ops': [], 'cbytes': [OPCODE['NOP'] << 2 | 0x01, 0x00],
+                'src': '// 自动 NOP（bytmov 死区）', 'ln': 0,
+                'force_first': True,
+            })
+    return sum(need.values())
+
+
 def is_label(tok):
     return LABEL_RE.match(tok) is not None
 
 
 # ---------------------------------------------------------------- 汇编
 def assemble(src_lines):
+    global AUTO_NOP_COUNT
     items, symbols = parse_lines(src_lines)
     if not items:
         raise AsmError('程序为空')
-    layout, word_packed, label_word = run_layout(items)
+    # 死区自动 NOP：前向分支目标落在 [W+1, W+2]（bytmov 0/-1 不可编码）时在目标
+    # label 前插 NOP 拉开。固定点迭代：插 NOP 只会增大前向距离，必然收敛。
+    while True:
+        layout, word_packed, label_word = run_layout(items)
+        added = _insert_deadzone_nops(items, layout, label_word)
+        if not added:
+            break
+        AUTO_NOP_COUNT += added
 
     def resolve_t(tok):
         t = tok.strip()
@@ -544,6 +615,9 @@ def main():
         write_hex(words, srcs, max_word, fh)
 
     print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0xFFF -> {out_path}')
+    if AUTO_NOP_COUNT or AUTO_FLIP_COUNT:
+        print(f'自动修正: 补 NOP {AUTO_NOP_COUNT} 个（bytmov 死区），'
+              f'方向翻转 {AUTO_FLIP_COUNT} 处（L/R 前缀自动纠正）')
     print('---- listing（词地址 | 32bit 词 | 源）----')
     for w in range(0, max_word + 1):
         if w in srcs:
