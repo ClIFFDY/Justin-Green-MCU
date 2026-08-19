@@ -23,6 +23,6 @@
 - EDA：Xilinx™ Vivado 2019.1  
 - FPGA芯片: Xilinx™ Zynq-7000 xc7z010clg400-1  
 - 开发板: Microphase™ Z-7 Lite Motherboard  
-- 若使用，请在RTL文件中重定向ins_rom.hex的加载路径
+- 若使用，请在RTL文件中重定向ins_rom.hex(及data.hex)的加载路径
 > 注: 目前v2.2(RTOS内核植入)以前的内容都缺乏充分debug
 
