@@ -22,13 +22,13 @@
 
 module ins_rom(
     input wire clk, rst, flush1, flush_irq, stall,
-    input wire [11:0] addr,
+    input wire [12:0] addr,
     output reg [31:0] inst_raw
     );
 
     // 指令由 tb 通过 $readmemh("ins_rom.hex") 层次引用载入，本模块不再内嵌程序。
 
-    (* ram_style = "block" *) reg [31:0] mem [0:4095];
+    (* ram_style = "block" *) reg [31:0] mem [0:8191];
     
     initial 
         $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);

@@ -5,7 +5,7 @@
 #   （2026-08-17 架构：12 位词寻址 ROM，32bit 定长取指）
 #
 # 编码依据：decoder.v / if_reg.v / pc.v / ins_rom.v
-#   PC 12 位【词地址】0x000-0xFFF（4096 词 × 32bit BRAM）
+#   PC 13 位【词地址】0x000-0x1FFF（8192 词 × 32bit BRAM）
 #   byte0 = opcode[5:0]<<2 | flag[1:0]
 #     flag=00 原长指令（长度由 opcode 决定，独占一个 32bit 词，不足 4 字节补 0）
 #     flag=11 ALU 类压缩 16bit：6op + 2flag + 2rd + 3r1 + 3r2（I 型末字段=imm[2:0]）
@@ -86,10 +86,10 @@ INS = {
 COMPRESSIBLE_01 = ('NOP', 'IRET')
 # flag=11 ALU 类压缩：alu_r / alu_i（字段满足才可压）
 
-ROM_TOP = 0xFFF  # PC 12 位词地址，0x000-0xFFF（4096 词）
-DATA_BASE = 0xB000  # 数据区总线地址（ram_sec_4，RTL 初始化读 hex 后半）
-DATA_ROM_START = 4096  # hex 后半起始词（词 4096-8191 = 数据区 4096 字节，每词低 8 位）
-HEX_TOP = 8191  # hex 总词数（前 4096 程序 + 后 4096 数据）
+ROM_TOP = 0x1FFF  # PC 13 位词地址，0x000-0x1FFF（8192 词，ins_rom 扩容）
+DATA_BASE = 0xA000  # 数据区总线地址（ram_sec_init @0xA000；0xB000 已被 ram_ext 选片占用）
+DATA_ROM_START = 8192  # words 数组里数据区起始（程序 0-8191 词 + 数据区 4096 字节）
+HEX_TOP = 12287  # words 数组总槽（8192 程序 + 4096 数据）
 
 OPERAND_N = {'none': 0, 'jalr': 0, 'jump': 1, 'branch': 3,
              'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2,
@@ -243,7 +243,7 @@ def parse_int(tok, symbols):
     tok = tok.strip()
     if not tok:
         raise AsmError('空操作数')
-    # datalabel 偏移表达式：lab>>N / lab&N（数据区标签 → 0xB000+偏移）
+    # datalabel 偏移表达式：lab>>N / lab&N（数据区标签 → 0xA000+偏移）
     m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*(&|>>)\s*(\d+|0x[0-9a-fA-F]+)$', tok)
     if m:
         base, op, num = m.group(1), m.group(2), int(m.group(3), 0)
@@ -437,7 +437,7 @@ def bytmov_for(mnem, word, target):
     方向与前缀相反时自动翻转前缀（L↔R），仍越界才报错（此时需人工处理）。"""
     global AUTO_FLIP_COUNT
     if not (0 <= target <= ROM_TOP):
-        raise AsmError(f'跳转目标越界: 0x{target:03X}（须 0x000-0xFFF）')
+        raise AsmError(f'跳转目标越界: 0x{target:03X}（须 0x000-0x1FFF）')
     fwd = target - (word + 2)
     bwd = (word + 2) - target
     d0 = mnem[0]
@@ -549,7 +549,7 @@ def parse_lines(src_lines):
     symbols = {}
     items = []
     errs = []
-    in_data = False          # .data 数据区：后续 .byte/.str/.db 进 hex 后半（0xB000 区）
+    in_data = False          # .data 数据区：后续 .byte/.str/.db 进数据区（0xA000 区）
     for ln, raw in enumerate(src_lines, 1):
         line = strip_comment(raw).strip()
         if not line:
@@ -871,7 +871,7 @@ def assemble(src_lines):
             break
         AUTO_NOP_COUNT += added
 
-    # 数据区（.data）：收集字节 + datalabel 地址（0xB000 + 偏移）
+    # 数据区（.data）：收集字节 + datalabel 地址（0xA000 + 偏移）
     data_bytes = []
     datalabel = {}
     for it in items:
@@ -980,7 +980,7 @@ def write_hex(words, srcs, max_word, fh):
 
 
 def write_data_hex(words, fh):
-    """数据 hex（0-4095 词，每词 8 位字节；ram_sec_init 载入到 0xB000 区）。"""
+    """数据 hex（0-4095 词，每词 8 位字节；ram_sec_init 载入到 0xA000 区）。"""
     fh.write('@0000\n')
     for j in range(0, 4096):
         fh.write('%02X\n' % (words.get(DATA_ROM_START + j, 0x00000000) & 0xFF))
@@ -1015,11 +1015,11 @@ def main():
 
     with open(out_path, 'w', encoding='utf-8', newline='\n') as fh:
         write_hex(words, srcs, max_word, fh)
-    # 数据区单独输出 data.hex（词 4096-8191，ram_sec_init 载入到 0xB000）
+    # 数据区单独输出 data.hex（词 8192-12287，ram_sec_init 载入到 0xA000）
     with open(data_path, 'w', encoding='utf-8', newline='\n') as fh:
         write_data_hex(words, fh)
 
-    print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0xFFF -> {out_path}')
+    print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0x1FFF -> {out_path}')
     print(f'数据区: 输出 -> {data_path}')
     if AUTO_NOP_COUNT or AUTO_FLIP_COUNT or AUTO_JPAD_COUNT:
         print(f'自动修正: 补 NOP {AUTO_NOP_COUNT} 个（bytmov 死区），'

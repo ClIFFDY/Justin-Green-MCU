@@ -26,9 +26,9 @@ module pc(
     input wire [1:0] j_flag,
     input wire [5:0] op_raw,
     input wire [15:0] bytmov,
-    input wire [11:0] ra_in, irq_addr,
-    output reg [11:0] pc_addr,
-    output reg [11:0] ra,
+    input wire [12:0] ra_in, irq_addr,
+    output reg [12:0] pc_addr,
+    output reg [12:0] ra,
     output reg [1:0] jmpflg
     );
 
@@ -53,8 +53,8 @@ module pc(
     
     always @(posedge clk) begin
         if (rst) begin 
-            pc_addr <= 10'b0;
-            ra <= 10'b0;
+            pc_addr <= 13'b0;
+            ra <= 13'b0;
             jmpflg <= 2'b0;
         end
         else if (stage == EXE && !stall_bus) begin

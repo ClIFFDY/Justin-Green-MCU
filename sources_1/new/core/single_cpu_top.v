@@ -24,14 +24,14 @@ module single_cpu_top(
     input wire clk,
     input wire rst, stall_bus, tx_busy, 
     input wire [7:0] bus_data_in, 
-    input wire [5:0] irq_bus,
+    input wire [8:0] irq_bus,
     output wire [15:0] bus_addr_out,
     output wire [7:0] bus_data_out, bus_data_irq,
     output wire [3:0] bus_sig_out
     );
 
     wire [1:0] stage;
-    wire [11:0] pc_addr, irq_addr;
+    wire [12:0] pc_addr, irq_addr;
     wire [31:0] inst_raw, inst_raw_zip;
     wire [5:0] op_temp, opcode;
     wire [23:0] rd12, rd12_data;
@@ -39,7 +39,7 @@ module single_cpu_top(
     wire [7:0] rd_temp, rd;
     wire [7:0] rd_data, imm8_temp, imm8;
     wire [15:0] bytmov;
-    wire [11:0] ra_fo, ra_ba;
+    wire [12:0] ra_fo, ra_ba;
     wire [7:0] result;
     wire [1:0] jmpflg, j_flag, irq_en;
     wire we_temp1, we_temp2, we;
@@ -193,7 +193,7 @@ module single_cpu_top(
         .clk(clk),
         .iret(iret),
         .rst(rst),
-        .irq_addr_in(irq_bus),
+        .irq_bus_in(irq_bus),
         .pc_addr_in(pc_addr),
         .irq_en(irq_en),
         .stall(stall_bus),

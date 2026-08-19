@@ -202,6 +202,15 @@ reset:
     SB    r0, TCB2_R9
     SB    r0, TCB2_R10
     SB    r0, TCB2_R11
+    # ---- 中断优先级（bus_controller BUS_CON 0x6000，2bit 0-3）----
+    # timer=3 最高（俄罗斯方块 tick 关键，且 rx 不能打断调度器） rx=2 gpio0=1 gpio1=0
+    ADDI  r1, r0, 3
+    SB    r1, 0x6000
+    ADDI  r1, r0, 2
+    SB    r1, 0x6001
+    ADDI  r1, r0, 1
+    SB    r1, 0x6002
+    SB    r0, 0x6003
     # ---- timer: 0x270F → 周期 10000 拍 = 0.2ms（5kHz 抢占）----
     ADDI  r1, r0, 0x0F
     SB    r1, TIMER_CNT0

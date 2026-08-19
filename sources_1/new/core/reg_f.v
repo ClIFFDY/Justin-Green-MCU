@@ -26,15 +26,15 @@ module reg_f(
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
     input wire [7:0] rd,
-    input wire [11:0] ra_in,
+    input wire [12:0] ra_in,
     input wire [7:0] rd_data,
     output reg [1:0] j_flag,
-    output reg [11:0] ra,
+    output reg [12:0] ra,
     output reg [23:0] rd12_data
     );
 
     reg [7:0] regs [0:255];
-    (* ram_style = "block" *) reg [15:0] rad [0:255];
+    (* ram_style = "distribute" *) reg [15:0] rad [0:255];
 
     
     integer i;

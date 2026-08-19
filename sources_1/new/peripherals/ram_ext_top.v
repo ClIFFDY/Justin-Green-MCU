@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 2026/08/16 04:35:55
+// Create Date: 2026/08/20 02:12:07
 // Design Name: 
-// Module Name: ram_top
+// Module Name: ram_ext_top
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,8 +20,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module ram_top(
-    input wire clk,
+module ram_ext_top(
+    input wire clk, rst,
     input wire [15:0] bus_addr_in,
     input wire [7:0] bus_data_in,
     input wire [3:0] bus_sig_in,
@@ -30,57 +30,73 @@ module ram_top(
     );
 
     reg done;
-    reg [2:0] sec;
-    wire [7:0] sec_out [0:2];
-    wire access = (bus_addr_in[15:12] == 4'b1000 || bus_addr_in[15:12] == 4'b1001 
-                  || bus_addr_in[15:12] == 4'b1010)? 1'b1 : 1'b0;
+    reg [3:0] bank_num;
+    reg [1:0] sec_num;
+    wire [7:0] sec_out [0:3];
+    wire access = (bus_addr_in[15:12] == 4'b1100)? 1'b1 : 1'b0;
     assign stall_bus = access && !done && !bus_sig_in[0];
 
     always @(posedge clk) begin
-        done <= 1'b0;
-        if (access && !bus_sig_in[0]) begin
-            done <= ~done;
+        if (rst) begin
+            bank_num <= 0;
+            sec_num <= 0;
+            done <= 1'b0;
+        end 
+        else begin
+            done <= 1'b0;
+            if (bus_addr_in[15:12] == 4'b1011 && bus_sig_in[0]) begin
+                bank_num <= 4'b0001 << bus_data_in[1:0];
+                sec_num <= bus_data_in[1:0];
+            end
+            if (access && !bus_sig_in[0]) begin
+                done <= ~done;
+            end
+            else done <= 1'b0;
         end
-        else done <= 1'b0;
     end
 
     always @(*) begin
-        sec = 4'b0;
         if (access) begin
-            sec[bus_addr_in[13:12]] = 1'b1;
-            bus_data_out = sec_out[bus_addr_in[13:12]];            
+            bus_data_out = sec_out[sec_num];            
         end 
         else begin
-            sec = 4'b0;
             bus_data_out = 8'b0;
         end
-    end
+    end    
 
-    ram_sec ram_sec_1(
+    ram_sec ram_ext_1(
         .clk(clk),
-        .ram_sec(sec[0]),
+        .ram_sec(bank_num[0] & access),
         .mode(bus_sig_in[0]),
         .sec_addr_in(bus_addr_in[11:0]),
         .bus_data_in(bus_data_in),
         .sec_data_out(sec_out[0])
     );
 
-    ram_sec ram_sec_2(
+    ram_sec ram_ext_2(
         .clk(clk),
-        .ram_sec(sec[1]),
+        .ram_sec(bank_num[1] & access),
         .mode(bus_sig_in[0]),
         .sec_addr_in(bus_addr_in[11:0]),
         .bus_data_in(bus_data_in),
         .sec_data_out(sec_out[1])
     );
 
-    ram_sec_init ram_sec_init(
+    ram_sec ram_ext_3(
         .clk(clk),
-        .ram_sec(sec[2]),
+        .ram_sec(bank_num[2] & access),
         .mode(bus_sig_in[0]),
         .sec_addr_in(bus_addr_in[11:0]),
         .bus_data_in(bus_data_in),
         .sec_data_out(sec_out[2])
     );
 
+    ram_sec ram_ext_4(
+        .clk(clk),
+        .ram_sec(bank_num[3] & access),
+        .mode(bus_sig_in[0]),
+        .sec_addr_in(bus_addr_in[11:0]),
+        .bus_data_in(bus_data_in),
+        .sec_data_out(sec_out[3])
+    );
 endmodule
