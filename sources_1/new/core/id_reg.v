@@ -32,7 +32,6 @@ module id_reg(
     output reg [15:0] ab_raw,
     output reg [7:0] imm8, bus_data,
     output reg we, flush2
-
     );
 
     always@(posedge clk) begin

@@ -23,11 +23,9 @@
 module decoder(
     input wire rst, irq_flush,
     input wire [31:0] inst_raw,
-    input wire [7:0] result_last_in, rd_last1, rd_last2, 
+    input wire [7:0] result_last_in, rd_data, rd_last1, rd_last2, 
     input wire [23:0] rd12_data,
-    input wire [7:0] rd_data,
     input wire [1:0] j_flag,
-    output reg [23:0] addr_dr12,
     output reg [15:0] r12_data,
     output wire [5:0] opcode,
     output reg [7:0] imm8,
@@ -40,28 +38,28 @@ module decoder(
     );
    
     localparam [5:0]
-    HALT  = 6'b00_0000,
-    ADDI  = 6'b00_0001,
-    ADD   = 6'b00_0010,
-    SUBI  = 6'b00_0011,
-    SUB   = 6'b00_0100,
-    AND   = 6'b00_0101,
-    OR    = 6'b00_0110,
-    XOR   = 6'b00_0111,
+    HALT  = 6'b00_0000,//01
+    ADDI  = 6'b00_0001,//11
+    ADD   = 6'b00_0010,//11
+    SUBI  = 6'b00_0011,//11
+    SUB   = 6'b00_0100,//11
+    AND   = 6'b00_0101,//11
+    OR    = 6'b00_0110,//11
+    XOR   = 6'b00_0111,//11
     LJAL  = 6'b00_1000,
     RJAL  = 6'b00_1001,
-    ANDI  = 6'b00_1010,
-    ORI   = 6'b00_1011,
-    XORI  = 6'b00_1100,
-    SLL   = 6'b00_1101,
-    SRL   = 6'b00_1110,
-    SLLI  = 6'b00_1111,
-    SRLI  = 6'b01_0000,
-    SLTU  = 6'b01_0001,
-    SLTIU = 6'b01_0010,
+    ANDI  = 6'b00_1010,//11
+    ORI   = 6'b00_1011,//11
+    XORI  = 6'b00_1100,//11
+    SLL   = 6'b00_1101,//11
+    SRL   = 6'b00_1110,//11
+    SLLI  = 6'b00_1111,//11
+    SRLI  = 6'b01_0000,//11
+    SLTU  = 6'b01_0001,//11
+    SLTIU = 6'b01_0010,//11
     JALR  = 6'b01_0011,
-    NOP   = 6'b01_0100,
-    IRET  = 6'b01_0101,
+    NOP   = 6'b01_0100,//01
+    IRET  = 6'b01_0101,//01
     LBEQ  = 6'b01_0110,
     RBEQ  = 6'b01_0111,
     LBNE  = 6'b01_1000,
@@ -70,14 +68,10 @@ module decoder(
     RBLTU = 6'b01_1011,
     LBU   = 6'b01_1100,
     SB    = 6'b01_1101,
-    SBI   = 6'b01_1110;
-    // CADDI  = 8'b00_0001_11,
-    // CADD   = 8'b00_0010_11,
-    // CSUBI  = 8'b00_0011_11,
-    // CSUB   = 8'b00_0100_11,
-    // CNOP   = 8'b01_0100_01,
-    // CIRET  = 8'b01_0101_01,
-    
+    SBI   = 6'b01_1110,
+    LIND  = 6'b01_1111,
+    SIND  = 6'b10_0000;
+
     assign opcode = inst_raw[31:26];
     wire [7:0] r_bus = inst_raw[23:16];
     wire [7:0] r1 = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[7:4] : inst_raw[15:8];
@@ -96,12 +90,11 @@ module decoder(
         if (rst) begin
             irq_en = 1'b1;
             bytmov = 16'b0;
-            addr_dr12 = 24'b0;
             r12_data = 16'b0;
             imm8 = 8'b0;
             frz = 1'b0;
             we = 1'b0;
-            iret   = 1'b0;
+            iret = 1'b0;
             flush1 = 1'b0;
             bus_addr_out = 16'b0;
             bus_data_out = 8'b0;
@@ -110,31 +103,37 @@ module decoder(
         else begin
             irq_en = 1'b1;
             bytmov = 16'b0;
-            addr_dr12 = 24'b0;
             r12_data = {r1_data_final, r2_data_final};
-            imm8   = 8'b0;
-            frz    = 1'b0;
-            we     = 1'b0;
-            iret   = 1'b0;
+            imm8 = 8'b0;
+            frz = 1'b0;
+            we  = 1'b0;
+            iret = 1'b0;
             flush1 = 1'b0;
             bus_addr_out = 16'b0;
             bus_data_out = bus_data_final;
             bus_sig_out = 4'b0;
             case (inst_raw[31:26])
             LBU: begin
-                addr_dr12[23:16] = inst_raw[23:16];
                 bus_addr_out = inst_raw[15:0];
                 we = 1'b1;
                 bus_sig_out[0] = 1'b0;
             end
+            LIND: begin
+                bus_addr_out = {r1_data_final, r2_data_final};
+                we = 1'b1;
+                bus_sig_out[0] = 1'b0;
+            end
             SB: begin
-                addr_dr12[23:16] = inst_raw[23:16];
                 bus_addr_out = inst_raw[15:0];
                 bus_sig_out[0] = 1'b1;
             end
             SBI: begin
                 bus_data_out = inst_raw[23:16];
                 bus_addr_out = inst_raw[15:0];
+                bus_sig_out[0] = 1'b1;
+            end
+            SIND: begin
+                bus_addr_out = {r1_data_final, r2_data_final};
                 bus_sig_out[0] = 1'b1;
             end
             LJAL, RJAL: begin
@@ -146,7 +145,6 @@ module decoder(
             end
             LBEQ, RBEQ: begin
                 irq_en = 1'b0;
-                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final == r2_data_final) begin
                     bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
@@ -154,7 +152,6 @@ module decoder(
             end
             LBNE, RBNE: begin
                 irq_en = 1'b0;
-                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final != r2_data_final) begin
                     bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
@@ -162,18 +159,15 @@ module decoder(
             end
             LBLTU, RBLTU: begin
                 irq_en = 1'b0;
-                addr_dr12[15:0] = {4'b0, inst_raw[7:4], 4'b0, inst_raw[3:0]};
                 if (r1_data_final < r2_data_final) begin
                     bytmov = inst_raw[23:8];
                     flush1 = 1'b1;
                 end
             end
             ADD, SUB, AND, OR, XOR, SLL, SRL, SLTU: begin
-                addr_dr12 = inst_raw[23:0];
                 we = 1'b1;
             end
             ADDI, SUBI, ANDI, ORI, XORI, SLLI, SRLI, SLTIU: begin
-                addr_dr12[23:8] = inst_raw[23:8];
                 imm8 = inst_raw[7:0];
                 we = 1'b1;
             end

@@ -42,7 +42,7 @@ OPCODE = {
     'SLLI': 0x0F, 'SRLI': 0x10, 'SLTU': 0x11, 'SLTIU': 0x12, 'JALR': 0x13,
     'NOP': 0x14, 'IRET': 0x15, 'LBEQ': 0x16, 'RBEQ': 0x17, 'LBNE': 0x18,
     'RBNE': 0x19, 'LBLTU': 0x1A, 'RBLTU': 0x1B, 'LBU': 0x1C, 'SB': 0x1D,
-    'SBI': 0x1E,
+    'SBI': 0x1E, 'LIND': 0x1F, 'SIND': 0x20,
     # 'MOV' 无独立 opcode：RTL 已放弃 MOV，汇编器把 `MOV rd, rs` 翻译为 ADDI rd,rs,0（见 parse_lines）
 }
 
@@ -77,6 +77,9 @@ INS = {
     'LBU': ('lb', 4),
     'SB':  ('sb', 4),
     'SBI': ('sbi', 4),
+    # 间接访存（寄存器寻址，addr = r1:r2）
+    'LIND': ('lind', 4),
+    'SIND': ('sind', 4),
 }
 
 # flag=01 无操作数压缩（对应 decoder 注释 CNOP/CIRET/CMOV 里的前两个；MOV 按 ALU 类 flag=11 处理）
@@ -86,7 +89,8 @@ COMPRESSIBLE_01 = ('NOP', 'IRET')
 ROM_TOP = 0xFFF  # PC 12 位词地址，0x000-0xFFF（4096 词）
 
 OPERAND_N = {'none': 0, 'jalr': 0, 'jump': 1, 'branch': 3,
-             'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2}
+             'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2,
+             'lind': 3, 'sind': 3}
 LABEL_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
@@ -119,6 +123,134 @@ def parse_int(tok, symbols):
                 pass
         raise AsmError(f'无效字符字面量: {tok}')
     try:
+        low = tok.lower()
+        if low.startswith('0x'):
+            return int(tok, 16)
+        if low.startswith('0b'):
+            return int(tok, 2)
+        return int(tok, 10)
+    except ValueError:
+        raise AsmError(f'无效数字/未定义常量: {tok}')
+
+
+def eval_expr(tok, symbols):
+    """安全求值算术表达式：十进制/0x/0b 字面量 + 符号，支持 + - * / % ( )。
+    供 .rep 展开后的地址表达式（如 `0x9400 + 2*$i`）使用。"""
+    src = tok.strip()
+    n = len(src)
+    pos = 0
+
+    def peek():
+        return src[pos] if pos < n else ''
+
+    def skip():
+        nonlocal pos
+        while pos < n and src[pos] in ' \t':
+            pos += 1
+
+    def num():
+        nonlocal pos
+        skip()
+        m = re.match(r'(0[xX][0-9a-fA-F]+|0[bB][01]+|\d+|[A-Za-z_][A-Za-z0-9_]*)', src[pos:])
+        if not m:
+            raise AsmError(f'表达式无效: {tok}')
+        t = m.group()
+        pos += len(t)
+        if t in symbols:
+            return symbols[t]
+        if t.lower().startswith('0x'):
+            return int(t, 16)
+        if t.lower().startswith('0b'):
+            return int(t, 2)
+        return int(t)
+
+    def factor():
+        nonlocal pos
+        skip()
+        if peek() == '(':
+            pos += 1
+            v = expr()
+            skip()
+            if peek() != ')':
+                raise AsmError(f'表达式括号不配对: {tok}')
+            pos += 1
+            return v
+        if peek() == '-':
+            pos += 1
+            return -factor()
+        return num()
+
+    def term():
+        nonlocal pos
+        v = factor()
+        while True:
+            skip()
+            c = peek()
+            if c == '*':
+                pos += 1
+                v *= factor()
+            elif c == '/':
+                pos += 1
+                d = factor()
+                if d == 0:
+                    raise AsmError(f'除零: {tok}')
+                v //= d
+            elif c == '%':
+                pos += 1
+                d = factor()
+                if d == 0:
+                    raise AsmError(f'取模除零: {tok}')
+                v %= d
+            else:
+                return v
+
+    def expr():
+        nonlocal pos
+        v = term()
+        while True:
+            skip()
+            c = peek()
+            if c == '+':
+                pos += 1
+                v += term()
+            elif c == '-':
+                pos += 1
+                v -= term()
+            else:
+                return v
+
+    v = expr()
+    skip()
+    if pos != n:
+        raise AsmError(f'表达式尾部多余: {tok}')
+    return int(v)
+
+
+def parse_int(tok, symbols):
+    tok = tok.strip()
+    if not tok:
+        raise AsmError('空操作数')
+    if tok in symbols:
+        return symbols[tok]
+    if len(tok) >= 3 and tok[0] == "'" and tok[-1] == "'":
+        inner = tok[1:-1]
+        if len(inner) == 1:
+            return ord(inner)
+        if len(inner) == 2 and inner[0] == '\\':
+            simple = {'r': 13, 'n': 10, 't': 9, 'b': 8, 'a': 7, 'f': 12,
+                      '\\': 92, "'": 39, '0': 0}
+            if inner[1] in simple:
+                return simple[inner[1]]
+            raise AsmError(f'无效字符转义: {tok}')
+        if len(inner) == 4 and inner[0] == '\\' and inner[1] == 'x':
+            try:
+                return int(inner[2:4], 16)
+            except ValueError:
+                pass
+        raise AsmError(f'无效字符字面量: {tok}')
+    try:
+        if re.search(r'[+\-*/%()]', tok):
+            return eval_expr(tok, symbols)
         low = tok.lower()
         if low.startswith('0x'):
             return int(tok, 16)
@@ -162,6 +294,43 @@ def strip_comment(line):
             return line[:i]
         i += 1
     return line
+
+
+def expand_reps(src_lines):
+    """展开 `.rep N` .. `.endr` 循环（支持嵌套）：`$i`=最内层索引，`$j`=外层索引。
+    行级预处理，在 parse_lines 之前。"""
+    result = []
+    i, n = 0, len(src_lines)
+    while i < n:
+        line = src_lines[i]
+        m = re.match(r'^\.REP\s+(\d+)\s*$', line.strip(), re.I)
+        if m:
+            count = int(m.group(1))
+            depth = 1
+            body = []
+            i += 1
+            while i < n and depth > 0:
+                s = src_lines[i].strip()
+                if re.match(r'^\.REP\b', s, re.I):
+                    depth += 1
+                elif re.match(r'^\.ENDR\b', s, re.I):
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                if depth > 0:
+                    body.append(src_lines[i])
+                i += 1
+            if depth != 0:
+                raise AsmError('.rep 缺少 .endr 配对')
+            inner = expand_reps(body)
+            for idx in range(count):
+                for bl in inner:
+                    result.append(bl.replace('$i', str(idx)).replace('$j', str(idx)))
+            continue
+        result.append(line)
+        i += 1
+    return result
 
 
 def split_operands(s):
@@ -336,6 +505,19 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         if not (0 <= a <= 0xFFFF):
             raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
         return [b0, imm, (a >> 8) & 0xFF, a & 0xFF]
+    if fmt == 'lind':
+        # LIND rd, r1, r2：byte1=rd，byte2=r1(addr 高8位)，byte3=r2(addr 低8位)；addr = r1:r2
+        rd = parse_reg(ops[0], symbols)
+        r1 = parse_reg(ops[1], symbols)
+        r2 = parse_reg(ops[2], symbols)
+        return [b0, rd, r1, r2]
+    if fmt == 'sind':
+        # SIND rs, r1, r2：byte1=rs(源寄存器，RTL 存 bus_data_final=r_bus 值)，
+        #   byte2=r1(addr 高8位)，byte3=r2(addr 低8位)；写 rs 的值到 [r1:r2]
+        rs = parse_reg(ops[0], symbols)
+        r1 = parse_reg(ops[1], symbols)
+        r2 = parse_reg(ops[2], symbols)
+        return [b0, rs, r1, r2]
     raise AsmError(f'未知格式 {fmt}')
 
 
@@ -608,6 +790,7 @@ def auto_jpad(items):
 # ---------------------------------------------------------------- 汇编
 def assemble(src_lines):
     global AUTO_NOP_COUNT
+    src_lines = expand_reps(src_lines)   # 展开 .rep/.endr（行级预处理）
     items, symbols = parse_lines(src_lines)
     if not items:
         raise AsmError('程序为空')

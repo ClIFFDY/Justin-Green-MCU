@@ -45,7 +45,8 @@ module alu(
     SRLI = 6'b01_0000,
     SLTU = 6'b01_0001,
     SLTIU = 6'b01_0010,
-    LBU  = 6'b01_1100;
+    LBU  = 6'b01_1100,
+    LIND = 6'b01_1111;
 
     wire [7:0] a, b;
 
@@ -53,7 +54,7 @@ module alu(
     assign b = ab_raw[7:0];
     
     always @(*) begin
-        if (opcode == LBU) result = bus_data;
+        if (opcode == LBU || opcode == LIND) result = bus_data;
         else begin
             case(opcode)
             ADDI: result = a + imm8;

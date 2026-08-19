@@ -119,8 +119,10 @@ module irq_controller(
         if (rst) begin 
             irq_flush = 1'b0;
             irq_addr = 12'b0;
+            bus_data_out = 8'b0;
         end
         else begin
+            bus_data_out = 8'b0;
             irq_flush = 1'b0;
             irq_addr = 12'b0;
             if (!bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin

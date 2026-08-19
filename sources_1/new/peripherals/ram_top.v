@@ -34,13 +34,14 @@ module ram_top(
     wire [7:0] sec_out [0:3];
     wire access = (bus_addr_in[15:12] == 4'b1000 || bus_addr_in[15:12] == 4'b1001 
                   || bus_addr_in[15:12] == 4'b1010 || bus_addr_in[15:12] == 4'b1011)? 1'b1 : 1'b0;
-    assign stall_bus = access && !done;
+    assign stall_bus = access && !done && !bus_sig_in[0];
 
     always @(posedge clk) begin
         done <= 1'b0;
-        if (access) begin
+        if (access && !bus_sig_in[0]) begin
             done <= ~done;
         end
+        else done <= 1'b0;
     end
 
     always @(*) begin

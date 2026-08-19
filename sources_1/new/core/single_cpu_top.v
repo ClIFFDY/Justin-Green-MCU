@@ -85,7 +85,7 @@ module single_cpu_top(
         .inst_raw(inst_raw_zip)
         );
 
-    if_reg u_if_reg (
+    pre_decoder u_pre_decoder (
         .clk(clk),
         .rst(rst),
         .flush1(flush1),
@@ -96,7 +96,8 @@ module single_cpu_top(
         //
         .inst_raw(inst_raw),
         .cstall(cstall),
-        .irq_en(irq_en[0])
+        .irq_en(irq_en[0]),
+        .addr_dr12(rd12)
     );
 
     decoder u_decoder(
@@ -110,7 +111,6 @@ module single_cpu_top(
         .rd_data(rd_data),
         .j_flag(j_flag),
         //
-        .addr_dr12(rd12),
         .r12_data(r12_data),
         .opcode(op_temp),
         .imm8(imm8_temp),
@@ -133,7 +133,7 @@ module single_cpu_top(
         .we_in(we_temp1),
         .flush1(flush1),
         .opcode_in(op_temp),
-        .rd_in(rd12[23:16]),
+        .rd_in(inst_raw[23:16]),
         .imm8_in(imm8_temp),
         .ab_raw_in(r12_data),
         //
@@ -175,6 +175,7 @@ module single_cpu_top(
     reg_f u_reg_f(
         .clk(clk), 
         .rst(rst),
+        .stall(stall_bus),
         .we(we), 
         .tx_busy(tx_busy),
         .jmpflg(jmpflg),
