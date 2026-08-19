@@ -87,6 +87,9 @@ COMPRESSIBLE_01 = ('NOP', 'IRET')
 # flag=11 ALU 类压缩：alu_r / alu_i（字段满足才可压）
 
 ROM_TOP = 0xFFF  # PC 12 位词地址，0x000-0xFFF（4096 词）
+DATA_BASE = 0xB000  # 数据区总线地址（ram_sec_4，RTL 初始化读 hex 后半）
+DATA_ROM_START = 4096  # hex 后半起始词（词 4096-8191 = 数据区 4096 字节，每词低 8 位）
+HEX_TOP = 8191  # hex 总词数（前 4096 程序 + 后 4096 数据）
 
 OPERAND_N = {'none': 0, 'jalr': 0, 'jump': 1, 'branch': 3,
              'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2,
@@ -100,10 +103,20 @@ class AsmError(Exception):
 
 # ---------------------------------------------------------------- 解析工具
 def parse_int(tok, symbols):
-    """数字（十进制/0x/0b）、.equ 常量或单引号字符（'c' / '\\r' / '\\b' / '\\xNN'）→ int。"""
+    """数字、.equ 常量、字符字面量、简单表达式（base&N / base>>N / base±N）→ int。"""
     tok = tok.strip()
     if not tok:
         raise AsmError('空操作数')
+    # 简单表达式：base op num（递归解析 base，支持 datalabel 如 (msg>>8)/(msg&0xFF)）
+    m = re.match(r'^\(?(.+?)\)?\s*(&|>>|<<|\+|-)\s*(\d+|0x[0-9a-fA-F]+)$', tok)
+    if m:
+        base, op, num = m.group(1).strip(), m.group(2), int(m.group(3), 0)
+        bv = parse_int(base, symbols)
+        if op == '&': return bv & num
+        if op == '>>': return bv >> num
+        if op == '<<': return bv << num
+        if op == '+': return bv + num
+        if op == '-': return bv - num
     if tok in symbols:
         return symbols[tok]
     if len(tok) >= 3 and tok[0] == "'" and tok[-1] == "'":
@@ -230,6 +243,12 @@ def parse_int(tok, symbols):
     tok = tok.strip()
     if not tok:
         raise AsmError('空操作数')
+    # datalabel 偏移表达式：lab>>N / lab&N（数据区标签 → 0xB000+偏移）
+    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*(&|>>)\s*(\d+|0x[0-9a-fA-F]+)$', tok)
+    if m:
+        base, op, num = m.group(1), m.group(2), int(m.group(3), 0)
+        bv = parse_int(base, symbols)
+        return bv & num if op == '&' else bv >> num
     if tok in symbols:
         return symbols[tok]
     if len(tok) >= 3 and tok[0] == "'" and tok[-1] == "'":
@@ -449,7 +468,10 @@ def compressed_bytes(m, fmt, ops, symbols):
     if fmt == 'alu_i':
         rd = parse_reg(ops[0], symbols)
         rs1 = parse_reg(ops[1], symbols)
-        imm = parse_int(ops[2], symbols)
+        try:
+            imm = parse_int(ops[2], symbols)
+        except AsmError:
+            return None      # 表达式含未定义 datalabel（如 __pdN>>8）→ 不压缩
         if rd <= 3 and rs1 <= 7 and 0 <= imm <= 7:
             return [OPCODE[m] << 2 | 0x03, (rd << 6) | (rs1 << 3) | imm]
     return None
@@ -486,13 +508,13 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         return [b0, rd, rs1, imm]
     if fmt == 'lb':
         rd = parse_reg(ops[0], symbols)
-        a = parse_int(ops[1], symbols)
+        a = tget(ops[1])
         if not (0 <= a <= 0xFFFF):
             raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
         return [b0, rd, (a >> 8) & 0xFF, a & 0xFF]
     if fmt == 'sb':
         rs = parse_reg(ops[0], symbols)
-        a = parse_int(ops[1], symbols)
+        a = tget(ops[1])
         if not (0 <= a <= 0xFFFF):
             raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
         return [b0, rs, (a >> 8) & 0xFF, a & 0xFF]
@@ -527,6 +549,7 @@ def parse_lines(src_lines):
     symbols = {}
     items = []
     errs = []
+    in_data = False          # .data 数据区：后续 .byte/.str/.db 进 hex 后半（0xB000 区）
     for ln, raw in enumerate(src_lines, 1):
         line = strip_comment(raw).strip()
         if not line:
@@ -538,13 +561,31 @@ def parse_lines(src_lines):
             line = m.group(2).strip()
         try:
             if label:
-                items.append({'kind': 'label', 'name': label, 'ln': ln})
+                items.append({'kind': 'datalabel' if in_data else 'label',
+                              'name': label, 'ln': ln})
             if not line:
                 continue
             toks = line.split(None, 1)
             mnem = toks[0].upper()
             operands = toks[1] if len(toks) > 1 else ''
             ops = split_operands(operands)
+            if mnem == '.DATA':
+                in_data = True
+                continue
+            if mnem == '.DB':
+                if not in_data:
+                    raise AsmError('.db 必须位于 .data 数据区内')
+                bs = []
+                for t in ops:
+                    if t.startswith('"') or t.startswith("'"):
+                        bs += list(parse_str(t))
+                    else:
+                        b = parse_int(t, symbols)
+                        if not (0 <= b <= 0xFF):
+                            raise AsmError(f'.db 越界: {t}')
+                        bs.append(b)
+                items.append({'kind': 'datadata', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
+                continue
             if mnem == '.ORG':
                 if len(ops) != 1:
                     raise AsmError('.org 需要 1 个词地址')
@@ -565,22 +606,47 @@ def parse_lines(src_lines):
                     if not (0 <= b <= 0xFF):
                         raise AsmError(f'.byte 越界: {t}')
                     bs.append(b)
-                items.append({'kind': 'data', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
+                items.append({'kind': 'datadata' if in_data else 'data',
+                              'bytes': bs, 'src': raw.strip(), 'ln': ln})
                 continue
             if mnem == '.STR':
                 bs = list(parse_str(operands))
-                items.append({'kind': 'data', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
+                items.append({'kind': 'datadata' if in_data else 'data',
+                              'bytes': bs, 'src': raw.strip(), 'ln': ln})
                 continue
             if mnem == '.PUTS':
-                # 伪指令 .puts "text" → 展开为逐字符打印：
-                #   ADDI r7, r0, <c>  /  LBNE r0,r0,__putsN_i  /  __putsN_i:  /  LJAL putc
-                # 每字符 3 词（char 载入 + __jpad 垫层 + 后向调用 putc），文本在 ROM 不可 LBU 读回，
-                # 只能内联逐字符。默认目标 putc（.asm 里定义的标签），可用第二个参数换。
+                # 伪指令 .puts "text"：>3 字符用数据区 LIND 循环（文本进 hex 后半，每字符 1 字节；
+                # 循环 ~13 词固定 + 数据区）。短文本（≤3 字符）保持内联逐字符（3 词/字符）——
+                # 长文本数据区省、短文本内联省。默认目标 putc，可用第二个参数换。
                 bs = list(parse_str(operands))
                 ops = split_operands(operands)
                 tgt = 'putc'
                 if len(ops) == 2:
                     tgt = ops[1]
+                if len(bs) > 8 and tgt == 'putc':
+                    lab = f'__pd{_PUTS_CTR}'
+                    # datalabel 必须在 datadata 前：偏移 = 当前累积（文本起始），否则取到文本后
+                    items.append({'kind': 'datalabel', 'name': lab, 'ln': ln})
+                    items.append({'kind': 'datadata', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r1', 'r0', f'{lab}>>8'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r2', 'r0', f'{lab}&0xFF'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r6', 'r0', str(len(bs))], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'label', 'name': f'__pl{_PUTS_CTR}', 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'LIND', 'fmt': 'lind', 'nbytes': 4,
+                                  'ops': ['r7', 'r1', 'r2'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r2', 'r2', '1'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'LJAL', 'fmt': 'jump', 'nbytes': 3,
+                                  'ops': [tgt], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
+                                  'ops': ['r6', 'r6', '0xFF'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    items.append({'kind': 'ins', 'mnem': 'RBNE', 'fmt': 'branch', 'nbytes': 4,
+                                  'ops': ['r6', 'r0', f'__pl{_PUTS_CTR}'], 'cbytes': None, 'src': raw.strip(), 'ln': ln})
+                    _PUTS_CTR += 1
+                    continue
                 for i, b in enumerate(bs):
                     lab = f'__puts{_PUTS_CTR}_{i}'
                     items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
@@ -631,7 +697,7 @@ def compute_layout(items, must_first):
             word = it['addr']
             i += 1
             continue
-        if k == 'label':
+        if k in ('label', 'datalabel', 'datadata'):
             i += 1
             continue
         if k == 'data':
@@ -662,7 +728,7 @@ def run_layout(items):
     for idx, it in enumerate(items):
         if it['kind'] == 'label':
             j = idx + 1
-            while j < len(items) and items[j]['kind'] == 'label':
+            while j < len(items) and items[j]['kind'] in ('label', 'datalabel', 'datadata'):
                 j += 1
             label_item[it['name']] = j
     target_items = set()
@@ -805,10 +871,31 @@ def assemble(src_lines):
             break
         AUTO_NOP_COUNT += added
 
+    # 数据区（.data）：收集字节 + datalabel 地址（0xB000 + 偏移）
+    data_bytes = []
+    datalabel = {}
+    for it in items:
+        if it['kind'] == 'datadata':
+            data_bytes.extend(it['bytes'])
+        elif it['kind'] == 'datalabel':
+            datalabel[it['name']] = DATA_BASE + len(data_bytes)
+    if len(data_bytes) > 4096:
+        raise AsmError(f'数据区超 4096 字节: {len(data_bytes)}')
+    symbols.update(datalabel)   # 数据标签可被 parse_int 表达式引用（(msg>>8)/(msg&0xFF)）
+
     def resolve_t(tok):
         t = tok.strip()
+        # label±N（数据/符号标签偏移）
+        m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*([+-])\s*(\d+)$', t)
+        if m:
+            base = m.group(1)
+            off = int(m.group(3))
+            bv = resolve_t(base)
+            return bv + off if m.group(2) == '+' else bv - off
         if t in symbols:
             return symbols[t]
+        if t in datalabel:
+            return datalabel[t]
         if is_label(t):
             if t in label_word:
                 return label_word[t]
@@ -819,13 +906,17 @@ def assemble(src_lines):
     srcs = {}
     first_slots = set()
     max_word = 0
+    # 数据字节 → hex 后半（词 DATA_ROM_START+j，低 8 位字节）
+    for j, b in enumerate(data_bytes):
+        words[DATA_ROM_START + j] = b & 0xFF
+        max_word = max(max_word, DATA_ROM_START + j)
 
     i = 0
     n = len(items)
     while i < n:
         it = items[i]
         k = it['kind']
-        if k in ('label', 'org'):
+        if k in ('label', 'org', 'datalabel', 'datadata'):
             i += 1
             continue
         word, second = layout[i]
@@ -877,8 +968,7 @@ def assemble(src_lines):
 
 # ---------------------------------------------------------------- 输出
 def write_hex(words, srcs, max_word, fh):
-    """$readmemh 格式（32bit 词）：@0000 + 每行一个 8 位十六进制词；
-    未用词填 0x00000000（HALT）保证 ROM 无 X。词内字节序：byte0=高位（opcode 在 [31:24]）。"""
+    """程序 hex（0-4095 词，32bit 词，byte0=高位 opcode 在 [31:24]）。未用词填 0。"""
     fh.write('@0000\n')
     for w in range(0, ROM_TOP + 1):
         if w in srcs:
@@ -886,7 +976,14 @@ def write_hex(words, srcs, max_word, fh):
             fh.write('   // ' + ' | '.join(s.strip() for s in srcs[w]))
             fh.write('\n')
         else:
-            fh.write('%08X\n' % 0x00000000)
+            fh.write('%08X\n' % words.get(w, 0x00000000))
+
+
+def write_data_hex(words, fh):
+    """数据 hex（0-4095 词，每词 8 位字节；ram_sec_init 载入到 0xB000 区）。"""
+    fh.write('@0000\n')
+    for j in range(0, 4096):
+        fh.write('%02X\n' % (words.get(DATA_ROM_START + j, 0x00000000) & 0xFF))
 
 
 def main():
@@ -914,11 +1011,16 @@ def main():
         out_path = Path(args.output)
     else:
         out_path = Path(__file__).resolve().parent.parent / 'project_self-try.srcs' / 'ins_rom.hex'
+    data_path = out_path.with_name('data.hex')
 
     with open(out_path, 'w', encoding='utf-8', newline='\n') as fh:
         write_hex(words, srcs, max_word, fh)
+    # 数据区单独输出 data.hex（词 4096-8191，ram_sec_init 载入到 0xB000）
+    with open(data_path, 'w', encoding='utf-8', newline='\n') as fh:
+        write_data_hex(words, fh)
 
     print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0xFFF -> {out_path}')
+    print(f'数据区: 输出 -> {data_path}')
     if AUTO_NOP_COUNT or AUTO_FLIP_COUNT or AUTO_JPAD_COUNT:
         print(f'自动修正: 补 NOP {AUTO_NOP_COUNT} 个（bytmov 死区），'
               f'方向翻转 {AUTO_FLIP_COUNT} 处（L/R 前缀自动纠正），'

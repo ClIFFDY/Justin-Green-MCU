@@ -83,7 +83,7 @@ module ram_top(
         .sec_data_out(sec_out[2])
     );
 
-    ram_sec ram_sec_4 (
+    ram_sec_init ram_sec_init (
         .clk(clk),
         .ram_sec(sec[3]),
         .mode(bus_sig_in[0]),
