@@ -1,5 +1,13 @@
-<img width="2128" height="1226" alt="image" src="https://github.com/user-attachments/assets/3763cb55-3f64-4f37-bc34-5c4b51c84879" />
-_v3.3.x implemented schematic_
+  
+## *This is Justin_Green_MCU*   
+          
+<img width="1462" height="870" alt="image" src="https://github.com/user-attachments/assets/5ca9dc5a-d279-47bf-9231-38366dcdc934" />  
+
+*v3.3.x FPGA device map*  
+
+<img width="2135" height="1272" alt="image" src="https://github.com/user-attachments/assets/ca86bafc-2ad9-47ff-83d0-d39bc1072fe2" />  
+   
+*v3.3.x implemented schematic (CPU unfolded)*
 
 > >
 >    𝐃𝐎 𝐘𝐎𝐔 𝐋𝐈𝐊𝐄 𝐆𝐑𝐄𝐄𝐍𝐄𝐑𝐈𝐄𝐒        你喜欢看绿油油的𝐒𝐜𝐡𝐞𝐦𝐚𝐭𝐢𝐜吗
@@ -13,7 +21,7 @@ _v3.3.x implemented schematic_
 >  
 >  
 
-## Justin_Green_MCU 技术概述（基于当前v3.3.x）：
+##技术概述（基于当前v3.3.x）：
 ### CPU部分：
   
 - 基于自拟RISC指令集的8位架构（8位ALU+8位快速寄存器）；工作频率50MHz，极限频率72MHz；工作频率下理论最大算力50MIPS
@@ -24,7 +32,12 @@ _v3.3.x implemented schematic_
   
 - (32KB) 32位ROM，（256B）8位快速寄存器，（512B）16位返回栈专用寄存器；硬件返回栈深 255，寄存器组映射栈指针，满栈/空栈保护 (JAL/JALR)，flush 条件化
   
-- 硬件中断控制器，支持 6 路外部中断源 (UART/Timer/GPIO1/2/DMA/I2C)；支持软中断，可编程中断优先级嵌套，可初始化编程向量表，初始中断屏蔽，IRET 恢复断点  
+- 硬件中断控制器，支持 6 路外部中断源 (UART/Timer/GPIO1/2/DMA/I2C)；支持软中断，可编程中断优先级嵌套，可初始化编程向量表，初始中断屏蔽，IRET 恢复断点
+
+<img width="1215" height="766" alt="image" src="https://github.com/user-attachments/assets/4d252ecb-0eb3-433f-8d99-fc2cd8e96335" />  
+
+*instruction_file overview*
+
     
 ### 外设部分：  
   
@@ -51,6 +64,10 @@ _v3.3.x implemented schematic_
 - 基于Python语言的.asm转.hex汇编器；支持自动指令检测压缩，支持语义识别跳转指令纠错，支持宏；可告警、报错输出 (适装当前及部分早期版本，不建议跨版本使用)
 
 - 搭载抢占式RTOS内核（v2.3起，v2.2为协作式RTOS），支持任务调用栈分区核基于硬件中断的抢占调度，类Shell操作界面
+
+<img width="779" height="690" alt="52dde083ee5517a04f0d582f8a24f920" src="https://github.com/user-attachments/assets/c3c0a6c4-f83c-4afb-9532-f930326aa439" />  
+
+*v3.3.x version MCU running RTOS system with UART in/output*
   
 ### 备注：
   
