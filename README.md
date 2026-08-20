@@ -10,9 +10,12 @@
 
 > “~我只是个搓绿化带的”
 >  
-  
-  
-- 哈佛架构，自拟 6-bit opcode 可压缩（32bit/16bit-compressed) ISA ，(32 + 1伪 + 19自动压缩) 条指令，支持控制、ALU、访存、IRET，RISC 风格，8位通用寄存器和ALU
+>  
+
+## Justin_Green_MCU 技术概述：
+### CPU部分
+- 架构：
+- ，自拟 6-bit opcode 可压缩（32bit/16bit-compressed) ISA ，(32 + 1伪 + 19自动压缩) 条指令，支持控制、ALU、访存、IRET，RISC 风格，8位通用寄存器和ALU
 - 4 级流水线 (IF/ID/EX/WB)，两级前送+旁路消除 RAW 冒险，分支/中断 1 拍冲刷
 - (32KB)ROM，256B快速寄存器，自拟 16 位总线，MMIO 挂载(12 + 16 KB)RAM、UART (Dual FIFO)、Timer、DMA、8 位可动态配置 GPIO(支持UART、IN、OUT、IRQ_IN、PWM)
 - 硬件中断控制器，支持 5 路外部中断源 (UART/Timer/GPIO1/2/DMA)，软中断，可编程中断优先级嵌套，可初始化编程向量表 + IRET 恢复断点
