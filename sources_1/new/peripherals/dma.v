@@ -21,7 +21,7 @@
 
 
 module dma(
-    input wire clk, rst, busy, rx_irq,
+    input wire clk, rst, busy1, busy2, rx_irq,
     input wire [15:0] bus_addr_in,
     input wire [7:0] bus_data_in_cpu,
     input wire [7:0] bus_data_in,
@@ -33,6 +33,7 @@ module dma(
     );
 
     localparam [3:0]
+    I2C = 4'b0001,
     UART = 4'b0010,
     TIMER = 4'b0011,
     GPIO = 4'b0100,
@@ -53,6 +54,7 @@ module dma(
     LD = 3'b011,
     WR = 3'b100;
 
+    reg busy;
     reg [2:0] stage;
     reg [15:0] ini_addr;
     reg [7:0] ini_bank;
@@ -98,7 +100,8 @@ module dma(
             end
             INI: begin
                 if (ini_addr[15:12] == RAM_EXT || des_addr[15:12] == RAM_EXT) stage <= HSH;
-                else if (ini_addr[15:12] == UART) stage <= HSH; 
+                else if (ini_addr[15:12] == UART || ini_addr[15:12] == I2C) stage <= HSH;
+                else stage <= HSH;
             end
             HSH: begin
                 stage <= LD;
@@ -134,7 +137,7 @@ module dma(
                 else stage <= WR;
             end
             WR: begin
-                if (des_addr[15:12] == UART) begin
+                if (des_addr[15:12] == UART || des_addr[15:12] == I2C) begin
                     if (!busy && cnt_wr > 16'd0 && wr_ptr != ld_ptr - 4'd1) begin
                         wr_ptr <= wr_ptr + 1;
                         cnt_wr <= cnt_wr - 1;
@@ -144,7 +147,7 @@ module dma(
                         stage <= IDLE;
                         dma_irq <= 1'b1;
                     end
-                    else if (wr_ptr == ld_ptr - 4'd1) stage <= HSH;   // FIFO 空需重读：先 HSH 摆地址再 LD 采样
+                    else if (wr_ptr == ld_ptr - 4'd1) stage <= HSH;   
                 end
                 else if (cnt_wr > 16'd0 && wr_ptr != ld_ptr - 4'd1) begin
                     wr_ptr <= wr_ptr + 1;
@@ -152,7 +155,7 @@ module dma(
                     des_addr <= des_addr + 1;
                     stage <= WR;
                 end
-                else if (wr_ptr != ld_ptr - 4'd1) stage <= HSH;       // FIFO 空需重读：先 HSH 摆地址再 LD 采样
+                else if (wr_ptr != ld_ptr - 4'd1) stage <= HSH;     
                 else if (cnt_wr == 16'd0) begin
                     stage <= IDLE;
                     dma_irq <= 1'b1;
@@ -166,6 +169,9 @@ module dma(
         bus_addr_out = 16'b0;
         bus_data_out = 8'b0;
         bus_sig_out  = 4'b0;
+        if (des_addr[15:12] == UART) busy = busy1;
+        else if (des_addr[15:12] == I2C) busy = busy2;
+        else busy = 1'b0;
         case (stage)
         INI: begin
             if (ini_addr[15:12] == RAM_EXT || des_addr[15:12] == RAM_EXT) begin
@@ -191,7 +197,7 @@ module dma(
             end
         end
         WR: begin
-            if (des_addr[15:12] == UART) begin
+            if (des_addr[15:12] == UART || des_addr[15:12] == I2C) begin
                 if (!busy && wr_ptr != ld_ptr - 4'd1) begin
                     bus_addr_out = des_addr;
                     bus_data_out = data_buf[wr_ptr];

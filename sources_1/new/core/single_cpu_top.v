@@ -22,7 +22,7 @@
 
 module single_cpu_top(
     input wire clk,
-    input wire rst, stall_bus, tx_busy, 
+    input wire rst, stall_bus, tx_busy, i2c_busy,
     input wire [7:0] bus_data_in, 
     input wire [8:0] irq_bus,
     output wire [15:0] bus_addr_out,
@@ -178,6 +178,7 @@ module single_cpu_top(
         .stall(stall_bus),
         .we(we), 
         .tx_busy(tx_busy),
+        .i2c_busy(i2c_busy),
         .jmpflg(jmpflg),
         .addr_r12(rd12),
         .rd(rd),

@@ -22,7 +22,7 @@
 
 module reg_f(
     input wire clk, rst, stall,
-    input wire we, tx_busy,
+    input wire we, tx_busy, i2c_busy,
     input wire [1:0] jmpflg,
     input wire [23:0] addr_r12,
     input wire [7:0] rd,
@@ -44,8 +44,8 @@ module reg_f(
     end
 
     always @(posedge clk) begin
-        j_flag[1] <= (regs[254] == 8'd255) ? 1'b1 : 1'b0;
-        j_flag[0] <= (regs[254] == 8'b0) ? 1'b1 : 1'b0;
+        j_flag[1] <= (regs[253] == 8'd255) ? 1'b1 : 1'b0;
+        j_flag[0] <= (regs[253] == 8'b0) ? 1'b1 : 1'b0;
         if (!stall) begin
             rd12_data[23:16] <= (addr_r12[23:16] == rd && we) ? rd_data : regs[addr_r12[23:16]];
             rd12_data[15:8] <= (addr_r12[15:8] == rd && we) ? rd_data : regs[addr_r12[15:8]];
@@ -57,20 +57,21 @@ module reg_f(
     always @(posedge clk) begin
         if (rst) begin 
             ra <= 12'b0;
-            regs[254] <= 8'b0;
+            regs[253] <= 8'b0;
         end
         else begin
             ra <= rad[regs[254] - 1];
             regs[255] <= {7'b0, tx_busy};
+            regs[254] <= {7'b0, i2c_busy};
             if (we && rd != 0) regs[rd] <= rd_data;
 
             if (jmpflg[1] && ra_in != 0) begin
-                rad[regs[254]] <= ra_in;      
-                regs[254] <= regs[254] + 1;
+                rad[regs[253]] <= ra_in;      
+                regs[253] <= regs[253] + 1;
             end
-            else if (jmpflg[0] && regs[254] != 9'b0) begin
-                rad[regs[254] - 1] <= 9'b0;
-                regs[254] <= regs[254] - 1;
+            else if (jmpflg[0] && regs[253] != 9'b0) begin
+                rad[regs[253] - 1] <= 9'b0;
+                regs[253] <= regs[253] - 1;
             end
         end
     end

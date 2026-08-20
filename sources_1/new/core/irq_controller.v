@@ -39,7 +39,8 @@ module irq_controller(
         UART_RX = 1,
         GPIO1 = 2,
         GPIO2 = 3,
-        DMA = 4;
+        DMA = 4,
+        I2C = 5;
 
     localparam [3:0] 
         IDLE = 3'b000,
@@ -59,12 +60,13 @@ module irq_controller(
     integer i;
 
     initial begin
+        irq_vex[I2C]     = 13'd1168;
         irq_vex[DMA]     = 13'd1136;
         irq_vex[UART_RX] = 13'd1104;
         irq_vex[TIMER]   = 13'd1088;
         irq_vex[GPIO1]   = 13'd1056;
         irq_vex[GPIO2]   = 13'd1024;
-        for (i = 4; i < 16; i = i + 1) irq_vex[i] = 8'd168;
+        for (i = 6; i < 16; i = i + 1) irq_vex[i] = 8'd0;
         for (i = 0; i < 8; i = i + 1) pc_addr[i] = 12'b0;
     end
 

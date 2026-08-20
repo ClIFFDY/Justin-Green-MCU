@@ -32,14 +32,14 @@ module single_mcu_top(
     wire [7:0] bus_data_f1, bus_data_f2, bus_data_dma_cnt; 
     wire [3:0] bus_sig_f1, bus_sig_f2, bus_sig_dma;
     wire [7:0] bus_data_b;
-    wire tx_flg, tx_busy;
+    wire tx_flg, tx_busy, i2c_busy;
     wire stall_bus_in, stall_bus_1, stall_bus_2;
 
     wire [7:0] bus_data_uart, bus_data_ram1, bus_data_ram2, bus_data_gpio, bus_data_irq, bus_data_to_dma;
 
     wire [8:0] irq_bus;
-    wire rx, tx, pwm1, pwm2;
-    wire rx_irq ,timer_irq, dma_irq;
+    wire rx, tx, pwm1, pwm2, scl, sda;
+    wire rx_irq ,timer_irq, dma_irq, i2c_err_irq;
     wire [1:0] gpio_irq;
 
     rst_buf u_rst_buf(
@@ -54,6 +54,7 @@ module single_mcu_top(
         .rst(rst),
         .bus_data_in(bus_data_b),
         .tx_busy(tx_busy),
+        .i2c_busy(i2c_busy),
         .stall_bus(stall_bus),
         .irq_bus(irq_bus),
         //
@@ -74,6 +75,7 @@ module single_mcu_top(
         .timer_irq(timer_irq),
         .rx_irq(rx_irq),
         .dma_irq(dma_irq),
+        .i2c_err_irq(i2c_err_irq),
         .stall_bus_1(stall_bus_1),
         .stall_bus_2(stall_bus_2),
         .gpio_irq(gpio_irq),
@@ -93,7 +95,8 @@ module single_mcu_top(
     dma u_dma (
         .clk(clk),
         .rst(rst),
-        .busy(tx_busy),
+        .busy1(tx_busy),
+        .busy2(i2c_busy),
         .rx_irq(rx_irq),
         .bus_addr_in(bus_addr_f1),
         .bus_sig_in(bus_sig_f1),
@@ -141,6 +144,8 @@ module single_mcu_top(
         .tx(tx),
         .pwm1(pwm1),
         .pwm2(pwm2),
+        .scl(scl),
+        .sda(sda),
         .bus_addr_in(bus_addr_f1),
         .bus_data_in(bus_data_f1),
         .bus_sig_in(bus_sig_f1),
@@ -166,6 +171,21 @@ module single_mcu_top(
         //
         .tx(tx),
         .rx(rx)
+    );
+
+    i2c_out u_i2c_out (
+        .clk(clk),
+        .rst(rst),
+        .bus_addr_in(bus_addr_f1),
+        .bus_data_in(bus_data_f1),
+        .bus_sig_in(bus_sig_f1),
+        .bus_addr_dma(bus_addr_f2),
+        .bus_data_dma(bus_data_f2),
+        .bus_sig_dma(bus_sig_f2),
+        .i2c_err_irq(i2c_err_irq),
+        .sda(sda),
+        .scl(scl),
+        .busy(busy_i2c)
     );
 
     timer u_timer(

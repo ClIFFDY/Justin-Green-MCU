@@ -22,7 +22,7 @@
 
 module bus_controller(
     input wire clk, rst,
-    input wire timer_irq, rx_irq, dma_irq, stall_bus_1, stall_bus_2,
+    input wire timer_irq, rx_irq, dma_irq, i2c_err_irq, stall_bus_1, stall_bus_2,
     input wire [1:0] gpio_irq,
     input wire [15:0] bus_addr_f_in, bus_addr_dma_in,
     input wire [3:0] bus_sig_f_in,
@@ -35,6 +35,7 @@ module bus_controller(
     );
 
     localparam [3:0]
+    I2C = 4'b0001,
     UART = 4'b0010,
     TIMER = 4'b0011,
     GPIO = 4'b0100,
@@ -48,7 +49,7 @@ module bus_controller(
     BANK_SEL = 4'b1011,
     RAM_EXT = 4'b1100;
 
-    reg [2:0] irq_prio [0:4];
+    reg [2:0] irq_prio [0:5];
     reg irq_h1, irq_h2, irq_h3, irq_lock;
     integer i;
     initial irq_lock = 1'b1;
@@ -75,19 +76,22 @@ module bus_controller(
     always @(*) begin
         irq_bus = 9'b0;
         if (timer_irq && irq_prio[0] != 3'b0 && !irq_lock) irq_bus = {irq_prio[0], 3'b001, 3'b000};
-        if (rx_irq && (irq_bus == 9'b0 || irq_prio[1] > irq_bus[8:6]) && irq_prio[1] != 3'b0 && !irq_lock)
-            irq_bus = {irq_prio[1], 3'b010, 3'b000};
-        if (gpio_irq[0] && (irq_bus == 9'b0 || irq_prio[2] > irq_bus[8:6]) && irq_prio[2] != 3'b0 && !irq_lock)
-            irq_bus = {irq_prio[2], 3'b011, 3'b000};
-        if (gpio_irq[1] && (irq_bus == 9'b0 || irq_prio[3] > irq_bus[8:6]) && irq_prio[3] != 3'b0 && !irq_lock)
-            irq_bus = {irq_prio[3], 3'b100, 3'b000};
-        if (dma_irq && (irq_bus == 9'b0 || irq_prio[4] > irq_bus[8:6]) && irq_prio[4] != 3'b0 && !irq_lock)
-            irq_bus = {irq_prio[4], 3'b101, 3'b000};
+        if (dma_irq && (irq_bus == 9'b0 || irq_prio[1] > irq_bus[8:6]) && irq_prio[1] != 3'b0 && !irq_lock)
+            irq_bus = {irq_prio[1], 3'b101, 3'b000};
+        if (rx_irq && (irq_bus == 9'b0 || irq_prio[2] > irq_bus[8:6]) && irq_prio[2] != 3'b0 && !irq_lock)
+            irq_bus = {irq_prio[2], 3'b010, 3'b000};
+        if (i2c_err_irq && (irq_bus == 9'b0 || irq_prio[3] > irq_bus[8:6]) && irq_prio[3] != 3'b0 && !irq_lock)
+            irq_bus = {irq_prio[3], 3'b110, 3'b000}; 
+        if (gpio_irq[0] && (irq_bus == 9'b0 || irq_prio[4] > irq_bus[8:6]) && irq_prio[4] != 3'b0 && !irq_lock)
+            irq_bus = {irq_prio[4], 3'b011, 3'b000};
+        if (gpio_irq[1] && (irq_bus == 9'b0 || irq_prio[5] > irq_bus[8:6]) && irq_prio[5] != 3'b0 && !irq_lock)
+            irq_bus = {irq_prio[5], 3'b100, 3'b000};
+        
     end
 
     always @(posedge clk) begin
         if (rst) begin 
-            for (i = 0; i < 5; i = i + 1) irq_prio[i] <= i + 1;
+            for (i = 0; i < 6; i = i + 1) irq_prio[i] <= i + 1;
             irq_lock <= 1'b1;
         end
         else begin
