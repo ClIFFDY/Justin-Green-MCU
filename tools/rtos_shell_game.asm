@@ -148,6 +148,17 @@
 .equ GAME_S2 0x9488
 .equ GAME_S3 0x9489
 .equ DROP_SOLID 0x948A   # 快落检测：drop_piece 固化时置位
+# ---- 渲染帧 DMA（v3.1 优化）----
+.equ FRAME_BUF  0xC000   # 渲染帧缓冲（ram_ext bank0，DMA 源）
+.equ FRAME_IDX_LO 0x948B # 帧写指针 16bit 低字节（fputc 用；帧 319 字节 >255 必须 16 位）
+.equ FRAME_IDX_HI 0x948C # 帧写指针 16bit 高字节
+.equ DMA_INI    0x70C0   # 写 DMA ini 高字节（{addr[7:0]=0xC0, data=低字节}）→ 0xC000
+.equ DMA_CNT    0x7100   # 写 DMA cnt（data=帧长）
+.equ DMA_DES    0x7320   # 写 DMA des 高字节（{addr[7:0]=0x20, data=0}）→ 0x2000 UART
+.equ DMA_BANK   0x7400   # 写 DMA bank（data=0）
+.equ DMA_TRIG   0x7500   # 触发 DMA
+.equ DMA_CNT_HI 0x7600   # 读 DMA cnt 高字节（dma 用 bus_addr_in[11:8]==6 返回 cnt[15:8]）
+.equ DMA_CNT_LO 0x7700   # 读 DMA cnt 低字节（==7 返回 cnt[7:0]）
 
 .org 0x000
 reset:
@@ -202,15 +213,39 @@ reset:
     SB    r0, TCB2_R9
     SB    r0, TCB2_R10
     SB    r0, TCB2_R11
-    # ---- 中断优先级（bus_controller BUS_CON 0x6000，2bit 0-3）----
-    # timer=3 最高（俄罗斯方块 tick 关键，且 rx 不能打断调度器） rx=2 gpio0=1 gpio1=0
+    # ---- 中断优先级（BUS_CON 0x6000：addr bit3=1 写 prio；bit3=0 解锁一次性 lock）----
+    # timer=3 最高 rx=2 gpio0=1 gpio1=0 dma=0（关；复位默认 dma=5 最高必须关）
     ADDI  r1, r0, 3
-    SB    r1, 0x6000
+    SB    r1, 0x6008
     ADDI  r1, r0, 2
-    SB    r1, 0x6001
+    SB    r1, 0x6009
     ADDI  r1, r0, 1
-    SB    r1, 0x6002
-    SB    r0, 0x6003
+    SB    r1, 0x600A
+    SB    r0, 0x600B
+    SB    r0, 0x600C
+    # ---- 写向量表指针（IRQW 0x5xxx：[4:2]=槽位，[1:0]=1 高字节/2 低字节）----
+    # 槽位: timer=0 uart=1 gpio0=2 gpio1=3 dma=4
+    # 目标: timer→0x248(跳板→sched_body) uart→0x260 gpio0→0x208 gpio1→0x228 dma→0x208(防御IRET)
+    ADDI  r1, r0, 0x02
+    SB    r1, 0x5001            # timer 高
+    ADDI  r1, r0, 0x48
+    SB    r1, 0x5002            # timer 低 → 0x248
+    ADDI  r1, r0, 0x02
+    SB    r1, 0x5005            # uart 高
+    ADDI  r1, r0, 0x60
+    SB    r1, 0x5006            # uart 低 → 0x260
+    ADDI  r1, r0, 0x02
+    SB    r1, 0x5009            # gpio0 高
+    ADDI  r1, r0, 0x08
+    SB    r1, 0x500A            # gpio0 低 → 0x208
+    ADDI  r1, r0, 0x02
+    SB    r1, 0x500D            # gpio1 高
+    ADDI  r1, r0, 0x28
+    SB    r1, 0x500E            # gpio1 低 → 0x228
+    ADDI  r1, r0, 0x02
+    SB    r1, 0x5011            # dma 高
+    ADDI  r1, r0, 0x08
+    SB    r1, 0x5012            # dma 低 → 0x208
     # ---- timer: 0x270F → 周期 10000 拍 = 0.2ms（5kHz 抢占）----
     ADDI  r1, r0, 0x0F
     SB    r1, TIMER_CNT0
@@ -220,6 +255,8 @@ reset:
     SB    r0, TIMER_CNT3
     ADDI  r1, r0, 1
     SB    r1, TIMER_MODE
+    # ---- 解锁一次性 irq lock（写 BUS_CON bit3=0 即 0x6000-0x6007）→ 允许中断 ----
+    SB    r0, 0x6000
     # ---- 进入任务 0（shell）----
 task0_entry:
     RJAL  menu_main           # 主菜单
@@ -524,6 +561,8 @@ __jpadU2:
 game_start:                     # shell_parse 3 → 进入（GAME 独占模式）
     ADDI  r1, r0, 1
     SB    r1, GAME_ACTIVE       # 调度器检测：只更新 TICK 不切任务
+    # 选片 ram_ext bank0（渲染帧缓冲 FRAME_BUF@0xC000）
+    SB    r0, 0xB000
     # 清 FIELD（0x9400-0x9427）
     ADDI  r1, r0, 0x94
     ADDI  r2, r0, 0x00
@@ -1237,7 +1276,75 @@ __cr_zero:
     SB    r0, FIELD_BASE+1
     JALR
 
+# ---- 渲染帧 DMA 输出（v3.1）：fputc 写 ram_ext 缓冲，render 末尾 DMA 发 UART ----
+# fputc 用 r14/r15（俄罗斯方块段不用这两个寄存器，安全）；DMA 用轮询 cnt 等完成
+fputc:                       # 入参 r7=字符；写 FRAME_BUF+FRAME_IDX(16bit)
+    # 调度器 GAME 模式保存 r12-r14（GAME_S1-3），r15 会被调度器覆盖，勿用
+    LBU   r13, FRAME_IDX_LO
+    LBU   r14, FRAME_IDX_HI
+    ADDI  r14, r14, 0xC0     # 高字节 = 0xC0 + HI（帧 >255 时地址到 0xC100）
+    SIND  r7, r14, r13
+    ADDI  r13, r13, 1        # 16 位自增（LO 回绕时进位 HI）
+    ANDI  r12, r13, 0xFF
+    SB    r13, FRAME_IDX_LO
+    RBNE  r12, r0, __fputc_done
+    LBU   r12, FRAME_IDX_HI
+    ADDI  r12, r12, 1
+    SB    r12, FRAME_IDX_HI
+__fputc_done:
+    JALR
+
+fput_crlf:
+    ADDI  r7, r0, '\r'
+    RJAL  fputc
+    ADDI  r7, r0, '\n'
+    RJAL  fputc
+    JALR
+
+fprint_hex:                   # 入参 r7=字节 → 2 位 hex（帧版；r10 备份原字节，fprint_hexdigit 破坏 r7/r8/r9）
+    ADDI  r8, r7, 0
+    ADDI  r10, r7, 0
+    SRLI  r8, r8, 4
+    ANDI  r8, r8, 0xF
+    RJAL  fprint_hexdigit
+    ANDI  r8, r10, 0xF
+    RJAL  fprint_hexdigit
+    JALR
+
+fprint_hexdigit:              # 入参 r8=0-15 → 1 个 hex 字符（帧版）
+    ADDI  r9, r8, 0
+    ADDI  r8, r0, 10
+    RBLTU r9, r8, __fhd_num
+    ADDI  r7, r9, 0x37
+    RJAL  fputc
+    JALR
+__fhd_num:
+    ADDI  r7, r9, '0'
+    RJAL  fputc
+    JALR
+
+wait_dma:                     # 等 DMA 完成（cnt==0；首帧 cnt=0 直接过）
+    LBU   r1, DMA_CNT_HI
+    RBNE  r1, r0, wait_dma
+    LBU   r1, DMA_CNT_LO
+    RBNE  r1, r0, wait_dma
+    JALR
+
+dma_frame_send:               # 配置 DMA：ini=0xC000(bank0) → des=UART + 触发
+    SB    r0, DMA_INI
+    LBU   r1, FRAME_IDX_LO
+    LBU   r2, FRAME_IDX_HI
+    ADDI  r3, r0, 0x71         # cnt 寄存器基址 0x7100（地址字节=高字节）
+    SIND  r1, r3, r2           # cnt={地址[7:0]=HI, 数据=LO} → 16 位帧长（319=0x13F）
+    SB    r0, DMA_DES
+    SB    r0, DMA_BANK
+    SB    r0, DMA_TRIG
+    JALR
+
 render:
+    SB    r0, FRAME_IDX_LO      # 帧指针清零（16bit）
+    SB    r0, FRAME_IDX_HI
+    RJAL  wait_dma               # 等上一帧 DMA 完成（首帧 cnt=0 直接过）
     # 清 render_mask（SIND 循环 40 字节）
     ADDI  r1, r0, 0x94
     ADDI  r2, r0, 0x50
@@ -1261,37 +1368,37 @@ __clr_ren:
     LBU   r3, P_ROW4
     LBU   r4, P_COL4
     RJAL  set_cell
-    # 顶边框
+    # 顶边框（帧缓冲）
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
-    RJAL  put_crlf
+    RJAL  fputc
+    RJAL  fput_crlf
     # 20 行循环
     ADDI  r17, r0, 0            # r17 = 行
 __r_loop:
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r3, r17, 0
     SLLI  r2, r3, 1
     ADDI  r1, r0, 0x94
@@ -1309,55 +1416,74 @@ __r_loop:
     ADDI  r2, r7, 0
     RJAL  print_cells
     ADDI  r7, r0, '@'
-    RJAL  putc
-    RJAL  put_crlf
+    RJAL  fputc
+    RJAL  fput_crlf
     ADDI  r17, r17, 1
     ADDI  r1, r17, 0
     ADDI  r2, r0, 20
     RBLTU r1, r2, __r_loop
-    # 底边框
+    # 底边框（帧缓冲）
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
+    RJAL  fputc
     ADDI  r7, r0, '@'
-    RJAL  putc
-    RJAL  put_crlf
-    .puts "SCORE: "
+    RJAL  fputc
+    RJAL  fput_crlf
+    # SCORE 行（帧版）
+    ADDI  r7, r0, 'S'
+    RJAL  fputc
+    ADDI  r7, r0, 'C'
+    RJAL  fputc
+    ADDI  r7, r0, 'O'
+    RJAL  fputc
+    ADDI  r7, r0, 'R'
+    RJAL  fputc
+    ADDI  r7, r0, 'E'
+    RJAL  fputc
+    ADDI  r7, r0, ':'
+    RJAL  fputc
+    ADDI  r7, r0, ' '
+    RJAL  fputc
     LBU   r7, G_SCORE
-    RJAL  print_hex
-    RJAL  put_crlf
+    RJAL  fprint_hex
+    RJAL  fput_crlf
+    # 诊断：render 完成标记
+    ADDI  r1, r0, 0x55
+    SB    r1, 0x948D
+    # 发送 DMA（帧缓冲 0xC000 → UART）
+    RJAL  dma_frame_send
     JALR
 
-print_cells:               # r1=lo(8格) r2=hi(2格) -> 打印 10 格
+print_cells:               # r1=lo(8格) r2=hi(2格) -> 打印 10 格（帧版，fputc）
     ADDI  r6, r0, 8
 __pc_loop:
     ANDI  r3, r1, 1
     RBNE  r3, r0, __pc_hash
     ADDI  r7, r0, '.'
-    RJAL  putc
+    RJAL  fputc
     RBEQ  r0, r0, __pc_next
 __pc_hash:
     ADDI  r7, r0, '#'
-    RJAL  putc
+    RJAL  fputc
 __pc_next:
     SRLI  r1, r1, 1
     ADDI  r6, r6, 0xFF
@@ -1368,11 +1494,11 @@ __pc_hi:
     ANDI  r3, r2, 1
     RBNE  r3, r0, __pc_hhash
     ADDI  r7, r0, '.'
-    RJAL  putc
+    RJAL  fputc
     RBEQ  r0, r0, __pc_hnext
 __pc_hhash:
     ADDI  r7, r0, '#'
-    RJAL  putc
+    RJAL  fputc
 __pc_hnext:
     SRLI  r2, r2, 1
     ADDI  r6, r6, 0xFF

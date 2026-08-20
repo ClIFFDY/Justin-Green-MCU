@@ -31,6 +31,7 @@ module gpio_group(
     inout wire [7:0] gpio_pin_bus,
 
     input wire tx,
+    input wire pwm1, pwm2,
     output reg rx
     );
 
@@ -40,7 +41,9 @@ module gpio_group(
         IN = 4'b0010,
         IRQ = 4'b0011,
         TX = 4'b0101,
-        RX = 4'b0110;
+        RX = 4'b0110,
+        PWM1 = 4'b0111,
+        PWM2 = 4'b1000;
     
     reg [7:0] gpio_output;
     reg [3:0] gpio_mode [0:7];
@@ -52,7 +55,8 @@ module gpio_group(
     genvar j;
     generate
         for (j = 0; j < 8; j = j + 1) begin
-            assign gpio_pin_bus[j] = (gpio_mode[j] == OUT || gpio_mode[j] == TX)? gpio_output[j] : 8'bz;
+            assign gpio_pin_bus[j] = (gpio_mode[j] == OUT || gpio_mode[j] == TX
+            || gpio_mode[j] == PWM1 || gpio_mode[j] == PWM2)? gpio_output[j] : 8'bz;
         end       
     endgenerate
 
@@ -85,6 +89,8 @@ module gpio_group(
                 end
                 if (gpio_mode[i] == TX) gpio_output[i] <= tx;
                 else if (gpio_mode[i] == RX) rx <= gpio_pin_bus[i];
+                else if (gpio_mode[i] == PWM1) gpio_output[i] <= pwm1;
+                else if (gpio_mode[i] == PWM2) gpio_output[i] <= pwm2;
             end            
         end
     end

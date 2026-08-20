@@ -38,7 +38,8 @@ module irq_controller(
         TIMER = 0,
         UART_RX = 1,
         GPIO1 = 2,
-        GPIO2 = 3;
+        GPIO2 = 3,
+        DMA = 4;
 
     localparam [3:0] 
         IDLE = 3'b000,
@@ -58,10 +59,11 @@ module irq_controller(
     integer i;
 
     initial begin
-        irq_vex[TIMER]   = 13'd584;
-        irq_vex[UART_RX] = 13'd608;
-        irq_vex[GPIO1]   = 13'd552;
-        irq_vex[GPIO2]   = 13'd520;
+        irq_vex[DMA]     = 13'd1136;
+        irq_vex[UART_RX] = 13'd1104;
+        irq_vex[TIMER]   = 13'd1088;
+        irq_vex[GPIO1]   = 13'd1056;
+        irq_vex[GPIO2]   = 13'd1024;
         for (i = 4; i < 16; i = i + 1) irq_vex[i] = 8'd168;
         for (i = 0; i < 8; i = i + 1) pc_addr[i] = 12'b0;
     end
@@ -73,6 +75,14 @@ module irq_controller(
             j <= 1'b0;
         end
         else begin
+            if (bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
+                if (bus_addr_in[1:0] == 2'd1) begin 
+                    irq_vex[bus_addr_in[4:2]][12:8] = bus_data_in;
+                end
+                else if (bus_addr_in[1:0] == 2'd2) begin 
+                    irq_vex[bus_addr_in[4:2]][7:0] = bus_data_in;
+                end
+            end
             case (stage)
             IDLE: begin
                 if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall) begin 
@@ -90,11 +100,11 @@ module irq_controller(
                     end
                 end
                 else begin
-                    if (bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
+                    if (bus_sig_in && bus_addr_in[15:12] == IRQ_W && bus_addr_in[1:0] == 2'd0) begin
                         pc_addr[0][12:8] <= bus_data_in;
                         stage <= OPR;
                     end
-                    else if (irq_bus_in != 13'b0 && irq_en == 2'b11  && !stall 
+                    else if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall 
                         && irq_bus_in[8:6] > prio && j <= 4'd15) begin 
                         stage <= IRQ;
                         prio <= irq_bus_in[8:6];
