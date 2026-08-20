@@ -185,7 +185,7 @@ module single_mcu_top(
         .i2c_err_irq(i2c_err_irq),
         .sda(sda),
         .scl(scl),
-        .busy(busy_i2c)
+        .busy(i2c_busy)
     );
 
     timer u_timer(

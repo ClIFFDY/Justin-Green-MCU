@@ -66,15 +66,10 @@ module i2c_out(
         reg [7:0] data_buf [0:15];
         reg [7:0] send_buf;
 
-    integer i;
-    initial begin
-        for (i = 0; i < 16; i = i + 1) send_buf[i] = 8'd0;
-    end
-
     assign scl = scl_reg;
     assign sda = (sda_mode) ? sda_reg : 1'bz;
-    assign busy = (wr_ptr != rd_ptr + 1'b1) ? 1'b1 : 1'b0; 
-    
+    assign busy = (wr_ptr != rd_ptr + 1'b1) ? 1'b1 : 1'b0;
+
     always @(*) begin
         if (rst) begin cnt_l = 9'd0; cnt_h = 9'd0; end
         else begin
@@ -85,35 +80,22 @@ module i2c_out(
             endcase
         end
     end
+
     always @(posedge clk) begin
         if (rst) begin
-            for (i = 0; i < 16; i = i + 1) send_buf[i] = 8'd0;
             frq_mode <= 2'd0;
             ack_mode <= 1'b1;
-            rd_ptr <= 4'd0;
             wr_ptr <= 4'd1;
-            start <= 1'b0;
-            start <= 1'b0;
-            stop <= 1'b0;
         end
         else begin
             if (bus_addr_final[15:12] == 4'b0001) begin
                 if (bus_addr_final[11:9] == 3'd0 && bus_sig_final[0] && wr_ptr != rd_ptr) begin
-                    data_buf[wr_ptr] <= bus_data_final;  
+                    data_buf[wr_ptr] <= bus_data_final;
                     wr_ptr = wr_ptr + 1;
                 end
                 else if (bus_addr_final[11:9] == 3'd1 && bus_sig_final[0]) begin
                     frq_mode <= bus_data_final[2:1];
                     ack_mode <= bus_data_final[0];
-                end
-                else if (bus_addr_final[11:9] == 3'd2 && bus_sig_final[0]) begin
-                    start <= 1'b1;
-                end
-                else if (bus_addr_final[11:9] == 3'd3 && bus_sig_final[0]) begin
-                    stop <= 1'b1;
-                end
-                else if (bus_addr_final[11:9] == 3'd4 && bus_sig_final[0]) begin
-                    i2c_err_irq <= 1'b0;
                 end
             end
         end
@@ -122,6 +104,9 @@ module i2c_out(
     always @(posedge clk) begin
         if (rst) begin
             i2c_err_irq <= 1'b0;
+            start <= 1'b0;
+            stop <= 1'b0;
+            rd_ptr <= 4'd0;
             cnt <= 9'd0;
             stage <= 3'd0;
             sda_reg <= 1'b1;
@@ -132,6 +117,11 @@ module i2c_out(
             cnt <= 1'b0;
         end
         else begin
+            if (bus_addr_final[15:12] == 4'b0001 && bus_sig_final[0]) begin
+                if (bus_addr_final[11:9] == 3'd2) start <= 1'b1;
+                else if (bus_addr_final[11:9] == 3'd3) stop <= 1'b1;
+                else if (bus_addr_final[11:9] == 3'd4) i2c_err_irq <= 1'b0;
+            end
             if (cnt >= (phase_h ? cnt_h : cnt_l) - 1'b1) cnt <= 0;
             else cnt <= cnt + 1'b1;
             if (cnt == (phase_h ? cnt_h : cnt_l) - 1'b1) begin
