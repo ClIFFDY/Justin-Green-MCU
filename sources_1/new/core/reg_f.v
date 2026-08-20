@@ -60,7 +60,7 @@ module reg_f(
             regs[253] <= 8'b0;
         end
         else begin
-            ra <= rad[regs[254] - 1];
+            ra <= rad[regs[253] - 1];
             regs[255] <= {7'b0, tx_busy};
             regs[254] <= {7'b0, i2c_busy};
             if (we && rd != 0) regs[rd] <= rd_data;
