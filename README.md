@@ -1,18 +1,29 @@
-<img width="2117" height="1277" alt="image" src="https://github.com/user-attachments/assets/6c621854-13a0-4f1b-93f1-f8839b198f45" />
+  
+## *This is Justin_Green_MCU*   
+          
+<img width="1462" height="870" alt="image" src="https://github.com/user-attachments/assets/5ca9dc5a-d279-47bf-9231-38366dcdc934" />  
+
+*v3.3.x FPGA device map*  
+
+<img width="2135" height="1272" alt="image" src="https://github.com/user-attachments/assets/ca86bafc-2ad9-47ff-83d0-d39bc1072fe2" />  
+   
+*v3.3.x implemented schematic (CPU unfolded)*
 
 > >
->    𝐃𝐎 𝐘𝐎𝐔 𝐋𝐈𝐊𝐄 𝐆𝐑𝐄𝐄𝐍𝐄𝐑𝐈𝐄𝐒        你喜欢看绿油油的𝐒𝐜𝐡𝐞𝐦𝐚𝐭𝐢𝐜吗
+>    𝐃𝐎 𝐘𝐎𝐔 𝐋𝐈𝐊𝐄 𝐆𝐑𝐄𝐄𝐍𝐄𝐑𝐈𝐄𝐒 —— 你喜欢看绿油油的𝐒𝐜𝐡𝐞𝐦𝐚𝐭𝐢𝐜吗
 
 >  RTL 文件 —— 本人独立设计  
 >  testbench测试文件 / 初始 rom-hex (或RTOS) / 说明文档 / 上层工具链（部分版本） —— AI 辅助生成
 > >
 >  项目随进度更新
-
+  
 > “~我只是个搓绿化带的”
->  
->  
-
-## Justin_Green_MCU 技术概述（基于当前v3.3.x）：
+>
+   
+    
+      
+## 技术概述（基于当前v3.3.x）：
+  
 ### CPU部分：
   
 - 基于自拟RISC指令集的8位架构（8位ALU+8位快速寄存器）；工作频率50MHz，极限频率72MHz；工作频率下理论最大算力50MIPS
@@ -21,9 +32,14 @@
   
 - 4 级流水线 (IF / ID<Pre_ID + Post_ID> / EX / WB) 架构；两级前送 + 旁路消除 RAW 冒险，分支/中断 1 拍冲刷
   
-- (32KB) 32位ROM，（256B）8位快速寄存器，（512B）16位返回栈专用寄存器；硬件返回栈深 255，寄存器组映射栈指针，满栈/空栈保护 (JAL/JALR)，flush 条件化
+- (32KB) 32位ROM，（256B）8位快速寄存器，（512B）16位返回栈专用寄存器；RPU可编程快速寄存器任务映射；硬件返回栈深 255，寄存器组映射栈指针，满栈/空栈保护 (JAL/JALR)；flush 条件化
   
-- 硬件中断控制器，支持 6 路外部中断源 (UART/Timer/GPIO1/2/DMA/I2C)；支持软中断，可编程中断优先级嵌套，可初始化编程向量表，初始中断屏蔽，IRET 恢复断点  
+- 硬件中断控制器，支持 6 路外部中断源 (UART/Timer/GPIO1/2/DMA/I2C)；支持软中断，可编程中断优先级嵌套，可初始化编程向量表，初始中断屏蔽，IRET 恢复断点
+
+<img width="1215" height="766" alt="image" src="https://github.com/user-attachments/assets/4d252ecb-0eb3-433f-8d99-fc2cd8e96335" />  
+
+*instruction_file overview*
+
     
 ### 外设部分：  
   
@@ -35,7 +51,7 @@
   
 - UART：工作频率115200Hz；收发双缓冲，Busy信号映射到快速寄存器；支持中断、轮询双模式
   
-- 单输出I2C：可编程配置频率模式100KHz、400KHz、1MHz；可编程应答检测；发送缓冲，Busy信号映射到快速寄存器；支持报错中断、轮询
+- 单输出I2C：可编程配置频率模式100KHz、400KHz、1MHz；可编程应答检测；发送缓冲，Busy信号映射到快速寄存器；支持报错中断、轮询（针对OLED屏幕调试中）
 
 - RAM：共28KB（12KB直连 + 16KB分片拓展）；直连寄存器单片独立地址映射，STORE耗时1时钟沿，LOAD耗时2时钟沿；分片寄存器访问前需下达片选指令，片选后访问耗时同上
   
@@ -49,7 +65,11 @@
 
 - 基于Python语言的.asm转.hex汇编器；支持自动指令检测压缩，支持语义识别跳转指令纠错，支持宏；可告警、报错输出 (适装当前及部分早期版本，不建议跨版本使用)
 
-- 自v2.2开始植入RTOS协作式内核；v2.3开始升级为抢占式内核
+- 搭载抢占式RTOS内核（v2.3起，v2.2为协作式RTOS），支持任务调用栈分区核基于硬件中断的抢占调度，类Shell操作界面
+
+<img width="779" height="690" alt="52dde083ee5517a04f0d582f8a24f920" src="https://github.com/user-attachments/assets/c3c0a6c4-f83c-4afb-9532-f930326aa439" />  
+
+*v3.3.x version MCU running RTOS system with UART in/output*
   
 ### 备注：
   
