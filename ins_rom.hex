@@ -1,5 +1,5 @@
 @0000
-04FE0000   // ADDI  r254, r0, 0        # j=0：任务0 调用栈基址
+04FD0000   // ADDI  r253, r0, 0        # j=0：任务0 调用栈基址
 04010006   // ADDI  r1, r0, MODE_RX
 74014001   // SB    r1, GPIO_PIN0
 04010005   // ADDI  r1, r0, MODE_TX
@@ -47,12 +47,12 @@
 7400901F   // SB    r0, TCB2_R11
 04010003   // ADDI  r1, r0, 3
 74016008   // SB    r1, 0x6008
+74006009   // SB    r0, 0x6009
 04010002   // ADDI  r1, r0, 2
-74016009   // SB    r1, 0x6009
-04010001   // ADDI  r1, r0, 1
 7401600A   // SB    r1, 0x600A
 7400600B   // SB    r0, 0x600B
 7400600C   // SB    r0, 0x600C
+7400600D   // SB    r0, 0x600D
 04010002   // ADDI  r1, r0, 0x02
 74015001   // SB    r1, 0x5001            # timer 高
 04010048   // ADDI  r1, r0, 0x48
@@ -770,13 +770,13 @@
 74003005   // SB    r0, TIMER_ACK        # ack timer（电平锁存，必清）
 700F9486   // LBU   r15, GAME_ACTIVE
 60000100   // // 自动 jpad（IRET W+2 垫层）
-64005DF0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
+640060F0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
 700D5000   // LBU   r13, SLOT0_LO
 700E5001   // LBU   r14, SLOT0_HI
 700F9005   // LBU   r15, CUR_TASK
 60000100   // LBNE  r0, r0, __jpadS0
 64000AF0   // RBNE  r15, r0, __sv_t1     # 前向
-040CFE00   // ADDI  r12, r254, 0         # r12 = j
+040CFD00   // ADDI  r12, r253, 0         # r12 = j
 740D9008   // SB    r13, TCB0_PC_LO
 740E9009   // SB    r14, TCB0_PC_HI
 740C900A   // SB    r12, TCB0_J
@@ -790,7 +790,7 @@
 040C0001   // ADDI  r12, r0, 1
 60000100   // LBNE  r0, r0, __jpadS2
 64000AFC   // RBNE  r15, r12, __sv_t2     # 前向
-040CFE00   // ADDI  r12, r254, 0
+040CFD00   // ADDI  r12, r253, 0
 740D9010   // SB    r13, TCB1_PC_LO
 740E9011   // SB    r14, TCB1_PC_HI
 740C9012   // SB    r12, TCB1_J
@@ -801,7 +801,7 @@
 740B9017   // SB    r11, TCB1_R11
 60000100   // LBNE  r0, r0, __jpadS3
 5C000800   // RBEQ  r0, r0, __pick        # 前向
-040CFE00   // ADDI  r12, r254, 0
+040CFD00   // ADDI  r12, r253, 0
 740D9018   // SB    r13, TCB2_PC_LO
 740E9019   // SB    r14, TCB2_PC_HI
 740C901A   // SB    r12, TCB2_J
@@ -826,36 +826,39 @@
 50000000   // NOP                        # 拉开 __nw2 距离到 +3（bytmov=0 不可编码）
 740F9005   // SB    r15, CUR_TASK
 60000100   // LBNE  r0, r0, __jpadS6
-64000AF0   // RBNE  r15, r0, __ld_t1      # 前向
+64000BF0   // RBNE  r15, r0, __ld_t1      # 前向
+7800D000   // SBI   BASE_MAIN, BASELINE   # 切 baseline → 任务0 窗口（0 恒等）
 700D9009   // LBU   r13, TCB0_PC_HI
 700E9008   // LBU   r14, TCB0_PC_LO
 700C900A   // LBU   r12, TCB0_J
-04FE0C00   // ADDI  r254, r12, 0          # 恢复任务0 调用栈指针
+04FD0C00   // ADDI  r253, r12, 0          # 恢复任务0 调用栈指针
 7007900B   // LBU   r7, TCB0_R7
 7008900C   // LBU   r8, TCB0_R8
 7009900D   // LBU   r9, TCB0_R9
 700A900E   // LBU   r10, TCB0_R10
 700B900F   // LBU   r11, TCB0_R11
 60000100   // LBNE  r0, r0, __jpadS7
-5C001600   // RBEQ  r0, r0, __redirect    # 前向
+5C001800   // RBEQ  r0, r0, __redirect    # 前向
 040C0001   // ADDI  r12, r0, 1
 60000100   // LBNE  r0, r0, __jpadS8
-64000AFC   // RBNE  r15, r12, __ld_t2     # 前向
+64000BFC   // RBNE  r15, r12, __ld_t2     # 前向
+7816D000   // SBI   BASE_TASK1, BASELINE  # 切 baseline → 任务1 窗口（0x16）
 700D9011   // LBU   r13, TCB1_PC_HI
 700E9010   // LBU   r14, TCB1_PC_LO
 700C9012   // LBU   r12, TCB1_J
-04FE0C00   // ADDI  r254, r12, 0          # 恢复任务1 调用栈指针
+04FD0C00   // ADDI  r253, r12, 0          # 恢复任务1 调用栈指针
 70079013   // LBU   r7, TCB1_R7
 70089014   // LBU   r8, TCB1_R8
 70099015   // LBU   r9, TCB1_R9
 700A9016   // LBU   r10, TCB1_R10
 700B9017   // LBU   r11, TCB1_R11
 60000100   // LBNE  r0, r0, __jpadS9
-5C000800   // RBEQ  r0, r0, __redirect    # 前向
+5C000900   // RBEQ  r0, r0, __redirect    # 前向
+7826D000   // SBI   BASE_TASK2, BASELINE  # 切 baseline → 任务2 窗口（0x26）
 700D9019   // LBU   r13, TCB2_PC_HI
 700E9018   // LBU   r14, TCB2_PC_LO
 700C901A   // LBU   r12, TCB2_J
-04FE0C00   // ADDI  r254, r12, 0          # 恢复任务2 调用栈指针
+04FD0C00   // ADDI  r253, r12, 0          # 恢复任务2 调用栈指针
 7007901B   // LBU   r7, TCB2_R7
 7008901C   // LBU   r8, TCB2_R8
 7009901D   // LBU   r9, TCB2_R9
@@ -1020,30 +1023,25 @@
 00000000
 00000000
 00000000
+70069041   // LBU   r6, CNT1
+04060601   // ADDI  r6, r6, 1
+74069041   // SB    r6, CNT1
+04050010   // ADDI  r5, r0, 0x10        # 外层 16 次 ≈ 80ms
+040400FF   // ADDI  r4, r0, 0xFF
+040300FF   // ADDI  r3, r0, 0xFF
+040303FF   // ADDI  r3, r3, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000430   // LBNE  r3, r0, dl1_i
+040404FF   // ADDI  r4, r4, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000840   // LBNE  r4, r0, dl1_m
+040505FF   // ADDI  r5, r5, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000C50   // LBNE  r5, r0, dl1_o
+58001100   // LBEQ  r0, r0, task1_loop
 00000000
 00000000
 00000000
-70199041   // LBU   r25, CNT1
-04191901   // ADDI  r25, r25, 1
-74199041   // SB    r25, CNT1
-04160010   // ADDI  r22, r0, 0x10        # 外层 16 次 ≈ 80ms
-60000100   // LBNE  r0, r0, __jpadD1
-041700FF   // ADDI  r23, r0, 0xFF
-041800FF   // ADDI  r24, r0, 0xFF
-041818FF   // ADDI  r24, r24, 0xFF
-04031800   // ADDI  r3, r24, 0           # 高区 → 低区拷贝供分支
-60000100   // LBNE  r0, r0, __jpadD3
-60000530   // LBNE  r3, r0, dl1_i
-041717FF   // ADDI  r23, r23, 0xFF
-04031700   // ADDI  r3, r23, 0
-60000100   // LBNE  r0, r0, __jpadD4
-60000A30   // LBNE  r3, r0, dl1_m
-041616FF   // ADDI  r22, r22, 0xFF
-04031600   // ADDI  r3, r22, 0
-60000100   // LBNE  r0, r0, __jpadD5
-60000F30   // LBNE  r3, r0, dl1_o
-60000100   // LBNE  r0, r0, __jpadD2
-58001600   // LBEQ  r0, r0, task1_loop
 00000000
 00000000
 00000000
@@ -1279,27 +1277,29 @@
 00000000
 00000000
 00000000
-701D9042   // LBU   r29, CNT2
-041D1D01   // ADDI  r29, r29, 1
-741D9042   // SB    r29, CNT2
-041A0040   // ADDI  r26, r0, 0x40        # 外层 64 次 ≈ 320ms
-60000100   // LBNE  r0, r0, __jpadE1
-041B00FF   // ADDI  r27, r0, 0xFF
-041C00FF   // ADDI  r28, r0, 0xFF
-041C1CFF   // ADDI  r28, r28, 0xFF
-04051C00   // ADDI  r5, r28, 0           # 高区 → 低区拷贝供分支
-60000100   // LBNE  r0, r0, __jpadE3
-60000550   // LBNE  r5, r0, dl2_i
-041B1BFF   // ADDI  r27, r27, 0xFF
-04051B00   // ADDI  r5, r27, 0
-60000100   // LBNE  r0, r0, __jpadE4
-60000A50   // LBNE  r5, r0, dl2_m
-041A1AFF   // ADDI  r26, r26, 0xFF
-04051A00   // ADDI  r5, r26, 0
-60000100   // LBNE  r0, r0, __jpadE5
-60000F50   // LBNE  r5, r0, dl2_o
-60000100   // LBNE  r0, r0, __jpadE2
-58001600   // LBEQ  r0, r0, task2_loop
+00000000
+00000000
+70069042   // LBU   r6, CNT2
+04060601   // ADDI  r6, r6, 1
+74069042   // SB    r6, CNT2
+04050040   // ADDI  r5, r0, 0x40        # 外层 64 次 ≈ 320ms
+040400FF   // ADDI  r4, r0, 0xFF
+040300FF   // ADDI  r3, r0, 0xFF
+040303FF   // ADDI  r3, r3, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000430   // LBNE  r3, r0, dl2_i
+040404FF   // ADDI  r4, r4, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000840   // LBNE  r4, r0, dl2_m
+040505FF   // ADDI  r5, r5, 0xFF
+60000100   // // 自动 jpad（IRET W+2 垫层）
+60000C50   // LBNE  r5, r0, dl2_o
+58001100   // LBEQ  r0, r0, task2_loop
+00000000
+00000000
+00000000
+00000000
+00000000
 00000000
 00000000
 00000000

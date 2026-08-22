@@ -1,13 +1,12 @@
-# MCU 指令集与外设用法说明（v3.3.0 —— I2C 只输出外设 / 应答报错中断 / 接入 DMA，ISA 无改动）
+# MCU 指令集与外设用法说明（v3.3.0 —— I2C 外设 + RPU 寄存器映射，真 v3.3.0；ISA 编码无改动）
 
-> 配套版本：MCU v3.3.0（2026-08-21，I2C 外设新增版）。**ISA 与 v3.0/v3.0.1/v3.1.0/v3.2.0 完全相同（指令总数 34），无改动**；本文件随版本重命名一份（v3.0 起归档规范）。v3.3.0 变化集中在**外设**：新增 **I2C 输出模块**（0x1000 段）：可配**应答开关**（ack_mode）、**ACK 报错中断**（i2c_err_irq）、**16 深 FIFO 缓冲**、SCL/SDA 经 **gpio_group 可配引脚**、接入 **DMA**（busy2 流控，RAM→I2C）。**软件零改动**（hex/汇编器与 v3.2.0 相同，I2C 硬件已验证、软件未接入）。**指令编码/布局不变**。
-> v3.2.0（2026-08-21）外设功能扩展：DMA（0x7000，16 深 FIFO、bus_f2）、外设双端口（dma_oc）、IRQ 向量表可写 + 一次性 lock、UART RX/TX 双 FIFO、俄罗斯方块渲染帧 DMA。
-> v3.1.0（2026-08-20）外设架构重构：ins_rom 8192 词 / PC 13 位、bus_controller 统一仲裁 + 可配中断优先级（0x6000，prio=0 关闭）、ram_ext 4 bank 选片、数据区 0xA000。
-> v3.0（2026-08-19）核心架构重构 + ISA 扩展：新增 LIND/SIND（32→34），WNS 优化（reg_f 同步读 + 读后写转发 + stall 冻结）。
-> v3.0.1（2026-08-20）系统层整合：俄罗斯方块集成 shell、hex 分离 2 个、汇编器 `.data`/`.puts`。
-> **v3.3.0 外设变化**：① **I2C 输出模块**（0x1000-0x1FFF）：数据 FIFO 写（0x1000）/ 配置 frq+ack（0x1200）/ start（0x1400）/ stop（0x1600）/ 清 err（0x1800）；② **SCL 双相 + 40%/60% 占空比**（100k/400k/1M 三档满足 t_HIGH/t_LOW 最小值）；③ **DMA busy2 流控**（RAM→I2C）；④ **中断优先级 6 槽**（新增 i2c，dev=6，irq_vex[5]=0x490）；⑤ **RTL 修复**（微测暴露 10 处：i2c rd_ptr+1'b1 回绕 / FIFO 满守卫 / 写读对齐 / busy / SCL 双相 / dma busy 按 des_addr / INI 默认转移 / i2c dev=110 / irq 初始化循环）。
-> 设计演进、时序与调试记录见 `版本开发日志/single_mcu_design_v3.3.0.md`（I2C 外设/微测/修复）与 `版本开发日志/single_mcu_design_v3.2.0.md`（DMA/双总线/向量表/UART FIFO）等。
-> 编码来源：`decoder.v` / `pc.v` / `reg_f.v` / `pre_decoder.v` / `ins_rom.v` / `irq_controller.v` / `single_cpu_top.v` / `single_mcu_top.v` / `bus_controller.v` / `dma.v` / `i2c_out.v` / `uart_top.v` / `ram_sec_init.v` / `ram_ext_top.v` / 各外设 `.v` / `tools/asm.py`。
+> 配套版本：MCU **真 v3.3.0**（2026-08-22 定稿）。v3.3.0 由**两段构成**：① **I2C 只输出外设**（2026-08-21，i2c_out.v/应答/ACK 报错/16 深 FIFO/SCL 双相 40%/DMA busy2/6 槽中断）；② **RPU 寄存器映射**（2026-08-22，rpu.v/baseline 窗口）。**ISA 编码与 v3.0/v3.1.0/v3.2.0 完全相同（指令总数 34），指令表/opcode/压缩布局均不变**；本文件随版本重命名一份（v3.0 起归档规范）。**v3.3.0 变化在"外设 + 寄存器语义"层**：新增 **rpu.v**，把所有寄存器操作数（rd/rs/分支/LIND/SIND）统一映射为 `regs[raw + baseline]`；baseline 经总线写 **0xD000** 设定、**0xD000 读**回。**0xD000 是新增系统寄存器**（此前未分配黑洞）。寄存器窗口随之成为**每任务独立**，调度器切任务时 `SBI <base>,0xD000` 切换。
+> v3.2.0（2026-08-21）外设功能扩展：DMA（0x7000）、外设双端口、IRQ 向量表可写+一次性 lock、UART RX/TX 双 FIFO、俄罗斯方块渲染帧 DMA。
+> v3.1.0（2026-08-20）外设架构重构：ins_rom 8192 词 / PC 13 位、bus_controller 统一仲裁+可配中断优先级、ram_ext 4 bank 选片、数据区 0xA000。
+> v3.0（2026-08-19）核心架构重构 + ISA 扩展：新增 LIND/SIND（32→34），WNS 优化。
+> **v3.3.0（RPU 段）变化**：① **寄存器映射**——所有 rd/rs/分支/LIND/SIND = `raw + ((raw<253)?baseline:0)`；② **0xD000 baseline 系统寄存器**（SB/SBI 写、LBU 读）；③ **每任务独立窗口**——任务0 base0 / 任务1 base0x16 / 任务2 base0x26，调度器 3×SBI 切窗口；④ **汇编器 `.base` / `rK.base`**；⑤ **RTL 排错**——decoder/rpu 3 处 `+?:` 优先级 + 自引用（基线加法条件必须挂括号）；⑥ **栈指针 j 修正**——任务切换改用 **r253**（= 硬件栈指针 regs[253]，原用 r254 是 i2c_busy，栈分区未真正生效的既有隐患）。
+> 设计演进、时序与调试记录见 `版本开发日志/single_mcu_design_v3.3.0.md`（I2C + RPU/窗口/调度器/RTL 修复合并版）。
+> 编码来源：`decoder.v` / `pc.v` / `reg_f.v` / `pre_decoder.v` / `rpu.v` / `ins_rom.v` / `irq_controller.v` / `single_cpu_top.v` / `single_mcu_top.v` / `bus_controller.v` / `dma.v` / `i2c_out.v` / `uart_top.v` / `ram_sec_init.v` / `ram_ext_top.v` / 各外设 `.v` / `tools/asm.py`。
 
 ---
 
@@ -15,7 +14,7 @@
 
 ### 1.1 编码规则（词寻址 + flag 压缩）
 
-- **词寻址**：PC 13 位【词地址】0x000–0x1FFF（8192 词 × 32bit BRAM，v3.1.0 扩容），32bit 定长取指。
+- **词寻址**：PC 13 位【词地址】0x000–0x1FFF（8192 词 × 32bit BRAM），32bit 定长取指。
 - **流水线**：`ins_rom(1级) → if_reg(1级) → decoder`；**指令在词 W 执行时 pc_addr = W+2**（取指延迟 2 拍）。
 - **词内字节序**：`byte0` 在**高位**（bits[31:24]）。`byte0 = opcode[5:0]<<2 | flag[1:0]`：
 
@@ -26,17 +25,17 @@
 | 01 | 无操作数压缩 16bit | `[opcode\|01][0x00]`：仅 NOP / IRET |
 
 - **自动压缩**（汇编器判定，无需手写 flag）：ALU-R/I 满足 `rd≤3、r1/r2≤7`（I 型 `imm≤7`）→ flag=11；`NOP/IRET` → flag=01；其余指令恒为原长。
-- **自动打包**：相邻两条压缩指令共享一个 32bit 词（前=[31:16]、后=[15:0]）。**跳转/分支目标必须落在词首指令**；独个可压缩指令退回原长（保证压缩词两半都非空，if_reg 的 cstall 拆包才正确）。
-- **解包**：if_reg 检测到词两半 flag 均≠00 时，用 `cstall` 冻结 pc，两半各输出 1 拍；解包后的 32bit 指令 opcode 仍在 [31:26]，压缩字段经 if_reg 原位展开，decoder 无需感知压缩。cstall 前半拍 irq_en=0（中断被屏蔽），后半拍恢复放行。
+- **自动打包**：相邻两条压缩指令共享一个 32bit 词（前=[31:16]、后=[15:0]）。**跳转/分支目标必须落在词首指令**；独个可压缩指令退回原长。
+- **解包**：if_reg 检测到词两半 flag 均≠00 时，用 `cstall` 冻结 pc，两半各输出 1 拍；解包后的 32bit 指令 opcode 仍在 [31:26]，压缩字段经 if_reg 原位展开，decoder 无需感知压缩。
 
-### 1.2 指令总表
+### 1.2 指令总表（ISA 编码与 v3.3.0 完全相同）
 
-opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 词）。
+opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 词）。**表内编码不变**；仅"寄存器操作数 → 物理寄存器"的语义由 RPU 映射（见 §1.5）。
 
 | 类别 | 助记符 | opcode | byte0(00) | 压缩 | 布局（原长，byte0 之后） | 功能 |
 |------|--------|--------|-----------|------|--------------------------|------|
 | 控制 | HALT | 0x00 | 0x00 | flag=01 | — | 停机（frz 停 PC） |
-|      | NOP | 0x14 | 0x50 | flag=01 | — | 空操作（if_reg 冲刷时自动插入） |
+|      | NOP | 0x14 | 0x50 | flag=01 | — | 空操作 |
 |      | IRET | 0x15 | 0x54 | flag=01 | — | 中断返回：恢复断点 |
 | 跳转 | LJAL | 0x08 | 0x20 | 否 | `bytmov16`（byte1:2） | 向后跳，压栈保存返回地址 |
 |      | RJAL | 0x09 | 0x24 | 否 | `bytmov16`（byte1:2） | 向前跳，压栈保存返回地址 |
@@ -69,13 +68,11 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 |      | **LIND** | **0x1F** | **0x7C** | 否 | rd, r1, r2（各 8 位寄存器号） | **寄存器间接读**：rd = 读 `[regs[r1]:regs[r2]]` |
 |      | **SIND** | **0x20** | **0x80** | 否 | rs, r1, r2（各 8 位寄存器号） | **寄存器间接写**：写 `[regs[r1]:regs[r2]]` = rs |
 
-共 **34 条真实指令** + 1 条伪指令。**v3.0 新增 LIND/SIND（寄存器间接访存），其余 32 条与 v2.3.1 完全一致**。
+共 **34 条真实指令** + 1 条伪指令。
 
-
-> **寄存器间接寻址（v3.0 新增，LIND/SIND）**：地址 = `regs[r1] 的内容 << 8 | regs[r2] 的内容`（16 位）。r1/r2 是**寄存器号**（byte2/byte3），其内容拼成访存地址；与 LBU/SB 走同一总线（RAM 或外设）。寄存器字段 8 位（0–255），任意寄存器可编（含 r254/r255），地址寄存器 r1/r2 可任选。LIND/SIND 恒原长 1 词（不压缩）。
-> 例：`LIND r6, r10, r11`：r10 内容 = 0x94、r11 内容 = 0x04 → 读 0x9404 → r6（俄罗斯方块 v2 用 r10/r11 作地址，避让返回寄存器 r1）。
-> **伪指令 MOV**：`MOV rd, rs` = 复制（rd ← rs）。RTL 不设 MOV opcode，汇编器翻译为 `ADDI rd, rs, 0`（语义等价、自动继承 ADDI 压缩）。
-> **分支寄存器 4 位**：6 条条件分支的 r1/r2 只编码低 4 位（byte3 = `r1[3:0]<<4 | r2[3:0]`，可用 r0–r15）。汇编器对超出 0x0F 的寄存器报错。
+> **寄存器间接寻址（LIND/SIND）**：地址 = `regs[r1] 的内容 << 8 | regs[r2] 的内容`（16 位）。r1/r2 是寄存器号（byte2/byte3），其内容拼成访存地址；与 LBU/SB 走同一总线。LIND/SIND 恒原长 1 词（不压缩）。**v3.5.0 下 r1/r2 也走 baseline 映射**（见 §1.5）。
+> **伪指令 MOV**：`MOV rd, rs` = 复制（rd ← rs）。RTL 不设 MOV opcode，汇编器翻译为 `ADDI rd, rs, 0`。
+> **分支寄存器 4 位**：6 条条件分支的 r1/r2 只编码低 4 位（可用 r0–r15）。汇编器对超出 0x0F 的寄存器报错。
 > **压缩字段上限**：ALU 压缩要求 `rd≤3、r1/r2≤7`（I 型 `imm≤7`），超限自动退回原长——对汇编器透明。
 
 ### 1.3 压缩编码详解（16bit，位于词的 [31:16] 或 [15:0]）
@@ -89,31 +86,49 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 ### 1.4 跳转偏移 bytmov（16 位【词单位】，基准 W+2）
 
-bytmov 是相对 **W+2**（指令在词 W 执行时的 pc 值）的**词数**偏移：
+- **R 前缀（向前）**：`bytmov = target − (W+2)`；**L 前缀（向后）**：`bytmov = (W+2) − target`。
+- **覆盖极限**：bytmov 16 位 → 每跳/分支最多 ±0xFFFF 词，覆盖 0x000–0x1FFF 全空间。
+- **汇编器自动修复**：bytmov 死区自动补 NOP（AUTO_NOP）、L/R 方向自动翻转（AUTO_FLIP）、jpad 自动垫层（AUTO_JPAD）。
 
-- **R 前缀（向前）**：`bytmov = target − (W+2)`
-- **L 前缀（向后）**：`bytmov = (W+2) − target`
+### 1.5 寄存器映射（v3.5.0 新增，baseline 窗口）
 
-**覆盖极限**：bytmov 16 位 → 每一跳/分支最多 ±0xFFFF 词，**覆盖 0x000–0x1FFF 全空间，一跳贯通**。
-**汇编器自动修复（v2.3）**：`tools/asm.py` 对 bytmov 死区自动补 NOP（AUTO_NOP）；对方向写反的 L/R 前缀自动翻转（AUTO_FLIP）；支持 `\b`/`\xNN` 转义。
+> **这是 v3.5.0 与之前版本最大的语义差异**。指令编码不变，但**寄存器操作数所指的物理寄存器**由 RPU 统一平移。
 
-### 1.5 寄存器与栈约定
+**核心公式**：所有寄存器操作数（ALU rd/rs1/rs2、分支 r1/r2、LIND/SIND r1/r2、写回 rd）映射为：
+
+```
+物理寄存器号 = raw + ((raw < 8'd253) ? baseline : 8'd0)
+```
+
+- **baseline**：由总线写 **0xD000**（`bus_addr[15:12]==0xD` 且写）设定；`LBU 0xD000` 读回（组合）。复位 baseline=0。
+- **相对操作数**：源码写 `rK` → 编码 raw=K → 物理 `regs[base+K]`。**各任务在自身 base 窗口内，r0-r7 等低编号可直接用条件跳转/压缩**。
+- **绝对操作数**：源码写 `rK.base`（汇编器标注）→ 编码 raw=K−base → 物理 `regs[K]`。用于跨任务/全局访问固定物理寄存器。**K≥253 豁免**（raw 保持 K；r253/r254/r255 恒绝对）。
+- **豁免段 ≥253**：r253（j 相关）/ r254（i2c_busy）/ r255（tx_busy）不被 baseline 平移，恒绝对。
 
 | 项 | 约定 |
 |----|------|
-| r0 | 恒为 0（写无效，作零寄存器用） |
-| r1–r253 | 通用寄存器（**分支比较只能用 r0–r15**；ALU/LBU/SB 可用任意寄存器） |
-| **r254** | **返回栈指针 j（v2.3 起）**：LJAL/RJAL 压 `rad[regs[254]]` 且 regs[254]++，JALR 弹栈；**软件可直接读写** |
-| r255 | 只读：UART tx_busy（bit0，轮询发完用） |
-| 调用栈 | **硬件栈**（reg_f 内 `rad`，**16 位槽 × 深 255**），LJAL/RJAL 压栈、JALR 弹栈 |
-| **调用栈分区（v2.3）** | rad[0:255] 按任务分区（任务0 0-63 / 任务1 64-127 / 任务2 128-191），调度器切任务时恢复各自 j |
-| PC | **13 位词地址 0x000–0x1FFF**（8192 词，v3.1.0 扩容；ROM/程序区独立于总线地址空间） |
+| r0 | 恒为 0。**⚠️ v3.5.0 窗口下"相对 r0"= regs[base]**，写守卫 `rd≠0` 只保护物理 regs[0]；**base>0 时程序必须保持 r0 恒 0（绝不写 r0）** |
+| r1–r252 | 窗口相对：物理 = raw+baseline（按当前任务窗口平移） |
+| **r253** | **调用栈指针 j**（全局豁免，恒绝对）；LJAL/RJAL 压栈、JALR 弹栈，reg_f 内 `rad[regs[253]]` |
+| **r254** | **i2c_busy**（每次覆写 `{7'b0,i2c_busy}`，恒绝对；软件写会被硬件覆写） |
+| **r255** | **tx_busy**（每次覆写 `{7'b0,tx_busy}`，恒绝对；软件写会被硬件覆写） |
+| 调用栈 | 硬件栈（reg_f 内 `rad`，16 位槽×深 255），指针=regs[253]（分区：任务0 0-63/任务1 64-127/任务2 128-191） |
+| PC | 13 位词地址 0x000–0x1FFF |
+
+> **RPU 窗口布局**：每个任务独立 base，物理空间互不重叠。任务0=0x00（恒等，shell/游戏沿用高 r17-r21）、任务1=0x16、任务2=0x26；调度器切任务时 `SBI <base>,0xD000` 切换。新的任务可 base=0x36 起，直接用 r0-r7 压缩位+条件跳转，不再与既有任务抢物理寄存器。
+
+### 1.6 汇编器 `.base` / `rX.base`（v3.5.0 新增）
+
+- **`.base N`**：声明当前代码块的寄存器窗口基准（范围 0–0xF0）。仅供汇编器换算 `rK.base`。
+- **`rK`**（相对/窗口）：原样编码 raw=K（硬件自动 +baseline）。
+- **`rK.base`**（物理绝对）：编码 raw=K−base；**K≥253 → raw=K**；K−base 越界报错。
+- **默认 base 0**：`rK.base` ≡ `rK`，对既有程序**逐字节兼容**（回归验证：v3.3.0 shell hex 一字不变）。
 
 ---
 
 ## 2. 外设与地址空间
 
-> 地址空间 v3.3.0 变化（相对 v3.2.0 基线）：**0x1000 区新增 I2C 输出外设**、**中断优先级扩到 6 槽（新增 i2c）**。**UART/timer/GPIO/RAM/ram_ext/DMA 地址不变**。
+> 地址空间 v3.5.0 变化（相对 v3.3.0 基线）：**0xD000 区间由"未分配黑洞"变为 baseline 系统寄存器**。其余外设地址不变。
 
 ### 2.1 地址空间总表
 
@@ -121,173 +136,97 @@ bytmov 是相对 **W+2**（指令在词 W 执行时的 pc 值）的**词数**偏
 
 | 区间 | 设备 | LBU（读） | SB（写） |
 |------|------|-----------|----------|
-| 0x0000–0x1FFF | **I2C（v3.3.0）** | 黑洞（返回 0） | 数据 FIFO（0x1000）/ 配置（0x1200）/ start（0x1400）/ stop（0x1600）/ 清 err（0x1800） |
+| 0x0000–0x1FFF | I2C | 黑洞（返回 0） | 数据 FIFO（0x1000）/ 配置（0x1200）/ start（0x1400）/ stop（0x1600）/ 清 err（0x1800） |
 | 0x2000–0x2FFF | UART | 弹 RX FIFO 队首 → rd | 写 TX FIFO（触发发送） |
 | 0x3000–0x3FFF | timer | 黑洞（返回 0） | 重装 / 模式 / ack |
 | 0x4000–0x4FFF | GPIO | 读 IN 引脚电平 → rd | 推挽输出 / 单 pin 模式 |
-| 0x5000–0x5FFF | IRQ_W（软中断） | **读被抢占断点 slot（v2.3）** | **向量表写（v3.2.0）** / 2 条连续 SB 改写 ISR 返回地址 |
-| 0x6000–0x6FFF | **BUS_CON** | 黑洞（返回 0） | **写中断优先级 / 一次性解锁（v3.2.0）** |
-| 0x7000–0x7FFF | **DMA（v3.2.0）** | **读 cnt_wr（0x7600/0x7700）** | **配置 ini/cnt/des/bank + 触发** |
+| 0x5000–0x5FFF | IRQ_W（软中断） | 读被抢占断点 slot | 向量表写 / 2 条连续 SB 改写 ISR 返回地址 |
+| 0x6000–0x6FFF | BUS_CON | 黑洞（返回 0） | 写中断优先级 / 一次性解锁 |
+| 0x7000–0x7FFF | DMA | 读 cnt_wr（0x7600/0x7700） | 配置 ini/cnt/des/bank + 触发 |
 | 0x8000–0xAFFF | ram_top（3×ram_sec） | 读 RAM → rd | 写 RAM |
 | 0xB000–0xBFFF | ram_ext 选片 | 黑洞（返回 0） | SB one-hot 选 bank |
 | 0xC000–0xCFFF | ram_ext 数据 | 读当前选中 bank → rd | 写当前选中 bank |
+| **0xD000–0xDFFF** | **RPU baseline（v3.5.0）** | **LBU 读当前 baseline** | **SB/SBI 写 baseline（设窗口基址）** |
+| 0xE000–0xFFFF | 未分配 | 黑洞 | 黑洞 |
 
-> 总线访问均为 2 拍：**RAM 第 1 拍置 stall**（写不 stall）；UART/timer/GPIO/IRQ_W/BUS_CON/DMA 无 stall。LIND/SIND 与 LBU/SB 走同一总线，可访问 RAM 与外设。
-> 0xD000–0xFFFF 未分配（黑洞）。
+> 总线访问均为 2 拍（RAM 第 1 拍置 stall；外设无 stall）。LIND/SIND 与 LBU/SB 走同一总线。
+> **0xD000 baseline 写**：`bus_addr[15:12]==0xD` 且写信号 → `baseline <= bus_data_in`；**0xD000 读**：同区间且非写 → `bus_data_out = baseline`。
 
 ### 2.2 双端口外设（v3.2.0）
 
-外设（ram_top/ram_ext/uart）改**双端口**：
-
-```verilog
-wire dma_oc = (bus_addr_dma[15:12] == 本外设段);
-wire [15:0] bus_addr_final = dma_oc ? bus_addr_dma : bus_addr_in;
-wire [7:0]  bus_data_final = dma_oc ? bus_data_dma  : bus_data_in;
-wire [3:0]  bus_sig_final  = dma_oc ? bus_sig_dma   : bus_sig_in;
-```
-
-- **bus_addr_in**（CPU 总线，bus_f1）与 **bus_addr_dma**（DMA 总线，bus_f2）。
-- `dma_oc`（DMA 正在访问本外设段）时用 DMA 总线，否则用 CPU 总线——**DMA 工作时切走 CPU 访问**。
+外设（ram_top/ram_ext/uart）双端口：`dma_oc = (bus_addr_dma[15:12]==本外设段)` 时用 DMA 总线，否则 CPU 总线。
 
 ### 2.3 bus_controller（统一仲裁 + 中断优先级 + 一次性 lock）
 
-- **CPU 读仲裁** `bus_data_b`（`bus_addr_f_in[15:12]`）与 **DMA 读返回仲裁** `bus_data_to_dma`（`bus_addr_dma_in[15:12]`）双路。
-- **中断优先级（6 槽，v3.3.0）**：0=timer 1=dma 2=rx **3=i2c**（v3.3.0 新增）4=gpio0 5=gpio1。SB `0x6000+[2:0]`（**addr bit3=1**）写 prio（2bit，0=关闭）。默认复位 `irq_prio[i]=i+1`。当前 boot 写 slot0-4（`0x6008-0x600C`），i2c(slot3) 置 0 关。
-- **一次性 lock（v3.2.0）**：复位 `irq_lock=1`（irq_bus 全 0，锁中断）；`SB 0x6000-0x6007`（**addr bit3=0**）→ `irq_lock=0`（解锁，不可再锁）。boot 在锁内完成 prio + 向量配置。
-- **irq_bus 编码** `{prio[2:0], dev[2:0], 000}`（prio 在 [8:6]、dev 在 [5:3]），dev timer=001/dma=101/rx=010/**i2c=110**（v3.3.0 修正，不与 dma 撞）/gpio0=011/gpio1=100。
+- **CPU 读仲裁** 与 **DMA 读返回仲裁** 双路。
+- **中断优先级（6 槽）**：0=timer 1=dma 2=rx 3=i2c 4=gpio0 5=gpio1。SB `0x6000+[2:0]`（addr bit3=1）写 prio（2bit，0=关闭）。当前 boot 写 slot0-4（`0x6008-0x600C`）。
+- **一次性 lock**：复位 `irq_lock=1`；`SB 0x6000-0x6007`（addr bit3=0）→ 解锁（不可再锁）。
+- **irq_bus 编码** `{prio[2:0], dev[2:0], 000}`，dev timer=001/dma=101/rx=010/i2c=110/gpio0=011/gpio1=100。
 
-### 2.4 DMA（0x7000–0x7FFF，v3.2.0 新增）
+### 2.4 DMA（0x7000–0x7FFF，v3.2.0）
 
-- **状态机**：IDLE → INI → HSH → LD ↔ WR（UART 模式超时终止）。
-- **配置**（IDLE 态 SB 写）：
+- **状态机**：IDLE → INI → HSH → LD ↔ WR。
+- **配置**：ini_addr(0x7000)/cnt(0x7100)/cnt_due(0x7200)/des_addr(0x7300)/ini_bank(0x7400)/触发(0x7500)/清 irq(0x7600)/读 cnt(0x7600,0x7700)。
+- **busy 按目的选**：`busy = (des_addr[15:12]==UART)?busy1 : (==I2C)?busy2 : 0`。
+- **俄罗斯方块用法**：渲染帧写 ram_ext bank0（0xC000），`SB r0,0x7500` 触发，DMA 发 UART，轮询 cnt。
 
-| 寄存器 | 地址 | 编码 |
-|--------|------|------|
-| ini_addr | 0x7000+[7:0] | `{addr[7:0], data}` 16 位源地址 |
-| cnt | 0x7100+[7:0] | `{addr[7:0]=高字节, data=低字节}`，**一次写满 16 位** |
-| cnt_due | 0x7200+[7:0] | UART 超时阈值 |
-| des_addr | 0x7300+[7:0] | 目的地址 |
-| ini_bank | 0x7400+[7:0] | ram_ext 选片 |
-| 触发 | 0x7500 | → INI |
-| 清 irq | 0x7600 | 写任意 |
-| 读 cnt | 0x7600 / 0x7700 | `[11:8]==6`→cnt_wr[15:8] / `==7`→[7:0] |
+### 2.4.1 I2C 输出模块（0x1000–0x1FFF，v3.3.0）
 
-- **工作**：INI 写 ram_ext 选片（0xB000）→ HSH 摆源地址 → LD 读 FIFO → WR 发目的（UART 等 tx_busy / **I2C 等 busy2**）。cnt_wr 归 0 → IDLE + dma_irq。
-- **busy 按目的选（v3.3.0 修复）**：`busy = (des_addr[15:12]==UART) ? busy1 : (des_addr[15:12]==I2C) ? busy2 : 0`（原按 ini_addr 选，RAM 源时流控失效）。
-- **俄罗斯方块用法**：渲染帧写 ram_ext bank0（0xC000），`SB r0,0x7500` 触发，DMA 发 UART（0x2000），软件轮询 cnt（0x7600/0x7700）等完成。
-- **I2C 用法（v3.3.0）**：配 `des_addr=0x1000`（I2C 数据段），触发后 `SB r0,0x1400` 置 I2C start；DMA 经 busy2 逐字节流控写入 I2C FIFO，I2C 连续发送。**I2C 用 ack=0**（一次 start 连续发完 FIFO）。
-
-### 2.4.1 I2C 输出模块（0x1000–0x1FFF，v3.3.0 新增，只输出主机）
-
-`i2c_out.v`：只输出（master→slave）I2C 主机，SCL/SDA 经 gpio_group 可配引脚。CPU/DMA 双端口（`dma_oc = bus_addr_dma[15:12]==0x1`）。寄存器（`[11:9]` 选择）：
-
-| 寄存器 | 地址（[11:9]） | 编码 |
-|--------|---------------|------|
-| 数据 FIFO 写 | 0x1000（0） | 写 `data_buf[wr_ptr]`（wr 从 1 起，满守卫 `wr!=rd`，容量 15） |
-| 配置 | 0x1200（1） | `data[2:1]`=frq（0/1/2→100k/400k/1M），`data[0]`=ack_mode |
-| start | 0x1400（2） | 置 1 触发起始 |
-| stop | 0x1600（3） | 置 1 发完当前字节后 STOP |
-| 清 err | 0x1800（4） | 写任意清 i2c_err_irq |
-
-- **SCL 双相 + 40%/60% 占空比**：每 bit `phase_h=0`（SCL 高，数据采样窗）时长 `cnt_l=CLK*2/(FREQ*5)`、`phase_h=1`（SCL 低）时长 `cnt_h=CLK*3/(FREQ*5)`。实测占空比 40%，三档满足 t_HIGH/t_LOW 最小值。
-- **状态机**：`IDLE→START→SEND↔ACK1/ACK2→STOP→BACK`，8 位 MSB-first。
-- **ack=1**：每字节后 ACK1 释放 SDA → ACK2 采样；**NACK（sda=1）→ i2c_err_irq + STOP**。一次 start 发一字节。
-- **ack=0**：不查 ACK，FIFO 有数据则连续发（一次 start 发完）；置 stop 则发完当前字节 STOP。
-- **busy**：`wr != rd+1`（FIFO 非空即忙）→ DMA busy2 流控。
-- **中断**：`i2c_err_irq`（电平）→ bus_controller 槽3 → irq_vex[5]=0x490（默认向量）。`SB 0x1800` 清。
+只输出 I2C 主机。寄存器（`[11:9]`）：数据 FIFO 写（0x1000）/ 配置 frq+ack（0x1200）/ start（0x1400）/ stop（0x1600）/ 清 err（0x1800）。SCL 双相 40/60 占空比三档；ack=1 一字节一 start（NACK→i2c_err_irq+STOP），ack=0 一次 start 连续发完。busy=`wr!=rd+1`（供 DMA busy2）。
 
 ### 2.5 ram_top（0x8000–0xAFFF，12KB）
 
-- `LBU rd, addr` / `SB rs, addr` / `SBI imm8, addr`；`ram_top.v` + 3×`ram_sec`，每片 4096B BRAM，连续 3×4KB = 12KB。
-- **分片选择 = `addr[13:12]`**：
-
-| 地址段 | 分片 |
-|--------|------|
-| 0x8000–0x8FFF | seg0（ram_sec_1） |
-| 0x9000–0x9FFF | seg1（ram_sec_2） |
-| 0xA000–0xAFFF | seg2（**ram_sec_init**，readmemh data.hex = 数据区） |
-
-- ram_sec_1/2 上电全 0；ram_sec_init 由 data.hex 初始化。同步写 / 寄存器读，2 拍访问（`stall_bus = access && !done`）。
+分片 `addr[13:12]`：0x8000-0x8FFF/0x9000-0x9FFF/0xA000-0xAFFF（ram_sec_init，readmemh data.hex）。ram_sec_1/2 上电全 0；ram_sec_init 由 data.hex 初始化。同步写/寄存器读，2 拍访问。
 
 ### 2.5.1 ram_ext_top（0xB000 选片 + 0xC000 访问，4×4KB）
 
-- **选片（SB 0xB000）**：`bank_num <= 4'b0001 << bus_data_in[1:0]`（one-hot 整体替换）+ `sec_num <= bus_data_in[1:0]`。
-- **访问（0xC000）**：读写当前选中 bank，片内偏移 `addr[11:0]`，直到下次选片切换。
-- 上电 bank_num 未选（需先 SB 选片）；访问 2 拍（done 握手）。
+选片 SB 0xB000 one-hot + sec_num；访问 0xC000 读写当前 bank，片内偏移 `addr[11:0]`。
 
-### 2.6 UART（0x2000–0x2FFF，RX/TX 双 FIFO，v3.2.0）
+### 2.6 UART（0x2000–0x2FFF，RX/TX 双 FIFO）
 
-- `LBU rd`@0x2000 弹 RX FIFO 队首（空返 0）；`SB rs`@0x2000 写 TX FIFO；`LBNE r255,r0,自旋` 等 tx_busy 归 0。
-- **RX FIFO**：64 深（有效 63），wr 从 1 起 / rd 从 0 起，**读出 `rx_buf[rd+1]`**（rd 落后一格），判空 `wr==rd+1`。
-- **TX FIFO**：64 深，**只收 `bus_addr_final[15:12]==0x2` 的写**（否则 GPIO/RAM 写会灌入）；`tx_en/tx_data` **组合输出**（`!busy && rd!=wr-1`），时序块只推 rd。
-- **tx_busy**：`rd != wr-1`（FIFO 非空）；r255 读回。
-- **中断**：`rx_irq = FIFO 非空`（电平）→ 向量由 irq_vex 配置（boot 写 0x260）。ISR 每 `LBU r,0x2000` 弹一字节。
+`LBU rd`@0x2000 弹 RX FIFO 队首（空返 0）；`SB rs`@0x2000 写 TX FIFO；`LBNE r255,r0,自旋` 等 tx_busy。RX 64 深（读出 `rx_buf[rd+1]`），TX 64 深（只收 `[15:12]==0x2`）。tx_busy=`rd!=wr-1`。rx_irq=FIFO 非空。
 
 ### 2.7 timer（0x3000–0x3FFF，纯写，32 位）
 
-- `SB rs`@0x3000/0x3001/0x3002/0x3003 设重装值字节 0/1/2/3；@0x3004 设 irq 模式（数据值 bit0=0 脉冲 / bit0=1 电平锁存）；@0x3005 ack 清 timer_irq。
-- 计数 0→重装值，**全 32 位相等**时 `timer_irq=1` 并清零，**周期 = 重装值 + 1 拍**。例：周期 65536 拍 → 重装值 0x0000FFFF。
-- 关闭：重装值全 0 不计数。中断：向量由 irq_vex 配置（boot 写 0x248）。
+`SB`@0x3000-0x3003 设重装字节；@0x3004 设 irq 模式（bit0=0 脉冲/1 电平锁存）；@0x3005 ack。计数 0→重装值，全 32 位相等时 timer_irq=1 并清零，周期=重装值+1 拍。
 
 ### 2.8 GPIO（0x4000–0x4FFF，8 位）
 
-- `LBU rd` 读引脚（仅 IN 模式回电平，其余位恒 0）；`SB rs`@偶数地址推挽输出；`SB rs`@奇数地址设单 pin 模式（`addr[3:1]` 选 pin、`data[3:0]` 选模式）。
+`LBU` 读引脚（仅 IN 回电平）；`SB`@偶数地址推挽输出、@奇数地址设单 pin 模式。方向：仅 OUT/TX 驱动，其余高阻。中断分组 pins 1-3→GPIO1、pins 4-7→GPIO2，电平式无 ack。
 
-| 值 | 模式 | 引脚行为 |
-|----|------|----------|
-| 0000 | UNUSE（默认） | **高阻不驱动** |
-| 0001 | OUT | 驱动 `gpio_output` |
-| 0010 | IN | 高阻，LBU 可读回 |
-| 0011 | IRQ | 高阻，电平式中断 |
-| 0101 | TX | 驱动跟随 uart_tx `tx` |
-| 0110 | RX | 高阻，电平直送 uart_rx `rx` |
+### 2.9 中断、向量与嵌套
 
-- **方向**：**仅 OUT/TX 驱动，其余全高阻**。
-- **中断分组**：pins 1–3 → GPIO1；pins 4–7 → GPIO2。电平式持续触发、无 ack。
-- pin0 保留；非 OR：同组多 IRQ pin 同时有效只有最后生效。
+| 中断源 | irq_bus[5:3] | irq_vex 索引 | boot 配置向量 | 优先级 |
+|--------|--------------|--------------|--------------|--------|
+| Timer | 001 | 0 | 0x248 | 3（最高） |
+| UART RX | 010 | 1 | 0x260 | 2 |
+| GPIO1 | 011 | 2 | 0x208 | 1 |
+| GPIO2 | 100 | 3 | 0x228 | 0 |
+| DMA 完成 | 101 | 4 | 0x208（防御） | 0（关） |
+| I2C 应答错误 | 110 | 5 | 0x490（默认） | 4（boot 0x600B=0 关） |
 
-### 2.9 中断、向量与嵌套（v3.2.0 向量可配）
+- **向量表总线可写**：`SB` 0x5000 区，`bus_addr_in[4:2]`=槽位、`[1:0]=1`写高字节/`=2`写低字节。**boot 必须写向量指针**覆盖默认。
+- **一次性 lock**：boot 在锁内写 prio + 向量，解锁后中断才放行。
+- **优先级**：更高优先级可抢占当前 ISR。**中断栈/嵌套**：irq_controller 内置 8 深返回地址栈。
+- **软中断 IRQ_W（0x5000）写路径**：连续 2 条 SB 改写栈顶返回地址；读路径：`LBU` 读被抢占任务断点（slot0=0x5000 低/0x5001 高）。
 
-| 中断源 | irq_bus[5:3] | 子源 [2:0] | irq_vex 索引 | boot 配置向量 | 优先级 |
-|--------|--------------|-----------|--------------|--------------|--------|
-| Timer | 001 | 000 | 0 | 0x248 | 3（最高） |
-| UART RX（FIFO 非空） | 010 | 000 | 1 | 0x260 | 2 |
-| GPIO1（pins 1–3） | 011 | 000 | 2 | 0x208 | 1 |
-| GPIO2（pins 4–7） | 100 | 000 | 3 | 0x228 | 0 |
-| DMA 完成 | 101 | 000 | 4 | 0x208（防御，prio=0 关） | 0（关） |
-| **I2C 应答错误（v3.3.0）** | **110** | 000 | **5** | 0x490（默认） | 4（boot 0x600B=0 关） |
-
-- **向量表总线可写（v3.2.0）**：`SB` 0x5000 区，`bus_addr_in[4:2]`=槽位（0-5）、`[1:0]=1` 写高字节 / `=2` 写低字节。**默认 irq_vex**：GPIO2=0x400 / GPIO1=0x420 / TIMER=0x440 / UART=0x450 / DMA=0x470 / **I2C=0x490**（v3.3.0 布局）；**boot 必须 SB 写向量指针**覆盖默认（0x400-0x47F 与 task1 冲突）。
-- **一次性 lock**：boot 在锁内（0x6000-0x6007 解锁前）写 prio + 向量；解锁后中断才放行。
-- **优先级**：`prio = irq_bus[8:6]`，更高优先级可抢占当前 ISR。
-- **中断栈 / 嵌套**：irq_controller 内置 8 深返回地址栈 `pc_addr[0:7]` + 栈指针 `j`。
-- **软中断 IRQ_W（0x5000）— 写路径**：ISR 活动时，连续 2 条 SB 到 0x5000–0x5FFF 改写栈顶返回地址（`addr[1:0]==0` 走 pc_addr 写、`==1/2` 走向量表写）。之后 IRET 跳改写后的目标。
-- **软中断 IRQ_W（0x5000）— 读路径**：`LBU` 0x5000 区读被抢占任务断点。slot = `bus_addr_in[4:1]`，byte = `bus_addr_in[0]`。**slot0 = 0x5000（低 8 位）/ 0x5001（高 4 位）**。
-
-> **中断语义（v2.2 延续）**：
-
-> **① 授权门控（irq_en）**：仅当 `irq_en == 2'b11` 才接受/抢占中断。控制转移（9 条）与 cstall 拆包前半拍强制屏蔽。
-
-> **② 被中断指令写回不丢**：irq_flush 只冲刷取指级，decoder/id_reg/wr_reg 不冲刷。
-
-> **③ IRET W+2 语义 + __jpad 垫层**：派发沿保存 `pc=W+2`，IRET 回 W+2；**每条控制转移之前必须垫 `LBNE r0,r0,__jpadN`**。
-
-> **④ 抢占断点 pc-1**：IRQ 态被更高优先级抢占时保存 `pc-1`（=W+1），内层 IRET 回 W+1。
+> **中断语义（v2.2 延续）**：① 授权门控 irq_en==11；② 被中断指令写回不丢；③ IRET W+2 + `__jpad` 垫层；④ 抢占断点 pc-1。
 
 ---
 
-## 3. v2.3 相比 v2.2 的软件侧约定（RTOS 内核）
+## 3. v3.5.0 软件侧约定（RTOS 内核，RPU 窗口）
 
-指令集文档范围之外、但写程序必须遵守的 v2.3 约定（细节见设计日志）：
+指令集文档范围之外、写程序必须遵守的 v3.5.0 约定（细节见设计日志）：
 
 | 项 | 约定 |
 |----|------|
-| 寄存器分块 | 任务0 低 r1/r2+高 r17-r21；任务1 低 r3/r4+高 r22-r25；任务2 低 r5/r6+高 r26-r29；调度器 r12-r15 临时；**共享子程序 r7-r11** |
-| 抢占调度器 | timer ISR（5kHz）：读 slot0 → 存 PC+j+r7-r11 → CUR=(CUR+1)%3 → 载新任务 → 2×SB 改写 → IRET |
-| TCB | 每任务 8 字节：PC_LO/PC_HI/J/R7/R8/R9/R10/R11 |
-| 调度器切任务 | `LBU 0x5000`（低）+ `LBU 0x5001`（高）读断点 → 重建 resume_pc → 恢复 r254=j → 2×紧邻 SB 到 0x5000 改写 pc_addr[0] → IRET |
-| 汇编器自动修复 | bytmov 死区自动补 NOP、L/R 自动翻转、`\b`/`\xNN` 转义 |
+| **窗口分配** | 任务0(base 0x00, shell/游戏, 高 r17-r21 沿用)、任务1(base 0x16)、任务2(base 0x26)。**新增任务 base 0x36 起** |
+| **寄存器分块** | 任务内用**窗口相对号** rK；跨任务/全局用 **rK.base** 绝对号；**r0 恒 0 不写**；调度器 r12-r15 临时（=当前 base+12..15） |
+| **调度器切 baseline** | 载任务段 3 处 `SBI <base>,0xD000`；保存段在旧任务 base 下存 PC+j+r7-r11 |
+| **共享子程序** | r7-r11（各任务窗口内 r7-r11，调度器按任务保存/恢复） |
+| **调用栈分区** | 任务0 0-63 / 任务1 64-127 / 任务2 128-191；调度器恢复各自 j（豁免绝对号） |
+| **汇编器** | `.base` 声明窗口；`rK.base` 绝对号；相对号 `rK` 自动适配硬件 |
 
 ---
 
-*本文档随版本更新；新增外设/指令/中断语义时同步追加对应表格。*
+*本文档随版本更新；新增外设/指令/寄存器语义时同步追加对应表格。*

@@ -282,10 +282,23 @@ def parse_int(tok, symbols):
 
 def parse_reg(tok, symbols):
     t = tok.strip()
+    abs_reg = False
+    if re.search(r'\.base$', t, re.I):
+        abs_reg = True
+        t = re.sub(r'\.base$', '', t, flags=re.I).strip()
     if t[:1].lower() == 'r' and t[1:].isdigit():
         v = int(t[1:], 10)
     else:
         v = parse_int(t, symbols)
+    if abs_reg:
+        # 物理绝对号 K：编码相对号 raw = K - base（K>=253 豁免，硬件不加 base → raw 保持 K）
+        if v >= 253:
+            raw = v
+        else:
+            raw = v - CURRENT_BASE
+        if not (0 <= raw <= 0xFF):
+            raise AsmError(f'绝对寄存器 {tok} 换算越界: {v}-{CURRENT_BASE} 不在 0-255')
+        return raw
     if not (0 <= v <= 0xFF):
         raise AsmError(f'寄存器号越界: {tok}（须 0-255）')
     return v
@@ -424,6 +437,8 @@ _PUTS_CTR = 0
 # 自动 jpad 计数 + 标签计数器
 AUTO_JPAD_COUNT = 0
 _JPAD_CTR = 0
+# 当前 .base（任务窗口基准，用于把 rK.base 绝对号换算成相对号）
+CURRENT_BASE = 0
 
 
 def _flip_side(m):
@@ -545,7 +560,8 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
 
 # ---------------------------------------------------------------- 解析
 def parse_lines(src_lines):
-    global _PUTS_CTR
+    global _PUTS_CTR, CURRENT_BASE
+    CURRENT_BASE = 0
     symbols = {}
     items = []
     errs = []
@@ -598,6 +614,14 @@ def parse_lines(src_lines):
                 if len(ops) != 2:
                     raise AsmError('.equ 需要 .equ NAME value')
                 symbols[ops[0]] = parse_int(ops[1], symbols)
+                continue
+            if mnem == '.BASE':
+                if len(ops) != 1:
+                    raise AsmError('.base 需要 1 个寄存器基准值')
+                b = parse_int(ops[0], symbols)
+                if not (0 <= b <= 0xF0):
+                    raise AsmError(f'.base 越界: 0x{b:02X}（须 0-240；窗口须留 16 格 + 豁免段）')
+                CURRENT_BASE = b
                 continue
             if mnem == '.BYTE':
                 bs = []
@@ -855,7 +879,8 @@ def auto_jpad(items):
 
 # ---------------------------------------------------------------- 汇编
 def assemble(src_lines):
-    global AUTO_NOP_COUNT
+    global AUTO_NOP_COUNT, CURRENT_BASE
+    CURRENT_BASE = 0
     src_lines = expand_reps(src_lines)   # 展开 .rep/.endr（行级预处理）
     items, symbols = parse_lines(src_lines)
     if not items:

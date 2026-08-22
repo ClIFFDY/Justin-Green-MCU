@@ -12,16 +12,15 @@
 #     · credits 无版本号（不随版本更新改）；status 带 RAM 用量 # 进度条(print_bar)
 #     · 单字符命令 + 空闲超时执行（串口无回车也能用）
 #     · tick 驱动: 1s=5000 tick(0.2ms/格), blink 每 0.25s(1250 tick)翻转
-#   汇编器增强: .puts "..." 宏(逐字符 putc) + 自动 jpad(IRET W+2 垫层) + .base/rX.base。
+#   汇编器增强: .puts "..." 宏(逐字符 putc) + 自动 jpad(IRET W+2 垫层)。
 #   新代码不手写 __jpad（汇编器自动补）；保留的旧代码仍带手写垫层。
-#   MPU 寄存器窗口（硬件: 每个 rd/rs = raw + baseline, ≥253 豁免; SB 0xD000 写 baseline）:
-#     任务0(shell): base 0x00（恒等）→ 低 r1-r11 + 高 r17-r21（游戏区沿用, 不改）
-#     任务1:        base 0x16 → 窗口 r3-r6（r3=内 r4=中 r5=外 r6=CNT1）, 直接条件跳转
-#     任务2:        base 0x26 → 窗口 r3-r6（r3=内 r4=中 r5=外 r6=CNT2）
-#     调度器:       每次切任务在载入段 SBI <base>, 0xD000 切窗口；r12-r15={base}+12..15 被调度器占用
-#     r253=j(调用栈指针,豁免) r0=0 r254=i2c_busy r255=tx_busy 只读
-#   .base 只在源码用 rK.base(物理绝对号K) 时标注；纯相对 rK 无需标（硬件自动加 baseline）
-#   汇编: python tools/asm.py tools/rtos_shell_game_mpu.asm -o tools/rtos_shell_game_mpu.hex
+#   寄存器分块:
+#     任务0(shell): 低 r1/r2 + 高 r17-r21
+#     任务1:         低 r3/r4 + 高 r22-r25（r22/23/24=延迟, r25=CNT1）
+#     任务2:         低 r5/r6 + 高 r26-r29（r26/27/28=延迟, r29=CNT2）
+#     调度器:       r12-r15 临时；共享子程序 r7-r11（调度器按任务保存/恢复）
+#     r253=j 保留；r0=0, r255=tx_busy 只读
+#   汇编: python tools/asm.py tools/rtos_shell.asm -o tools/rtos_shell.hex
 # ============================================================
 
 # ---- 外设 ----
@@ -77,11 +76,6 @@
 .equ TCB2_R9     0x901D
 .equ TCB2_R10    0x901E
 .equ TCB2_R11    0x901F
-# ---- MPU baseline（各任务寄存器窗口基址；0xD000 写 baseline，LBU 0xD000 读）----
-.equ BASELINE    0xD000
-.equ BASE_MAIN   0x00   # 任务0(shell)：物理恒等，高区 r17-21 直接用
-.equ BASE_TASK1  0x16   # 任务1：窗口 r0-r15 → 物理 0x16-0x25
-.equ BASE_TASK2  0x26   # 任务2：窗口 r0-r15 → 物理 0x26-0x35
 # ---- UART RX 环形缓冲（0x9100 区，8 槽）----
 .equ RX_RING0    0x9100
 .equ RX_RING1    0x9101
@@ -220,15 +214,16 @@ reset:
     SB    r0, TCB2_R10
     SB    r0, TCB2_R11
     # ---- 中断优先级（BUS_CON 0x6000：addr bit3=1 写 prio；bit3=0 解锁一次性 lock）----
-    # timer=3 最高 rx=2 gpio0=1 gpio1=0 dma=0（关；复位默认 dma=5 最高必须关）
+    # 当前 RTL 槽位（v3.3.0+I2C）：0=timer 1=dma 2=rx 3=i2c 4=gpio0 5=gpio1
+    # timer=3 最高；dma=0（关，防 DMA 中断干扰游戏）；rx=2；i2c/gpio=0
     ADDI  r1, r0, 3
-    SB    r1, 0x6008
-    SB    r0, 0x6009
+    SB    r1, 0x6008            # 槽0 timer = 3
+    SB    r0, 0x6009            # 槽1 dma = 0（关）
     ADDI  r1, r0, 2
-    SB    r1, 0x600A
-    SB    r0, 0x600B
-    SB    r0, 0x600C
-    SB    r0, 0x600D
+    SB    r1, 0x600A            # 槽2 rx = 2
+    SB    r0, 0x600B            # 槽3 i2c = 0
+    SB    r0, 0x600C            # 槽4 gpio0 = 0
+    SB    r0, 0x600D            # 槽5 gpio1 = 0
     # ---- 写向量表指针（IRQW 0x5xxx：[4:2]=槽位，[1:0]=1 高字节/2 低字节）----
     # 槽位: timer=0 uart=1 gpio0=2 gpio1=3 dma=4
     # 目标: timer→0x248(跳板→sched_body) uart→0x260 gpio0→0x208 gpio1→0x228 dma→0x208(防御IRET)
@@ -1739,21 +1734,34 @@ __jpadA14:
 .org 0x400
 task1_entry:
 task1_loop:
-    LBU   r6, CNT1
-    ADDI  r6, r6, 1
-    SB    r6, CNT1
-    ADDI  r5, r0, 0x10        # 外层 16 次 ≈ 80ms
+    LBU   r25, CNT1
+    ADDI  r25, r25, 1
+    SB    r25, CNT1
+    ADDI  r22, r0, 0x10        # 外层 16 次 ≈ 80ms
+    LBNE  r0, r0, __jpadD1
+__jpadD1:
 dl1_o:
-    ADDI  r4, r0, 0xFF
+    ADDI  r23, r0, 0xFF
 dl1_m:
-    ADDI  r3, r0, 0xFF
+    ADDI  r24, r0, 0xFF
 dl1_i:
-    ADDI  r3, r3, 0xFF
+    ADDI  r24, r24, 0xFF
+    ADDI  r3, r24, 0           # 高区 → 低区拷贝供分支
+    LBNE  r0, r0, __jpadD3
+__jpadD3:
     LBNE  r3, r0, dl1_i
-    ADDI  r4, r4, 0xFF
-    LBNE  r4, r0, dl1_m
-    ADDI  r5, r5, 0xFF
-    LBNE  r5, r0, dl1_o
+    ADDI  r23, r23, 0xFF
+    ADDI  r3, r23, 0
+    LBNE  r0, r0, __jpadD4
+__jpadD4:
+    LBNE  r3, r0, dl1_m
+    ADDI  r22, r22, 0xFF
+    ADDI  r3, r22, 0
+    LBNE  r0, r0, __jpadD5
+__jpadD5:
+    LBNE  r3, r0, dl1_o
+    LBNE  r0, r0, __jpadD2
+__jpadD2:
     LBEQ  r0, r0, task1_loop
 
 # ============================================================
@@ -1762,21 +1770,34 @@ dl1_i:
 .org 0x500
 task2_entry:
 task2_loop:
-    LBU   r6, CNT2
-    ADDI  r6, r6, 1
-    SB    r6, CNT2
-    ADDI  r5, r0, 0x40        # 外层 64 次 ≈ 320ms
+    LBU   r29, CNT2
+    ADDI  r29, r29, 1
+    SB    r29, CNT2
+    ADDI  r26, r0, 0x40        # 外层 64 次 ≈ 320ms
+    LBNE  r0, r0, __jpadE1
+__jpadE1:
 dl2_o:
-    ADDI  r4, r0, 0xFF
+    ADDI  r27, r0, 0xFF
 dl2_m:
-    ADDI  r3, r0, 0xFF
+    ADDI  r28, r0, 0xFF
 dl2_i:
-    ADDI  r3, r3, 0xFF
-    LBNE  r3, r0, dl2_i
-    ADDI  r4, r4, 0xFF
-    LBNE  r4, r0, dl2_m
-    ADDI  r5, r5, 0xFF
+    ADDI  r28, r28, 0xFF
+    ADDI  r5, r28, 0           # 高区 → 低区拷贝供分支
+    LBNE  r0, r0, __jpadE3
+__jpadE3:
+    LBNE  r5, r0, dl2_i
+    ADDI  r27, r27, 0xFF
+    ADDI  r5, r27, 0
+    LBNE  r0, r0, __jpadE4
+__jpadE4:
+    LBNE  r5, r0, dl2_m
+    ADDI  r26, r26, 0xFF
+    ADDI  r5, r26, 0
+    LBNE  r0, r0, __jpadE5
+__jpadE5:
     LBNE  r5, r0, dl2_o
+    LBNE  r0, r0, __jpadE2
+__jpadE2:
     LBEQ  r0, r0, task2_loop
 
 # ============================================================
@@ -1862,7 +1883,6 @@ __nw2:
     LBNE  r0, r0, __jpadS6
 __jpadS6:
     RBNE  r15, r0, __ld_t1      # 前向
-    SBI   BASE_MAIN, BASELINE   # 切 baseline → 任务0 窗口（0 恒等）
     LBU   r13, TCB0_PC_HI
     LBU   r14, TCB0_PC_LO
     LBU   r12, TCB0_J
@@ -1880,7 +1900,6 @@ __ld_t1:
     LBNE  r0, r0, __jpadS8
 __jpadS8:
     RBNE  r15, r12, __ld_t2     # 前向
-    SBI   BASE_TASK1, BASELINE  # 切 baseline → 任务1 窗口（0x16）
     LBU   r13, TCB1_PC_HI
     LBU   r14, TCB1_PC_LO
     LBU   r12, TCB1_J
@@ -1894,7 +1913,6 @@ __jpadS8:
 __jpadS9:
     RBEQ  r0, r0, __redirect    # 前向
 __ld_t2:
-    SBI   BASE_TASK2, BASELINE  # 切 baseline → 任务2 窗口（0x26）
     LBU   r13, TCB2_PC_HI
     LBU   r14, TCB2_PC_LO
     LBU   r12, TCB2_J
@@ -1927,6 +1945,11 @@ __sg_done:
     LBU   r12, GAME_S1
     LBU   r13, GAME_S2
     LBU   r14, GAME_S3
+    LBNE  r0, r0, __jpadS11
+__jpadS11:
+    ADDI  r9, r0, 0            # 延迟：LBU 读回稳定窗口（r9 无保留需求）
+    ADDI  r9, r0, 0
+    ADDI  r9, r0, 0
     IRET
 
 # ============================================================

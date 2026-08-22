@@ -23,12 +23,12 @@
 module decoder(
     input wire rst, irq_flush,
     input wire [31:0] inst_raw,
-    input wire [7:0] result_last_in, rd_data, rd_last1, rd_last2, 
+    input wire [7:0] result_last_in, rd_data, rd_last1, rd_last2, baseline, 
     input wire [23:0] rd12_data,
     input wire [1:0] j_flag,
     output reg [15:0] r12_data,
     output wire [5:0] opcode,
-    output reg [7:0] imm8,
+    output reg [7:0] imm8, rd_out,
     output reg [15:0] bytmov,
     output reg frz, we, flush1, iret, irq_en,
 
@@ -73,9 +73,14 @@ module decoder(
     SIND  = 6'b10_0000;
 
     assign opcode = inst_raw[31:26];
-    wire [7:0] r_bus = inst_raw[23:16];
-    wire [7:0] r1 = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[7:4] : inst_raw[15:8];
-    wire [7:0] r2 = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[3:0] : inst_raw[7:0];
+    wire [7:0] r_bus_raw = inst_raw[23:16];
+    wire [7:0] r1_raw = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[7:4] : inst_raw[15:8];
+    wire [7:0] r2_raw = (opcode >= 6'b010110 && opcode <= 6'b011011) ? inst_raw[3:0] : inst_raw[7:0];
+
+    wire [7:0] r_bus = r_bus_raw + ((r_bus_raw < 8'd253) ? baseline : 8'd0);
+    wire [7:0] r1 = r1_raw + ((r1_raw < 8'd253) ? baseline : 8'd0);
+    wire [7:0] r2 = r2_raw + ((r2_raw < 8'd253) ? baseline : 8'd0);
+
 
     wire [7:0] bus_data_imm = (r_bus == rd_last2)? rd_data : rd12_data[23:16];
     wire [7:0] r1_data_imm = (r1 == rd_last2)? rd_data : rd12_data[15:8];
@@ -91,6 +96,7 @@ module decoder(
             irq_en = 1'b1;
             bytmov = 16'b0;
             r12_data = 16'b0;
+            rd_out = 8'd0;
             imm8 = 8'b0;
             frz = 1'b0;
             we = 1'b0;
@@ -104,6 +110,7 @@ module decoder(
             irq_en = 1'b1;
             bytmov = 16'b0;
             r12_data = {r1_data_final, r2_data_final};
+            rd_out = inst_raw[23:16] + ((inst_raw[23:16] < 8'd253) ? baseline : 8'd0);
             imm8 = 8'b0;
             frz = 1'b0;
             we  = 1'b0;

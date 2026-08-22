@@ -26,7 +26,7 @@ module single_cpu_top(
     input wire [7:0] bus_data_in, 
     input wire [8:0] irq_bus,
     output wire [15:0] bus_addr_out,
-    output wire [7:0] bus_data_out, bus_data_irq,
+    output wire [7:0] bus_data_out, bus_data_irq, bus_data_base,
     output wire [3:0] bus_sig_out
     );
 
@@ -34,9 +34,9 @@ module single_cpu_top(
     wire [12:0] pc_addr, irq_addr;
     wire [31:0] inst_raw, inst_raw_zip;
     wire [5:0] op_temp, opcode;
-    wire [23:0] rd12, rd12_data;
+    wire [23:0] rd12, rd12_raw, rd12_data;
     wire [15:0] r12_data, ab_raw;
-    wire [7:0] rd_temp, rd;
+    wire [7:0] rd_temp, rd, rd_mov, baseline;
     wire [7:0] rd_data, imm8_temp, imm8;
     wire [15:0] bytmov;
     wire [12:0] ra_fo, ra_ba;
@@ -97,7 +97,20 @@ module single_cpu_top(
         .inst_raw(inst_raw),
         .cstall(cstall),
         .irq_en(irq_en[0]),
-        .addr_dr12(rd12)
+        .addr_dr12(rd12_raw)
+    );
+
+    rpu u_rpu (
+        .clk(clk),
+        .rst(rst),
+        .addr_r12_raw(rd12_raw),
+        .addr_r12_mov(rd12),
+        .baseline(baseline),
+        //
+        .bus_addr_in(bus_addr_out),
+        .bus_data_in(bus_data_out),
+        .bus_sig_in(bus_sig_out),
+        .bus_data_out(bus_data_base)
     );
 
     decoder u_decoder(
@@ -107,12 +120,14 @@ module single_cpu_top(
         .result_last_in(result),
         .rd_last1(rd_temp),
         .rd_last2(rd),
+        .baseline(baseline),
         .rd12_data(rd12_data),
         .rd_data(rd_data),
         .j_flag(j_flag),
         //
         .r12_data(r12_data),
         .opcode(op_temp),
+        .rd_out(rd_mov),
         .imm8(imm8_temp),
         .bytmov(bytmov),
         .frz(frz),
@@ -133,7 +148,7 @@ module single_cpu_top(
         .we_in(we_temp1),
         .flush1(flush1),
         .opcode_in(op_temp),
-        .rd_in(inst_raw[23:16]),
+        .rd_in(rd_mov),
         .imm8_in(imm8_temp),
         .ab_raw_in(r12_data),
         //
