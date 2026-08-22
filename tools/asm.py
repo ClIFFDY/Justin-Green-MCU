@@ -885,8 +885,6 @@ def assemble(src_lines):
     items, symbols = parse_lines(src_lines)
     if not items:
         raise AsmError('程序为空')
-    # 自动 __jpad 垫层（IRET W+2）：顺序指令后的控制转移自动补垫，既有手写垫层跳过
-    items = auto_jpad(items)
     # 死区自动 NOP：前向分支目标落在 [W+1, W+2]（bytmov 0/-1 不可编码）时在目标
     # label 前插 NOP 拉开。固定点迭代：插 NOP 只会增大前向距离，必然收敛。
     while True:
@@ -897,13 +895,23 @@ def assemble(src_lines):
         AUTO_NOP_COUNT += added
 
     # 数据区（.data）：收集字节 + datalabel 地址（0xA000 + 偏移）
+    # 跨 256 字节页保护：.puts 长文本用 LIND 循环读（地址 = {hi, lo}，lo 自增回绕时 hi 不进位），
+    # 文本必须整体落在单一 256 页内。若某文本跨页，在文本前插填充把它推到下一页起始（页对齐）。
     data_bytes = []
     datalabel = {}
+    pending_label = None
     for it in items:
         if it['kind'] == 'datadata':
+            # 跨页检查：当前页内剩余 < 文本长 → 填充到页对齐
+            if (len(data_bytes) % 256) + len(it['bytes']) > 256:
+                pad = 256 - (len(data_bytes) % 256)
+                data_bytes.extend([0] * pad)
+            if pending_label is not None:
+                datalabel[pending_label] = DATA_BASE + len(data_bytes)
+                pending_label = None
             data_bytes.extend(it['bytes'])
         elif it['kind'] == 'datalabel':
-            datalabel[it['name']] = DATA_BASE + len(data_bytes)
+            pending_label = it['name']
     if len(data_bytes) > 4096:
         raise AsmError(f'数据区超 4096 字节: {len(data_bytes)}')
     symbols.update(datalabel)   # 数据标签可被 parse_int 表达式引用（(msg>>8)/(msg&0xFF)）

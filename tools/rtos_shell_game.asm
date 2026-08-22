@@ -12,8 +12,8 @@
 #     · credits 无版本号（不随版本更新改）；status 带 RAM 用量 # 进度条(print_bar)
 #     · 单字符命令 + 空闲超时执行（串口无回车也能用）
 #     · tick 驱动: 1s=5000 tick(0.2ms/格), blink 每 0.25s(1250 tick)翻转
-#   汇编器增强: .puts "..." 宏(逐字符 putc) + 自动 jpad(IRET W+2 垫层) + .base/rX.base。
-#   新代码不手写 __jpad（汇编器自动补）；保留的旧代码仍带手写垫层。
+#   汇编器增强: .puts "..." 宏(逐字符 putc) + .base/rX.base。
+#   __jpad 垫层已废弃（irq_controller 存 W+1，IRET 回授权点下一条，控制转移不被跳过，微测确认）。
 #   MPU 寄存器窗口（硬件: 每个 rd/rs = raw + baseline, ≥253 豁免; SB 0xD000 写 baseline）:
 #     任务0(shell): base 0x00（恒等）→ 低 r1-r11 + 高 r17-r21（游戏区沿用, 不改）
 #     任务1:        base 0x16 → 窗口 r3-r6（r3=内 r4=中 r5=外 r6=CNT1）, 直接条件跳转
@@ -154,6 +154,18 @@
 .equ GAME_S2 0x9488
 .equ GAME_S3 0x9489
 .equ DROP_SOLID 0x948A   # 快落检测：drop_piece 固化时置位
+# ---- 扫雷（8x8，0x9500 区）----
+.equ MS_MINE  0x9500   # 64B：bit7=雷，低4位=邻雷数
+.equ MS_VIEW  0x9540   # 64B：0=未探 1=旗 2=已探 3=踩雷
+.equ MS_COL   0x9580   # 输入：横坐标(1-8)
+.equ MS_ROW   0x9581   # 输入：纵坐标(1-8)
+.equ MS_OP    0x9582   # 输入：1=探雷 2=插旗
+.equ MS_INN   0x9583   # 已收数字数(0/1/2)
+.equ MS_OPEN  0x9584   # 已探开格数
+.equ MS_FLG   0x9585   # 插旗数
+.equ MS_SEED  0x9586   # 随机种子
+.equ MS_OVER  0x9587   # 扫雷结束标志(1=踩雷死 2=全探开胜)
+.equ MS_QUEUE 0x9588   # 洪水展开队列(64B, 0x9588-0x95C7)
 # ---- 渲染帧 DMA（v3.1 优化）----
 .equ FRAME_BUF  0xC000   # 渲染帧缓冲（ram_ext bank0，DMA 源）
 .equ FRAME_IDX_LO 0x948B # 帧写指针 16bit 低字节（fputc 用；帧 319 字节 >255 必须 16 位）
@@ -179,10 +191,16 @@ reset:
     ADDI  r1, r0, 0x40
     SB    r1, GPIO
     SB    r1, LED_STATE
+    # ---- 开机动画：GPIO ----
+    .puts " BOOT: GPIO    "
+    RJAL  anim_bar
     # ---- 内核初值 ----
     SB    r0, CUR_TASK
     SB    r0, TICK_LO
     SB    r0, TICK_HI
+    # ---- 开机动画：KERNEL ----
+    .puts " BOOT: KERNEL  "
+    RJAL  anim_bar
     # ---- 环形缓冲 + shell 状态初值 ----
     SB    r0, RX_WR
     SB    r0, RX_RD
@@ -192,6 +210,9 @@ reset:
     SB    r0, LAST_TICK
     # ---- 菜单/倒计时/闪烁 状态初值 ----
     SB    r0, MENU
+    # ---- 开机动画：BUFFER ----
+    .puts " BOOT: BUFFER  "
+    RJAL  anim_bar
     # ---- 调用栈分区 + 共享子程序暂存组 ----
     SB    r0, TCB0_J
     SB    r0, TCB0_R7
@@ -219,6 +240,9 @@ reset:
     SB    r0, TCB2_R9
     SB    r0, TCB2_R10
     SB    r0, TCB2_R11
+    # ---- 开机动画：STACK ----
+    .puts " BOOT: STACK   "
+    RJAL  anim_bar
     # ---- 中断优先级（BUS_CON 0x6000：addr bit3=1 写 prio；bit3=0 解锁一次性 lock）----
     # timer=3 最高 rx=2 gpio0=1 gpio1=0 dma=0（关；复位默认 dma=5 最高必须关）
     ADDI  r1, r0, 3
@@ -229,6 +253,9 @@ reset:
     SB    r0, 0x600B
     SB    r0, 0x600C
     SB    r0, 0x600D
+    # ---- 开机动画：IRQ PRIO ----
+    .puts " BOOT: IRQPRIO "
+    RJAL  anim_bar
     # ---- 写向量表指针（IRQW 0x5xxx：[4:2]=槽位，[1:0]=1 高字节/2 低字节）----
     # 槽位: timer=0 uart=1 gpio0=2 gpio1=3 dma=4
     # 目标: timer→0x248(跳板→sched_body) uart→0x260 gpio0→0x208 gpio1→0x228 dma→0x208(防御IRET)
@@ -252,6 +279,9 @@ reset:
     SB    r1, 0x5011            # dma 高
     ADDI  r1, r0, 0x08
     SB    r1, 0x5012            # dma 低 → 0x208
+    # ---- 开机动画：VECTOR ----
+    .puts " BOOT: VECTOR  "
+    RJAL  anim_bar
     # ---- timer: 0x270F → 周期 10000 拍 = 0.2ms（5kHz 抢占）----
     ADDI  r1, r0, 0x0F
     SB    r1, TIMER_CNT0
@@ -261,6 +291,9 @@ reset:
     SB    r0, TIMER_CNT3
     ADDI  r1, r0, 1
     SB    r1, TIMER_MODE
+    # ---- 开机动画：READY ----
+    .puts " BOOT: READY   "
+    RJAL  anim_bar
     # ---- 解锁一次性 irq lock（写 BUS_CON bit3=0 即 0x6000-0x6007）→ 允许中断 ----
     SB    r0, 0x6000
     # ---- 进入任务 0（shell）----
@@ -283,66 +316,38 @@ shell_loop:
 __sh_have:
     # ---- 弹字符: 按 RD(0-7) 读 RING{RD}，RD=(RD+1)&7 ----
     ADDI  r8, r0, 7
-    LBNE  r0, r0, __jpadS2a
-__jpadS2a:
     RBNE  r2, r8, __sh_r6
     LBU   r7, RX_RING7
-    LBNE  r0, r0, __jpadS2b
-__jpadS2b:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r6:
     ADDI  r8, r0, 6
-    LBNE  r0, r0, __jpadS2c
-__jpadS2c:
     RBNE  r2, r8, __sh_r5
     LBU   r7, RX_RING6
-    LBNE  r0, r0, __jpadS2d
-__jpadS2d:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r5:
     ADDI  r8, r0, 5
-    LBNE  r0, r0, __jpadS2e
-__jpadS2e:
     RBNE  r2, r8, __sh_r4
     LBU   r7, RX_RING5
-    LBNE  r0, r0, __jpadS2f
-__jpadS2f:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r4:
     ADDI  r8, r0, 4
-    LBNE  r0, r0, __jpadS2g
-__jpadS2g:
     RBNE  r2, r8, __sh_r3
     LBU   r7, RX_RING4
-    LBNE  r0, r0, __jpadS2h
-__jpadS2h:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r3:
     ADDI  r8, r0, 3
-    LBNE  r0, r0, __jpadS2i
-__jpadS2i:
     RBNE  r2, r8, __sh_r2
     LBU   r7, RX_RING3
-    LBNE  r0, r0, __jpadS2j
-__jpadS2j:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r2:
     ADDI  r8, r0, 2
-    LBNE  r0, r0, __jpadS2k
-__jpadS2k:
     RBNE  r2, r8, __sh_r1
     LBU   r7, RX_RING2
-    LBNE  r0, r0, __jpadS2l
-__jpadS2l:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r1:
     ADDI  r8, r0, 1
-    LBNE  r0, r0, __jpadS2m
-__jpadS2m:
     RBNE  r2, r8, __sh_r0
     LBU   r7, RX_RING1
-    LBNE  r0, r0, __jpadS2n
-__jpadS2n:
     RBEQ  r0, r0, __sh_rdinc
 __sh_r0:
     LBU   r7, RX_RING0
@@ -354,164 +359,151 @@ __sh_rdinc:
     SB    r2, RX_RD
     # ---- r7 = 字符。回车 '\r'? ----
     ADDI  r8, r0, '\r'
-    LBNE  r0, r0, __jpadS3a
-__jpadS3a:
     RBNE  r7, r8, __sh_lf
     # \r → 执行（记录 LAST_CR 防 CRLF 双执行）
     ADDI  r1, r0, 1
     SB    r1, LAST_CR
-    LBNE  r0, r0, __jpadS3g
-__jpadS3g:
     RBEQ  r0, r0, __sh_exec
 __sh_lf:
     # 换行 '\n'? 串口助手常用 \n 或 \r\n
     ADDI  r8, r0, '\n'
-    LBNE  r0, r0, __jpadS3h
-__jpadS3h:
     RBNE  r7, r8, __sh_bs
     LBU   r1, LAST_CR
-    LBNE  r0, r0, __jpadS3i
-__jpadS3i:
     RBNE  r1, r0, __lf_skip
-    LBNE  r0, r0, __jpadS3j
-__jpadS3j:
     RBEQ  r0, r0, __sh_exec
 __lf_skip:
     SB    r0, LAST_CR
-    LBNE  r0, r0, __jpadS3k
-__jpadS3k:
     LBEQ  r0, r0, shell_loop
 __sh_exec:
     # 执行: 换行 → 解析 → 重置 → 提示符（按 MENU）
     ADDI  r7, r0, '\n'
-    LBNE  r0, r0, __jpadS3b
-__jpadS3b:
     RJAL  putc
-    LBNE  r0, r0, __jpadS3c
-__jpadS3c:
     RJAL  shell_parse
     SB    r0, CURSOR
-    LBNE  r0, r0, __jpadS3d
-__jpadS3d:
     RJAL  print_prompt
-    LBNE  r0, r0, __jpadS3f
-__jpadS3f:
     LBEQ  r0, r0, shell_loop
 __sh_bs:
     # 退格(0x7F 或 0x08)?
     ADDI  r8, r0, 0x7F
-    LBNE  r0, r0, __jpadS4a
-__jpadS4a:
     RBNE  r7, r8, __sh_bs2
-    LBNE  r0, r0, __jpadS4h
-__jpadS4h:
     RBEQ  r0, r0, __bs_do
 __sh_bs2:
     ADDI  r8, r0, 0x08
-    LBNE  r0, r0, __jpadS4i
-__jpadS4i:
     RBNE  r7, r8, __sh_char
     # 退格: 若 CURSOR>0，cursor--，echo "\x08 \x08"
     LBU   r1, CURSOR
-    LBNE  r0, r0, __jpadS4b
-__jpadS4b:
     RBNE  r1, r0, __bs_do
     SB    r0, LAST_CR
-    LBNE  r0, r0, __jpadS4c
-__jpadS4c:
     LBEQ  r0, r0, shell_loop
 __bs_do:
     ADDI  r1, r1, 0xFF
     SB    r1, CURSOR
     SB    r0, LAST_CR
     ADDI  r7, r0, 0x08
-    LBNE  r0, r0, __jpadS4d
-__jpadS4d:
     RJAL  putc
     ADDI  r7, r0, ' '
-    LBNE  r0, r0, __jpadS4e
-__jpadS4e:
     RJAL  putc
     ADDI  r7, r0, 0x08
-    LBNE  r0, r0, __jpadS4f
-__jpadS4f:
     RJAL  putc
-    LBNE  r0, r0, __jpadS4g
-__jpadS4g:
     LBEQ  r0, r0, shell_loop
 __sh_char:
     # 普通字符: 若 CURSOR<8，调 shell_append 存行 + echo（append 在 0x2A0 区）
     LBU   r1, CURSOR
     ADDI  r8, r0, 8
-    LBNE  r0, r0, __jpadS5a
-__jpadS5a:
     RBLTU r1, r8, __ap_call
     SB    r0, LAST_CR
-    LBNE  r0, r0, __jpadS5b
-__jpadS5b:
     LBEQ  r0, r0, shell_loop     # 缓冲满，忽略
 __ap_call:
-    LBNE  r0, r0, __jpadS5c
-__jpadS5c:
     RJAL  shell_append
-    LBNE  r0, r0, __jpadS5d
-__jpadS5d:
     LBEQ  r0, r0, shell_loop
 
 # ============================================================
 # 共享子程序（0x100 区，寄存器中立：只用 r7-r11，参数走 r7）
 # ============================================================
 .org 0x100
-putc:                           # 入参 r7=字符；轮询 tx_busy（r255）后发送（破坏 r7,r8）
+putc:                           # 入参 r7=字符；轮询 tx_busy（r255）后发送（破坏 r7,r8,r9）
 putc_wait:
     ADDI  r8, r255, 0
-    LBNE  r0, r0, __jpadP9
-__jpadP9:
     LBNE  r8, r0, putc_wait
     SB    r7, UART
-    LBNE  r0, r0, __jpadP10
-__jpadP10:
+    # 打字机效果：逐字延迟（r9 外层计数 × r8 内层）
+    ADDI  r9, r0, 250           # 外层 250 次 ≈ 5ms/字符
+__typing_o:
+    ADDI  r8, r0, 0xFF          # 内层 255 次
+__typing_i:
+    ADDI  r8, r8, 0xFF
+    LBNE  r8, r0, __typing_i
+    ADDI  r9, r9, 0xFF
+    LBNE  r9, r0, __typing_o
+    JALR
+
+# flush_rx: 清空 UART RX 环形缓冲（丢弃打印期间积压的按键）→ 打印完成后才接受新输入
+flush_rx:
+    SB    r0, RX_WR
+    SB    r0, RX_RD
+    JALR
+
+# fast_putc: 快速发送（开机动画用，不走打字机延迟）；破坏 r7,r8
+fast_putc:
+__fp_w:
+    ADDI  r8, r255, 0            # tx_busy
+    LBNE  r8, r0, __fp_w
+    SB    r7, UART
+    JALR
+
+# anim_bar: 加载条动画（每帧只加一个 '#'）；破坏 r7-r11
+#   打 '[' → 逐段加 '#'（每段延迟）→ 打 ']' 换行
+anim_bar:
+    ADDI  r7, r0, '['
+    RJAL  fast_putc
+    ADDI  r10, r0, 10            # 10 段
+__ab_loop:
+    ADDI  r7, r0, '#'
+    RJAL  fast_putc
+    # 延迟（每段 ~30ms）
+    ADDI  r11, r0, 0x06          # 外层外层
+__ab_dly_oo:
+    ADDI  r9, r0, 0xFF           # 外层
+__ab_dly_o:
+    ADDI  r8, r0, 0xFF           # 内层
+__ab_dly_i:
+    ADDI  r8, r8, 0xFF
+    LBNE  r8, r0, __ab_dly_i
+    ADDI  r9, r9, 0xFF
+    LBNE  r9, r0, __ab_dly_o
+    ADDI  r11, r11, 0xFF
+    LBNE  r11, r0, __ab_dly_oo
+    ADDI  r10, r10, 0xFF
+    RBNE  r10, r0, __ab_loop
+    ADDI  r7, r0, ']'
+    RJAL  fast_putc
+    ADDI  r7, r0, '\n'
+    RJAL  fast_putc
     JALR
 
 put_crlf:                       # "\r\n"（破坏 r7）
     ADDI  r7, r0, '\r'
-    LBNE  r0, r0, __jpadP11
-__jpadP11:
     LJAL  putc
     ADDI  r7, r0, '\n'
-    LBNE  r0, r0, __jpadP12
-__jpadP12:
     LJAL  putc
     JALR
 
 print_hexdigit:                 # 入参 r7=0-15 → 1 个 hex 字符（破坏 r7,r8）
     ADDI  r8, r0, 9
-    LBNE  r0, r0, __jpadP13
-__jpadP13:
     RBLTU r8, r7, __phx_af     # 前向
     ADDI  r7, r7, '0'
-    LBNE  r0, r0, __jpadP14
-__jpadP14:
     LJAL  putc
     JALR
 __phx_af:
     ADDI  r7, r7, 55            # 'A'-10 = 55
-    LBNE  r0, r0, __jpadP15
-__jpadP15:
     LJAL  putc
     JALR
 
 print_hex:                      # 入参 r7=字节 → 2 位 hex（破坏 r7,r8,r9）
     ADDI  r9, r7, 0             # r9 暂存输入（调度器保 r7-r11）
-    LBNE  r0, r0, __jpadP16
-__jpadP16:
     SRLI  r7, r9, 4
-    LBNE  r0, r0, __jpadP17
-__jpadP17:
     LJAL  print_hexdigit
     ANDI  r7, r9, 0x0F
-    LBNE  r0, r0, __jpadP18
-__jpadP18:
     LJAL  print_hexdigit
     JALR
 
@@ -527,6 +519,9 @@ __sp_have:
     ADDI  r8, r0, 1
     RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
     LBU   r7, LINE_BUF0
+    LBU   r1, MENU
+    RBNE  r1, r0, game_menu_dispatch   # MENU!=0 → game 子菜单分派
+    ADDI  r8, r0, '1'
     ADDI  r8, r0, '1'
     RBNE  r7, r8, __sp_m2
     RJAL  cmd_credits
@@ -541,7 +536,7 @@ __sp_m3:
     RBNE  r7, r8, __sp_m0
     ADDI  r1, r0, 1
     SB    r1, MENU
-    RJAL  game_start             # 进入俄罗斯方块（独占模式）
+    RJAL  game_menu             # 进 game 子菜单（俄罗斯方块/扫雷）
     JALR
 __sp_m0:
     ADDI  r8, r0, '0'
@@ -550,16 +545,54 @@ __sp_m0:
     JALR
 __sp_unknown:
     ADDI  r7, r0, '?'
-    LBNE  r0, r0, __jpadU1
-__jpadU1:
     LJAL  putc
-    LBNE  r0, r0, __jpadU2
-__jpadU2:
     LJAL  put_crlf
     RJAL  menu_main
     JALR
 
+# ---- game 子菜单分派（MENU==1）：1=俄罗斯方块 2=扫雷 0=回主菜单 ----
+game_menu_dispatch:
+    LBU   r1, MENU
+    ADDI  r8, r0, 1
+    RBNE  r1, r8, __gmd_main    # MENU != 1 → 主菜单逻辑
+    LBU   r7, LINE_BUF0
+    ADDI  r8, r0, '1'
+    RBNE  r7, r8, __gmd_2
+    RJAL  game_start             # 俄罗斯方块
+    JALR
+__gmd_2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __gmd_0
+    RJAL  minesweeper_start      # 扫雷
+    JALR
+__gmd_0:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __gmd_unknown
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__gmd_unknown:
+    ADDI  r7, r0, '?'
+    LJAL  putc
+    RJAL  game_menu
+    JALR
+__gmd_main:
+    # MENU==0：回主菜单 shell_parse 正常路径
+    RJAL  menu_main
+    JALR
 
+# ---- game 子菜单显示 ----
+game_menu:
+    .puts "--- GAME MENU ---"
+    RJAL  put_crlf
+    .puts " 1. TETRIS"
+    RJAL  put_crlf
+    .puts " 2. MINESWEEP"
+    RJAL  put_crlf
+    .puts " 0. MAIN MENU"
+    RJAL  put_crlf
+    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+    JALR
 
 # ============================================================
 # 俄罗斯方块（GAME 模式：关 RTOS timer 独占 CPU）
@@ -606,10 +639,11 @@ game_loop:
     RBNE  r1, r0, game_over
     LBEQ  r0, r0, game_loop
 game_over:
-game_exit:                      # 退出 GAME 独占 → 回主菜单
+game_exit:                      # 退出 GAME 独占 → 回 game 子菜单
     SB    r0, GAME_ACTIVE
-    SB    r0, MENU
-    RJAL  menu_main
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  game_menu
     JALR
 
 # ---- 俄罗斯方块核心（LIND/SIND 版）----
@@ -1541,8 +1575,441 @@ __dc_done:
     JALR
 
 # ============================================================
-# ISR 向量
+# 扫雷（8x8）：连续输入 3 数字 = 横坐标 纵坐标 操作(1探雷 2插旗)
+#   渲染复用俄罗斯方块 fputc（写 0xC000 帧缓冲）+ dma_frame_send（DMA 发 UART）
+#   避让 fputc 破坏的 r12-r15；寄存器：r1/r2=地址 r3-r6=临时 r7=字符 r8-r11=状态
 # ============================================================
+.org 0x1000
+minesweeper_start:
+    ADDI  r1, r0, 1
+    SB    r1, GAME_ACTIVE       # 独占 CPU（调度器只更新 TICK）
+    SB    r0, 0xB000            # 选片 ram_ext bank0（渲染帧缓冲）
+    # ---- 清 MS_MINE（64B）+ MS_VIEW（64B）----
+    ADDI  r1, r0, 0x95
+    ADDI  r2, r0, 0x00
+    ADDI  r3, r0, 64
+ms_clr_mine:
+    SIND  r0, r1, r2
+    ADDI  r2, r2, 1
+    ADDI  r3, r3, 0xFF
+    RBNE  r3, r0, ms_clr_mine
+    ADDI  r2, r0, 0x40
+    ADDI  r3, r0, 64
+ms_clr_view:
+    SIND  r0, r1, r2
+    ADDI  r2, r2, 1
+    ADDI  r3, r3, 0xFF
+    RBNE  r3, r0, ms_clr_view
+    # ---- 清游戏状态（防上次残留：MS_OVER 残留会误判 game over）----
+    SB    r0, MS_OVER
+    SB    r0, MS_OPEN
+    SB    r0, MS_FLG
+    SB    r0, MS_INN
+    SB    r0, MS_COL
+    SB    r0, MS_ROW
+    SB    r0, MS_OP
+    # ---- 布雷 10 颗（LCG 随机种子=TICK；重复雷重抽）----
+    LBU   r5, TICK_LO
+    ADDI  r5, r5, 0x13
+    SB    r5, MS_SEED
+    ADDI  r6, r0, 10            # 布雷计数
+    ADDI  r1, r0, 0x95          # MINE 基址高字节
+ms_place:
+    LBU   r4, MS_SEED
+    SLLI  r5, r4, 3             # s*8
+    ADD   r5, r5, r4            # s*9
+    SLLI  r3, r4, 2             # s*4
+    ADD   r4, r5, r3            # s*13
+    ADDI  r4, r4, 7             # s*13+7
+    ANDI  r4, r4, 0xFF
+    SB    r4, MS_SEED
+    ANDI  r4, r4, 0x3F          # pos = 0-63
+    ADD   r2, r0, r4            # 低字节 = pos
+    LIND  r3, r1, r2            # 查重
+    ANDI  r5, r3, 0x80
+    RBNE  r5, r0, ms_place      # 已布雷，重抽
+    ORI   r3, r3, 0x80          # 布雷
+    SIND  r3, r1, r2
+    ADDI  r6, r6, 0xFF
+    RBNE  r6, r0, ms_place
+    # ---- 邻雷数：布雷完成后，对每颗雷把 8 邻非雷格 count+1 ----
+    #   布雷时 MINE 低 4 位已清零（clr），此处对雷格 8 邻 +1
+    #   （MINE 用 r1=0x95 高字节，低字节=index）
+    ADDI  r1, r0, 0x95
+    ADDI  r2, r0, 0x00          # i = 0（扫 64 格）
+ms_cnt_outer:
+    LIND  r3, r1, r2            # MINE[i]
+    ANDI  r4, r3, 0x80
+    RBNE  r4, r0, ms_cnt_isMine # 是雷 → 处理它的 8 邻
+    ADDI  r2, r2, 1             # 非雷跳过
+    ADDI  r4, r0, 64
+    RBLTU r2, r4, ms_cnt_outer
+    RBEQ  r0, r0, ms_after_cnt
+ms_cnt_isMine:
+    SRLI  r6, r2, 3             # row = i>>3
+    ANDI  r7, r2, 7             # col = i&7
+    ADDI  r3, r0, 0xFF          # dr = -1
+ms_cnt_dr:
+    ADDI  r4, r0, 0xFF          # dc = -1
+ms_cnt_dc:
+    ADD   r8, r6, r3            # nr = row+dr
+    ADD   r9, r7, r4            # nc = col+dc
+    SLTIU r10, r8, 8            # nr<8（负数=255 也 >=8，天然越界）
+    RBEQ  r10, r0, ms_cnt_nxt   # nr>=8 越界
+    SLTIU r11, r9, 8            # nc<8
+    RBEQ  r11, r0, ms_cnt_nxt   # nc>=8 越界
+    # nr,nc 都在 0-7 → 邻格 index = nr*8+nc
+    SLLI  r8, r8, 3             # nr*8
+    ADD   r10, r8, r9           # nidx（0-63）
+    ADDI  r11, r0, 0x95         # 基址高字节
+    LIND  r13, r11, r10         # 读邻居 MINE
+    ANDI  r14, r13, 0x80
+    RBNE  r14, r0, ms_cnt_nxt   # 邻格是雷，跳过（雷格不累加）
+    ADDI  r13, r13, 1           # 非雷邻格 count+1
+    ANDI  r13, r13, 0x0F
+    SIND  r13, r11, r10
+ms_cnt_nxt:
+    ADDI  r4, r4, 1
+    ADDI  r5, r0, 2
+    RBLTU r4, r5, ms_cnt_dc    # dc: -1,0,1
+    ADDI  r3, r3, 1
+    ADDI  r5, r0, 2
+    RBLTU r3, r5, ms_cnt_dr    # dr: -1,0,1
+    ADDI  r2, r2, 1
+    ADDI  r5, r0, 64
+    RBLTU r2, r5, ms_cnt_outer
+ms_after_cnt:
+    # ---- 渲染棋盘 ----
+    RJAL  ms_render
+ms_loop:
+    # 输入：连续 3 数字（col,row,op）；'0' 退出
+    RJAL  ms_getchar
+    RBEQ  r7, r0, ms_loop       # 无字符 → 继续等
+    ADDI  r8, r0, '0'
+    RBEQ  r7, r8, __ms_done     # '0' → 退出
+    # 数字? '1'-'8'
+    ADDI  r8, r0, '1'
+    RBLTU r7, r8, ms_loop       # <'1' 忽略
+    ADDI  r8, r0, '9'
+    RBLTU r7, r8, __ms_digit    # <='8' 是数字
+    RBEQ  r0, r0, ms_loop
+__ms_digit:
+    SUBI  r7, r7, '0'           # 数字 1-8
+    LBU   r8, MS_INN
+    RBNE  r8, r0, __ms_d2
+    SB    r7, MS_COL            # 第1数：横坐标
+    ADDI  r8, r0, 1
+    SB    r8, MS_INN
+    RBEQ  r0, r0, ms_loop
+__ms_d2:
+    ADDI  r9, r0, 1
+    RBNE  r8, r9, __ms_d3
+    SB    r7, MS_ROW            # 第2数：纵坐标
+    ADDI  r8, r0, 2
+    SB    r8, MS_INN
+    RBEQ  r0, r0, ms_loop
+__ms_d3:
+    SB    r7, MS_OP             # 第3数：操作(1探 2旗)
+    SB    r0, MS_INN
+    # ---- 执行 ----
+    RJAL  ms_do
+    RJAL  ms_render
+    LBU   r1, MS_OVER
+    RBNE  r1, r0, __ms_gameover
+    RBEQ  r0, r0, ms_loop
+__ms_gameover:
+    # 显示结果 + 退出回 game 子菜单
+    RJAL  ms_over_msg
+    SB    r0, GAME_ACTIVE
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  game_menu
+    JALR
+__ms_done:
+    SB    r0, GAME_ACTIVE
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  game_menu
+    JALR
+
+# ---- 扫雷子程序 ----
+# ms_getchar: 从 RING 弹 1 字符 → r7（无字符则返回 0）；破坏 r1/r2/r3/r8
+ms_getchar:
+    LBU   r1, RX_WR
+    LBU   r2, RX_RD
+    RBNE  r1, r2, __mgc_have
+    ADDI  r7, r0, 0             # 空
+    JALR
+__mgc_have:
+    # 弹字符：按 RD 0-7 读 RING{RD}，RD++
+    ADDI  r3, r0, 7
+    RBNE  r2, r3, __mgc_6
+    LBU   r7, RX_RING7
+    RBEQ  r0, r0, __mgc_inc
+__mgc_6:
+    ADDI  r3, r0, 6
+    RBNE  r2, r3, __mgc_5
+    LBU   r7, RX_RING6
+    RBEQ  r0, r0, __mgc_inc
+__mgc_5:
+    ADDI  r3, r0, 5
+    RBNE  r2, r3, __mgc_4
+    LBU   r7, RX_RING5
+    RBEQ  r0, r0, __mgc_inc
+__mgc_4:
+    ADDI  r3, r0, 4
+    RBNE  r2, r3, __mgc_3
+    LBU   r7, RX_RING4
+    RBEQ  r0, r0, __mgc_inc
+__mgc_3:
+    ADDI  r3, r0, 3
+    RBNE  r2, r3, __mgc_2
+    LBU   r7, RX_RING3
+    RBEQ  r0, r0, __mgc_inc
+__mgc_2:
+    ADDI  r3, r0, 2
+    RBNE  r2, r3, __mgc_1
+    LBU   r7, RX_RING2
+    RBEQ  r0, r0, __mgc_inc
+__mgc_1:
+    ADDI  r3, r0, 1
+    RBNE  r2, r3, __mgc_0
+    LBU   r7, RX_RING1
+    RBEQ  r0, r0, __mgc_inc
+__mgc_0:
+    LBU   r7, RX_RING0
+__mgc_inc:
+    ADDI  r2, r2, 1
+    ANDI  r2, r2, 7
+    SB    r2, RX_RD
+    JALR
+
+# ms_do: 执行 MS_COL/MS_ROW/MS_OP 操作；op=1 探雷 op=2 插旗
+#   index = (row-1)*8 + (col-1)；破坏 r1-r6 r8-r11
+ms_do:
+    LBU   r3, MS_ROW
+    ADDI  r3, r3, 0xFF          # row-1
+    SLLI  r3, r3, 3             # (row-1)*8
+    LBU   r4, MS_COL
+    ADDI  r4, r4, 0xFF          # col-1
+    ADD   r3, r3, r4            # index
+    LBU   r5, MS_OP
+    ADDI  r6, r0, 1
+    RBNE  r5, r6, __msdo_flag
+    RJAL  ms_probe              # 探雷
+    # 胜利判定：探开后 MS_OPEN==54 → 全探开
+    LBU   r6, MS_OPEN
+    ADDI  r8, r0, 54
+    RBNE  r6, r8, __msdo_done
+    ADDI  r8, r0, 2
+    SB    r8, MS_OVER
+__msdo_done:
+    JALR
+__msdo_flag:
+    RJAL  ms_flag               # 插旗
+    JALR
+
+# ms_flag: 插旗/拔旗（MS_VIEW[index] 0↔1）；index=r3
+ms_flag:
+    ADDI  r1, r0, 0x95
+    ADDI  r2, r3, 0x40          # VIEW 基址 0x9540 + index
+    LIND  r4, r1, r2
+    ADDI  r5, r0, 1
+    RBNE  r4, r5, __msf_set     # !=1 → 设为旗
+    SIND  r0, r1, r2            # 拔旗
+    LBU   r4, MS_FLG
+    ADDI  r4, r4, 0xFF
+    SB    r4, MS_FLG
+    JALR
+__msf_set:
+    SIND  r5, r1, r2            # 插旗
+    LBU   r4, MS_FLG
+    ADDI  r4, r4, 1
+    SB    r4, MS_FLG
+    JALR
+
+# ms_probe: 探雷（index=r3）；雷→死(MS_OVER=1) 非雷→探开
+ms_probe:
+    ADDI  r1, r0, 0x95
+    ADDI  r2, r3, 0x00          # MINE 基址 0x9500 + index
+    LIND  r4, r1, r2            # MINE[index]
+    ANDI  r5, r4, 0x80
+    RBNE  r5, r0, __msp_mine    # 是雷
+    # 非雷：VIEW[index] 已探? 若未探则探开
+    ADDI  r2, r3, 0x40
+    LIND  r5, r1, r2            # VIEW[index]
+    RBNE  r5, r0, __msp_skip    # 已探/旗 → 不动
+    ADDI  r5, r0, 2             # VIEW=2 已探
+    SIND  r5, r1, r2
+    LBU   r5, MS_OPEN
+    ADDI  r5, r5, 1
+    SB    r5, MS_OPEN
+    # 若 MINE[index] 邻雷数=0 → 洪水展开
+    ANDI  r6, r4, 0x0F
+    RBNE  r6, r0, __msp_skip
+    RJAL  ms_flood              # 洪水展开
+__msp_skip:
+    JALR
+__msp_mine:
+    ADDI  r5, r0, 1
+    SB    r5, MS_OVER           # 踩雷死
+    # 标出所有雷（VIEW=3，渲染显示 *）
+    ADDI  r6, r0, 0             # i = 0
+__msp_reveal:
+    ADDI  r2, r6, 0x00
+    LIND  r4, r1, r2            # MINE[i]
+    ANDI  r5, r4, 0x80
+    RBEQ  r5, r0, __msp_rv_next # 非雷跳过
+    ADDI  r2, r6, 0x40
+    ADDI  r5, r0, 3             # VIEW=3 标雷
+    SIND  r5, r1, r2
+__msp_rv_next:
+    ADDI  r6, r6, 1
+    ADDI  r5, r0, 64
+    RBLTU r6, r5, __msp_reveal
+    JALR
+
+# ms_flood: 从 index(r3) 开始 DFS 洪水展开（4 邻；0 雷区扩散）
+#   MS_QUEUE[64] 作栈：push QUEUE[sp++]=x，pop QUEUE[--sp]；sp=0 空
+#   破坏 r1-r6 r8-r12
+ms_flood:
+    ADDI  r1, r0, 0x95
+    ADDI  r4, r0, 0             # sp = 0
+    # push 起点
+    ADDI  r2, r3, 0x88          # QUEUE 基址低字节 0x88
+    SIND  r3, r1, r2
+    ADDI  r4, r4, 1             # sp = 1
+msf_loop:
+    RBNE  r4, r0, __msf_pop     # sp>0 继续
+    JALR                        # 空栈 → 完成
+__msf_pop:
+    ADDI  r4, r4, 0xFF          # sp-1
+    ANDI  r4, r4, 0x3F
+    ADDI  r2, r4, 0x88
+    LIND  r3, r1, r2            # pop → r3 = idx
+    # row = idx>>3, col = idx&7
+    SRLI  r8, r3, 3
+    ANDI  r9, r3, 7
+    # ---- 上 (row-1,col) ----
+    ADDI  r10, r8, 0xFF
+    ADDI  r11, r9, 0
+    RJAL  msf_adj
+    # ---- 下 (row+1,col) ----
+    ADDI  r10, r8, 1
+    ADDI  r11, r9, 0
+    RJAL  msf_adj
+    # ---- 左 (row,col-1) ----
+    ADDI  r10, r8, 0
+    ADDI  r11, r9, 0xFF
+    RJAL  msf_adj
+    # ---- 右 (row,col+1) ----
+    ADDI  r10, r8, 0
+    ADDI  r11, r9, 1
+    RJAL  msf_adj
+    RBEQ  r0, r0, msf_loop
+# msf_adj: 探开 4 邻 (r10=row, r11=col)；越界/已探/雷跳过；0 雷 push
+msf_adj:
+    SLTIU r6, r10, 8
+    RBEQ  r6, r0, __msfa_out
+    SLTIU r6, r11, 8
+    RBEQ  r6, r0, __msfa_out
+    SLLI  r6, r10, 3
+    ADD   r6, r6, r11           # nidx
+    # VIEW[nidx] 已探?
+    ADDI  r2, r6, 0x40
+    LIND  r12, r1, r2
+    RBNE  r12, r0, __msfa_out
+    # MINE[nidx] 非雷?
+    ADDI  r2, r6, 0x00
+    LIND  r12, r1, r2
+    ANDI  r12, r12, 0x80
+    RBNE  r12, r0, __msfa_out
+    # 探开：VIEW=2
+    ADDI  r2, r6, 0x40
+    ADDI  r12, r0, 2
+    SIND  r12, r1, r2
+    LBU   r12, MS_OPEN
+    ADDI  r12, r12, 1
+    SB    r12, MS_OPEN
+    # 0 雷 → push
+    ADDI  r2, r6, 0x00
+    LIND  r12, r1, r2
+    ANDI  r12, r12, 0x0F
+    RBNE  r12, r0, __msfa_out
+    ADDI  r2, r6, 0x88
+    SIND  r6, r1, r2
+    ADDI  r4, r4, 1
+    ANDI  r4, r4, 0x3F
+__msfa_out:
+    JALR
+
+# ms_render: 清帧指针 → 画 8x8 棋盘 → DMA 发送；破坏 r1-r11
+ms_render:
+    SB    r0, FRAME_IDX_LO
+    SB    r0, FRAME_IDX_HI
+    RJAL  wait_dma              # 等上一帧
+    ADDI  r9, r0, 0             # row
+__msr_row:
+    ADDI  r10, r0, 0            # col
+__msr_col:
+    # 画 "["
+    ADDI  r7, r0, '['
+    RJAL  fputc
+    # index = row*8+col；读 VIEW
+    SLLI  r3, r9, 3
+    ADD   r3, r3, r10
+    ADDI  r1, r0, 0x95
+    ADDI  r2, r3, 0x40
+    LIND  r4, r1, r2            # VIEW[index]
+    ADDI  r5, r0, 2
+    RBNE  r4, r5, __msr_f       # VIEW==2 → 数字
+    # 已探：显示 MINE 邻雷数
+    ADDI  r2, r3, 0x00
+    LIND  r6, r1, r2
+    ANDI  r6, r6, 0x0F
+    ADDI  r7, r6, '0'
+    RJAL  fputc
+    RBEQ  r0, r0, __msr_close
+__msr_f:
+    ADDI  r5, r0, 1
+    RBNE  r4, r5, __msr_un      # VIEW==1 → 旗
+    ADDI  r7, r0, 'F'
+    RJAL  fputc
+    RBEQ  r0, r0, __msr_close
+__msr_un:
+    # VIEW==3 → 踩雷（*）；VIEW==0 → 空格
+    ADDI  r5, r0, 3
+    RBNE  r4, r5, __msr_blank
+    ADDI  r7, r0, '*'
+    RJAL  fputc
+    RBEQ  r0, r0, __msr_close
+__msr_blank:
+    ADDI  r7, r0, ' '
+    RJAL  fputc
+__msr_close:
+    ADDI  r7, r0, ']'
+    RJAL  fputc
+    ADDI  r10, r10, 1
+    ADDI  r8, r0, 8
+    RBLTU r10, r8, __msr_col
+    RJAL  fput_crlf             # 行尾换行
+    ADDI  r9, r9, 1
+    RBLTU r9, r8, __msr_row
+    RJAL  dma_frame_send        # 发帧
+    JALR
+
+# ms_over_msg: 显示踩雷/胜利消息（先等棋盘 DMA 发完，避免混排）
+ms_over_msg:
+    RJAL  wait_dma              # 等棋盘帧发完（GAME OVER 才能安全直发）
+    LBU   r1, MS_OVER
+    ADDI  r2, r0, 1
+    RBNE  r1, r2, __mso_win
+    .puts "\r\n GAME OVER\r\n"
+    JALR
+__mso_win:
+    .puts "\r\n CLEARED!\r\n"
+    JALR
+
 .org 0x208
     IRET                       # GPIO2 ISR（未用，防御）
 
@@ -1563,76 +2030,44 @@ uart_isr:                      # UART RX：压入环形缓冲（8 槽，prio2 �
     # 满? (WR+1)&7 == RD → 丢弃
     ADDI  r2, r2, 1
     ANDI  r2, r2, 7
-    LBNE  r0, r0, __jpadU0
-__jpadU0:
     RBNE  r2, r3, __ur_room
-    LBNE  r0, r0, __jpadU1
-__jpadU1:
     RBEQ  r0, r0, __ur_restore
 __ur_room:
     LBU   r2, RX_WR
     # 按 WR(0-7) 写 RING{WR}
     ADDI  r3, r0, 7
-    LBNE  r0, r0, __jpadU2
-__jpadU2:
     RBNE  r2, r3, __ur_w6
     SB    r1, RX_RING7
-    LBNE  r0, r0, __jpadU3
-__jpadU3:
     RBEQ  r0, r0, __ur_winc
 __ur_w6:
     ADDI  r3, r0, 6
-    LBNE  r0, r0, __jpadU4
-__jpadU4:
     RBNE  r2, r3, __ur_w5
     SB    r1, RX_RING6
-    LBNE  r0, r0, __jpadU5
-__jpadU5:
     RBEQ  r0, r0, __ur_winc
 __ur_w5:
     ADDI  r3, r0, 5
-    LBNE  r0, r0, __jpadU6
-__jpadU6:
     RBNE  r2, r3, __ur_w4
     SB    r1, RX_RING5
-    LBNE  r0, r0, __jpadU7
-__jpadU7:
     RBEQ  r0, r0, __ur_winc
 __ur_w4:
     ADDI  r3, r0, 4
-    LBNE  r0, r0, __jpadU8
-__jpadU8:
     RBNE  r2, r3, __ur_w3
     SB    r1, RX_RING4
-    LBNE  r0, r0, __jpadU9
-__jpadU9:
     RBEQ  r0, r0, __ur_winc
 __ur_w3:
     ADDI  r3, r0, 3
-    LBNE  r0, r0, __jpadU10
-__jpadU10:
     RBNE  r2, r3, __ur_w2
     SB    r1, RX_RING3
-    LBNE  r0, r0, __jpadU11
-__jpadU11:
     RBEQ  r0, r0, __ur_winc
 __ur_w2:
     ADDI  r3, r0, 2
-    LBNE  r0, r0, __jpadU12
-__jpadU12:
     RBNE  r2, r3, __ur_w1
     SB    r1, RX_RING2
-    LBNE  r0, r0, __jpadU13
-__jpadU13:
     RBEQ  r0, r0, __ur_winc
 __ur_w1:
     ADDI  r3, r0, 1
-    LBNE  r0, r0, __jpadU14
-__jpadU14:
     RBNE  r2, r3, __ur_w0
     SB    r1, RX_RING1
-    LBNE  r0, r0, __jpadU15
-__jpadU15:
     RBEQ  r0, r0, __ur_winc
 __ur_w0:
     SB    r1, RX_RING0
@@ -1658,66 +2093,38 @@ shell_append:
     LBU   r1, CURSOR
     # 存 r7 到 LINE_BUF[cursor]，按 cursor(0-7) 展开
     ADDI  r8, r0, 7
-    LBNE  r0, r0, __jpadA0
-__jpadA0:
     RBNE  r1, r8, __ap6
     SB    r7, LINE_BUF7
-    LBNE  r0, r0, __jpadA1
-__jpadA1:
     RBEQ  r0, r0, __ap_done
 __ap6:
     ADDI  r8, r0, 6
-    LBNE  r0, r0, __jpadA2
-__jpadA2:
     RBNE  r1, r8, __ap5
     SB    r7, LINE_BUF6
-    LBNE  r0, r0, __jpadA3
-__jpadA3:
     RBEQ  r0, r0, __ap_done
 __ap5:
     ADDI  r8, r0, 5
-    LBNE  r0, r0, __jpadA4
-__jpadA4:
     RBNE  r1, r8, __ap4
     SB    r7, LINE_BUF5
-    LBNE  r0, r0, __jpadA5
-__jpadA5:
     RBEQ  r0, r0, __ap_done
 __ap4:
     ADDI  r8, r0, 4
-    LBNE  r0, r0, __jpadA6
-__jpadA6:
     RBNE  r1, r8, __ap3
     SB    r7, LINE_BUF4
-    LBNE  r0, r0, __jpadA7
-__jpadA7:
     RBEQ  r0, r0, __ap_done
 __ap3:
     ADDI  r8, r0, 3
-    LBNE  r0, r0, __jpadA8
-__jpadA8:
     RBNE  r1, r8, __ap2
     SB    r7, LINE_BUF3
-    LBNE  r0, r0, __jpadA9
-__jpadA9:
     RBEQ  r0, r0, __ap_done
 __ap2:
     ADDI  r8, r0, 2
-    LBNE  r0, r0, __jpadA10
-__jpadA10:
     RBNE  r1, r8, __ap1
     SB    r7, LINE_BUF2
-    LBNE  r0, r0, __jpadA11
-__jpadA11:
     RBEQ  r0, r0, __ap_done
 __ap1:
     ADDI  r8, r0, 1
-    LBNE  r0, r0, __jpadA12
-__jpadA12:
     RBNE  r1, r8, __ap0
     SB    r7, LINE_BUF1
-    LBNE  r0, r0, __jpadA13
-__jpadA13:
     RBEQ  r0, r0, __ap_done
 __ap0:
     SB    r7, LINE_BUF0
@@ -1728,8 +2135,6 @@ __ap_done:
     SB    r1, CURSOR
     SB    r0, LAST_CR
     SB    r0, IDLE_CNT           # 重置空闲累计（有新字符）
-    LBNE  r0, r0, __jpadA14
-__jpadA14:
     LJAL  putc                  # 后向（putc@0x100）: echo
     JALR
 
@@ -1794,8 +2199,6 @@ sched_body:
     LBU   r14, SLOT0_HI
     LBU   r15, CUR_TASK
     # ---- 存旧任务 PC + j + r7-r11 ----
-    LBNE  r0, r0, __jpadS0
-__jpadS0:
     RBNE  r15, r0, __sv_t1     # 前向
     ADDI  r12, r253, 0         # r12 = j
     SB    r13, TCB0_PC_LO
@@ -1806,13 +2209,9 @@ __jpadS0:
     SB    r9, TCB0_R9
     SB    r10, TCB0_R10
     SB    r11, TCB0_R11
-    LBNE  r0, r0, __jpadS1
-__jpadS1:
     RBEQ  r0, r0, __pick        # 前向
 __sv_t1:
     ADDI  r12, r0, 1
-    LBNE  r0, r0, __jpadS2
-__jpadS2:
     RBNE  r15, r12, __sv_t2     # 前向
     ADDI  r12, r253, 0
     SB    r13, TCB1_PC_LO
@@ -1823,8 +2222,6 @@ __jpadS2:
     SB    r9, TCB1_R9
     SB    r10, TCB1_R10
     SB    r11, TCB1_R11
-    LBNE  r0, r0, __jpadS3
-__jpadS3:
     RBEQ  r0, r0, __pick        # 前向
 __sv_t2:
     ADDI  r12, r253, 0
@@ -1841,8 +2238,6 @@ __pick:
     LBU   r12, TICK_LO
     ADDI  r12, r12, 1
     SB    r12, TICK_LO
-    LBNE  r0, r0, __jpadS4
-__jpadS4:
     RBNE  r12, r0, __nowrap     # 前向
     LBU   r12, TICK_HI
     ADDI  r12, r12, 1
@@ -1851,16 +2246,12 @@ __nowrap:
     # ---- CUR = (CUR+1) % 3 ----
     ADDI  r15, r15, 1
     ADDI  r12, r0, 3
-    LBNE  r0, r0, __jpadS5
-__jpadS5:
     RBNE  r15, r12, __nw2       # 前向
     ADDI  r15, r0, 0
     NOP                        # 拉开 __nw2 距离到 +3（bytmov=0 不可编码）
 __nw2:
     SB    r15, CUR_TASK
     # ---- 载新任务 PC + j + r7-r11 ----
-    LBNE  r0, r0, __jpadS6
-__jpadS6:
     RBNE  r15, r0, __ld_t1      # 前向
     SBI   BASE_MAIN, BASELINE   # 切 baseline → 任务0 窗口（0 恒等）
     LBU   r13, TCB0_PC_HI
@@ -1872,13 +2263,9 @@ __jpadS6:
     LBU   r9, TCB0_R9
     LBU   r10, TCB0_R10
     LBU   r11, TCB0_R11
-    LBNE  r0, r0, __jpadS7
-__jpadS7:
     RBEQ  r0, r0, __redirect    # 前向
 __ld_t1:
     ADDI  r12, r0, 1
-    LBNE  r0, r0, __jpadS8
-__jpadS8:
     RBNE  r15, r12, __ld_t2     # 前向
     SBI   BASE_TASK1, BASELINE  # 切 baseline → 任务1 窗口（0x16）
     LBU   r13, TCB1_PC_HI
@@ -1890,8 +2277,6 @@ __jpadS8:
     LBU   r9, TCB1_R9
     LBU   r10, TCB1_R10
     LBU   r11, TCB1_R11
-    LBNE  r0, r0, __jpadS9
-__jpadS9:
     RBEQ  r0, r0, __redirect    # 前向
 __ld_t2:
     SBI   BASE_TASK2, BASELINE  # 切 baseline → 任务2 窗口（0x26）
@@ -1908,8 +2293,6 @@ __redirect:
     # ---- 改写 pc_addr[0] = 新任务断点（2 条紧邻 SB，原子）----
     SB    r13, IRQW             # [11:8]
     SB    r14, IRQW             # [7:0]
-    LBNE  r0, r0, __jpadS10
-__jpadS10:
     IRET                       # → 新任务断点
 
 __sg_game:                     # GAME 模式：更新 TICK + 恢复 + IRET（不切任务）
@@ -1942,10 +2325,11 @@ menu_main:
     RJAL  put_crlf
     .puts " 2. STATUS     STATUS"
     RJAL  put_crlf
-    .puts " 3. GAME       TETRIS"
+    .puts " 3. GAME       TETRIS/MINE"
     RJAL  put_crlf
     .puts " 0. MENU       SHOW MENU"
     RJAL  put_crlf
+    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
     JALR
 
 print_prompt:
@@ -1955,12 +2339,13 @@ print_prompt:
 cmd_credits:
     .puts "--- CREDITS ---"
     RJAL  put_crlf
-    .puts " system: RTOS"
+    .puts " System: RTOS"
     RJAL  put_crlf
     .puts " Author: Justin (hardware) & Agent (software)"
     RJAL  put_crlf
     .puts " HW: Justin Green MCU (Zynq 7010)"
     RJAL  put_crlf
+    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
     JALR
 
 cmd_status:
@@ -1973,6 +2358,7 @@ cmd_status:
     RJAL  print_bar
     .puts " 2% (296B/16KB)\r\n"
     .puts " 0. BACK TO MENU\r\n"
+    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
     ADDI  r1, r0, 3
     SB    r1, MENU
     ADDI  r1, r0, 2

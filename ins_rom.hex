@@ -9,9 +9,27 @@
 04010040   // ADDI  r1, r0, 0x40
 74014000   // SB    r1, GPIO
 74019044   // SB    r1, LED_STATE
+040100A0   // .puts " BOOT: GPIO    "
+04020000   // .puts " BOOT: GPIO    "
+0406000F   // .puts " BOOT: GPIO    "
+7C070102   // .puts " BOOT: GPIO    "
+04020201   // .puts " BOOT: GPIO    "
+2400EF00   // .puts " BOOT: GPIO    "
+040606FF   // .puts " BOOT: GPIO    "
+60000660   // .puts " BOOT: GPIO    "
+2400FD00   // RJAL  anim_bar
 74009005   // SB    r0, CUR_TASK
 74009000   // SB    r0, TICK_LO
 74009001   // SB    r0, TICK_HI
+040100A0   // .puts " BOOT: KERNEL  "
+0402000F   // .puts " BOOT: KERNEL  "
+0406000F   // .puts " BOOT: KERNEL  "
+7C070102   // .puts " BOOT: KERNEL  "
+04020201   // .puts " BOOT: KERNEL  "
+2400E300   // .puts " BOOT: KERNEL  "
+040606FF   // .puts " BOOT: KERNEL  "
+60000660   // .puts " BOOT: KERNEL  "
+2400F100   // RJAL  anim_bar
 74009108   // SB    r0, RX_WR
 74009109   // SB    r0, RX_RD
 74009118   // SB    r0, CURSOR
@@ -19,6 +37,15 @@
 7400911A   // SB    r0, IDLE_CNT
 7400911B   // SB    r0, LAST_TICK
 7400911C   // SB    r0, MENU
+040100A0   // .puts " BOOT: BUFFER  "
+0402001E   // .puts " BOOT: BUFFER  "
+0406000F   // .puts " BOOT: BUFFER  "
+7C070102   // .puts " BOOT: BUFFER  "
+04020201   // .puts " BOOT: BUFFER  "
+2400D300   // .puts " BOOT: BUFFER  "
+040606FF   // .puts " BOOT: BUFFER  "
+60000660   // .puts " BOOT: BUFFER  "
+2400E100   // RJAL  anim_bar
 7400900A   // SB    r0, TCB0_J
 7400900B   // SB    r0, TCB0_R7
 7400900C   // SB    r0, TCB0_R8
@@ -45,6 +72,15 @@
 7400901D   // SB    r0, TCB2_R9
 7400901E   // SB    r0, TCB2_R10
 7400901F   // SB    r0, TCB2_R11
+040100A0   // .puts " BOOT: STACK   "
+0402002D   // .puts " BOOT: STACK   "
+0406000F   // .puts " BOOT: STACK   "
+7C070102   // .puts " BOOT: STACK   "
+04020201   // .puts " BOOT: STACK   "
+2400B000   // .puts " BOOT: STACK   "
+040606FF   // .puts " BOOT: STACK   "
+60000660   // .puts " BOOT: STACK   "
+2400BE00   // RJAL  anim_bar
 04010003   // ADDI  r1, r0, 3
 74016008   // SB    r1, 0x6008
 74006009   // SB    r0, 0x6009
@@ -53,6 +89,15 @@
 7400600B   // SB    r0, 0x600B
 7400600C   // SB    r0, 0x600C
 7400600D   // SB    r0, 0x600D
+040100A0   // .puts " BOOT: IRQPRIO "
+0402003C   // .puts " BOOT: IRQPRIO "
+0406000F   // .puts " BOOT: IRQPRIO "
+7C070102   // .puts " BOOT: IRQPRIO "
+04020201   // .puts " BOOT: IRQPRIO "
+24009F00   // .puts " BOOT: IRQPRIO "
+040606FF   // .puts " BOOT: IRQPRIO "
+60000660   // .puts " BOOT: IRQPRIO "
+2400AD00   // RJAL  anim_bar
 04010002   // ADDI  r1, r0, 0x02
 74015001   // SB    r1, 0x5001            # timer 高
 04010048   // ADDI  r1, r0, 0x48
@@ -73,6 +118,15 @@
 74015011   // SB    r1, 0x5011            # dma 高
 04010008   // ADDI  r1, r0, 0x08
 74015012   // SB    r1, 0x5012            # dma 低 → 0x208
+040100A0   // .puts " BOOT: VECTOR  "
+0402004B   // .puts " BOOT: VECTOR  "
+0406000F   // .puts " BOOT: VECTOR  "
+7C070102   // .puts " BOOT: VECTOR  "
+04020201   // .puts " BOOT: VECTOR  "
+24008200   // .puts " BOOT: VECTOR  "
+040606FF   // .puts " BOOT: VECTOR  "
+60000660   // .puts " BOOT: VECTOR  "
+24009000   // RJAL  anim_bar
 0401000F   // ADDI  r1, r0, 0x0F
 74013000   // SB    r1, TIMER_CNT0
 04010027   // ADDI  r1, r0, 0x27
@@ -81,64 +135,55 @@
 74003003   // SB    r0, TIMER_CNT3
 04010001   // ADDI  r1, r0, 1
 74013004   // SB    r1, TIMER_MODE
+040100A0   // .puts " BOOT: READY   "
+0402005A   // .puts " BOOT: READY   "
+0406000F   // .puts " BOOT: READY   "
+7C070102   // .puts " BOOT: READY   "
+04020201   // .puts " BOOT: READY   "
+24007100   // .puts " BOOT: READY   "
+040606FF   // .puts " BOOT: READY   "
+60000660   // .puts " BOOT: READY   "
+24007F00   // RJAL  anim_bar
 74006000   // SB    r0, 0x6000
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2404EA00   // RJAL  menu_main           # 主菜单
-24052100   // RJAL  print_prompt
-2405BB00   // RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
+2404AC00   // RJAL  menu_main           # 主菜单
+2404DA00   // RJAL  print_prompt
+24055C00   // RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
 70019108   // LBU   r1, RX_WR
 70029109   // LBU   r2, RX_RD
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000712   // RBNE  r1, r2, __sh_have
+64000512   // RBNE  r1, r2, __sh_have
 7001911A   // LBU   r1, IDLE_CNT
 04070032   // ADDI  r7, r0, 50
-60000100   // // 自动 jpad（IRET W+2 垫层）
-68000A17   // RBLTU r1, r7, shell_loop
+68000817   // RBLTU r1, r7, shell_loop
 70029118   // LBU   r2, CURSOR
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64004120   // RBNE  r2, r0, __sh_exec
-58000E00   // LBEQ  r0, r0, shell_loop
+64002E20   // RBNE  r2, r0, __sh_exec
+58000B00   // LBEQ  r0, r0, shell_loop
 04080007   // ADDI  r8, r0, 7
-60000100   // LBNE  r0, r0, __jpadS2a
-64000228   // RBNE  r2, r8, __sh_r6
+64000128   // RBNE  r2, r8, __sh_r6
 70079107   // LBU   r7, RX_RING7
-60000100   // LBNE  r0, r0, __jpadS2b
-5C002500   // RBEQ  r0, r0, __sh_rdinc
-04080006   // ADDI  r8, r0, 6
-60000100   // LBNE  r0, r0, __jpadS2c
-64000228   // RBNE  r2, r8, __sh_r5
-70079106   // LBU   r7, RX_RING6
-60000100   // LBNE  r0, r0, __jpadS2d
-5C001F00   // RBEQ  r0, r0, __sh_rdinc
-04080005   // ADDI  r8, r0, 5
-60000100   // LBNE  r0, r0, __jpadS2e
-64000228   // RBNE  r2, r8, __sh_r4
-70079105   // LBU   r7, RX_RING5
-60000100   // LBNE  r0, r0, __jpadS2f
 5C001900   // RBEQ  r0, r0, __sh_rdinc
+04080006   // ADDI  r8, r0, 6
+64000128   // RBNE  r2, r8, __sh_r5
+70079106   // LBU   r7, RX_RING6
+5C001500   // RBEQ  r0, r0, __sh_rdinc
+04080005   // ADDI  r8, r0, 5
+64000128   // RBNE  r2, r8, __sh_r4
+70079105   // LBU   r7, RX_RING5
+5C001100   // RBEQ  r0, r0, __sh_rdinc
 04080004   // ADDI  r8, r0, 4
-60000100   // LBNE  r0, r0, __jpadS2g
-64000228   // RBNE  r2, r8, __sh_r3
+64000128   // RBNE  r2, r8, __sh_r3
 70079104   // LBU   r7, RX_RING4
-60000100   // LBNE  r0, r0, __jpadS2h
-5C001300   // RBEQ  r0, r0, __sh_rdinc
-04080003   // ADDI  r8, r0, 3
-60000100   // LBNE  r0, r0, __jpadS2i
-64000228   // RBNE  r2, r8, __sh_r2
-70079103   // LBU   r7, RX_RING3
-60000100   // LBNE  r0, r0, __jpadS2j
 5C000D00   // RBEQ  r0, r0, __sh_rdinc
+04080003   // ADDI  r8, r0, 3
+64000128   // RBNE  r2, r8, __sh_r2
+70079103   // LBU   r7, RX_RING3
+5C000900   // RBEQ  r0, r0, __sh_rdinc
 04080002   // ADDI  r8, r0, 2
-60000100   // LBNE  r0, r0, __jpadS2k
-64000228   // RBNE  r2, r8, __sh_r1
+64000128   // RBNE  r2, r8, __sh_r1
 70079102   // LBU   r7, RX_RING2
-60000100   // LBNE  r0, r0, __jpadS2l
-5C000700   // RBEQ  r0, r0, __sh_rdinc
+5C000500   // RBEQ  r0, r0, __sh_rdinc
 04080001   // ADDI  r8, r0, 1
-60000100   // LBNE  r0, r0, __jpadS2m
-64000228   // RBNE  r2, r8, __sh_r0
+64000128   // RBNE  r2, r8, __sh_r0
 70079101   // LBU   r7, RX_RING1
-60000100   // LBNE  r0, r0, __jpadS2n
 5C000100   // RBEQ  r0, r0, __sh_rdinc
 70079100   // LBU   r7, RX_RING0
 50000000   // NOP                        # 拉开 __sh_rdinc 距离到 +3（bytmov=0 不可编码）
@@ -146,96 +191,51 @@
 07912B97   // ADDI  r2, r2, 1 | ANDI  r2, r2, 7
 74029109   // SB    r2, RX_RD
 0408000D   // ADDI  r8, r0, '\r'
-60000100   // LBNE  r0, r0, __jpadS3a
-64000378   // RBNE  r7, r8, __sh_lf
+64000278   // RBNE  r7, r8, __sh_lf
 04010001   // ADDI  r1, r0, 1
 74019119   // SB    r1, LAST_CR
-60000100   // LBNE  r0, r0, __jpadS3g
-5C000A00   // RBEQ  r0, r0, __sh_exec
+5C000700   // RBEQ  r0, r0, __sh_exec
 0408000A   // ADDI  r8, r0, '\n'
-60000100   // LBNE  r0, r0, __jpadS3h
-64001178   // RBNE  r7, r8, __sh_bs
+64000B78   // RBNE  r7, r8, __sh_bs
 70019119   // LBU   r1, LAST_CR
-60000100   // LBNE  r0, r0, __jpadS3i
 64000110   // RBNE  r1, r0, __lf_skip
-60000100   // LBNE  r0, r0, __jpadS3j
 5C000200   // RBEQ  r0, r0, __sh_exec
+50000000   // // 自动 NOP（bytmov 死区）
 74009119   // SB    r0, LAST_CR
-60000100   // LBNE  r0, r0, __jpadS3k
-58004F00   // LBEQ  r0, r0, shell_loop
+58003900   // LBEQ  r0, r0, shell_loop
 0407000A   // ADDI  r7, r0, '\n'
-60000100   // LBNE  r0, r0, __jpadS3b
-24005800   // RJAL  putc
-60000100   // LBNE  r0, r0, __jpadS3c
-24007700   // RJAL  shell_parse
+24003100   // RJAL  putc
+24006900   // RJAL  shell_parse
 74009118   // SB    r0, CURSOR
-60000100   // LBNE  r0, r0, __jpadS3d
-2404CB00   // RJAL  print_prompt
-60000100   // LBNE  r0, r0, __jpadS3f
-58005900   // LBEQ  r0, r0, shell_loop
+24049D00   // RJAL  print_prompt
+58003F00   // LBEQ  r0, r0, shell_loop
 0408007F   // ADDI  r8, r0, 0x7F
-60000100   // LBNE  r0, r0, __jpadS4a
 64000178   // RBNE  r7, r8, __sh_bs2
-60000100   // LBNE  r0, r0, __jpadS4h
-5C000800   // RBEQ  r0, r0, __bs_do
+5C000600   // RBEQ  r0, r0, __bs_do
+50000000   // // 自动 NOP（bytmov 死区）
 04080008   // ADDI  r8, r0, 0x08
-60000100   // LBNE  r0, r0, __jpadS4i
-64001378   // RBNE  r7, r8, __sh_char
+64000D78   // RBNE  r7, r8, __sh_char
 70019118   // LBU   r1, CURSOR
-60000100   // LBNE  r0, r0, __jpadS4b
-64000210   // RBNE  r1, r0, __bs_do
+64000110   // RBNE  r1, r0, __bs_do
 74009119   // SB    r0, LAST_CR
-60000100   // LBNE  r0, r0, __jpadS4c
-58006700   // LBEQ  r0, r0, shell_loop
+58004900   // LBEQ  r0, r0, shell_loop
 040101FF   // ADDI  r1, r1, 0xFF
 74019118   // SB    r1, CURSOR
 74009119   // SB    r0, LAST_CR
 04070008   // ADDI  r7, r0, 0x08
-60000100   // LBNE  r0, r0, __jpadS4d
-24003D00   // RJAL  putc
+24001E00   // RJAL  putc
 04070020   // ADDI  r7, r0, ' '
-60000100   // LBNE  r0, r0, __jpadS4e
-24003A00   // RJAL  putc
+24001C00   // RJAL  putc
 04070008   // ADDI  r7, r0, 0x08
-60000100   // LBNE  r0, r0, __jpadS4f
-24003700   // RJAL  putc
-60000100   // LBNE  r0, r0, __jpadS4g
-58007500   // LBEQ  r0, r0, shell_loop
+24001A00   // RJAL  putc
+58005300   // LBEQ  r0, r0, shell_loop
 70019118   // LBU   r1, CURSOR
 04080008   // ADDI  r8, r0, 8
-60000100   // LBNE  r0, r0, __jpadS5a
-6C000218   // RBLTU r1, r8, __ap_call
+6C000118   // RBLTU r1, r8, __ap_call
 74009119   // SB    r0, LAST_CR
-60000100   // LBNE  r0, r0, __jpadS5b
-58007C00   // LBEQ  r0, r0, shell_loop     # 缓冲满，忽略
-60000100   // LBNE  r0, r0, __jpadS5c
-2401CC00   // RJAL  shell_append
-60000100   // LBNE  r0, r0, __jpadS5d
-58008000   // LBEQ  r0, r0, shell_loop
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
+58005800   // LBEQ  r0, r0, shell_loop     # 缓冲满，忽略
+2401B300   // RJAL  shell_append
+58005A00   // LBEQ  r0, r0, shell_loop
 00000000
 00000000
 00000000
@@ -256,76 +256,155 @@
 00000000
 00000000
 0408FF00   // ADDI  r8, r255, 0
-60000100   // LBNE  r0, r0, __jpadP9
-60000480   // LBNE  r8, r0, putc_wait
+60000380   // LBNE  r8, r0, putc_wait
 74072000   // SB    r7, UART
-60000100   // LBNE  r0, r0, __jpadP10
+040900FA   // ADDI  r9, r0, 250           # 外层 250 次 ≈ 5ms/字符
+040800FF   // ADDI  r8, r0, 0xFF          # 内层 255 次
+040808FF   // ADDI  r8, r8, 0xFF
+60000380   // LBNE  r8, r0, __typing_i
+040909FF   // ADDI  r9, r9, 0xFF
+60000690   // LBNE  r9, r0, __typing_o
+4C000000   // JALR
+74009108   // SB    r0, RX_WR
+74009109   // SB    r0, RX_RD
+4C000000   // JALR
+0408FF00   // ADDI  r8, r255, 0            # tx_busy
+60000380   // LBNE  r8, r0, __fp_w
+74072000   // SB    r7, UART
+4C000000   // JALR
+0407005B   // ADDI  r7, r0, '['
+20000700   // RJAL  fast_putc
+040A000A   // ADDI  r10, r0, 10            # 10 段
+04070023   // ADDI  r7, r0, '#'
+20000A00   // RJAL  fast_putc
+040B0006   // ADDI  r11, r0, 0x06          # 外层外层
+040900FF   // ADDI  r9, r0, 0xFF           # 外层
+040800FF   // ADDI  r8, r0, 0xFF           # 内层
+040808FF   // ADDI  r8, r8, 0xFF
+60000380   // LBNE  r8, r0, __ab_dly_i
+040909FF   // ADDI  r9, r9, 0xFF
+60000690   // LBNE  r9, r0, __ab_dly_o
+040B0BFF   // ADDI  r11, r11, 0xFF
+600009B0   // LBNE  r11, r0, __ab_dly_oo
+040A0AFF   // ADDI  r10, r10, 0xFF
+60000EA0   // RBNE  r10, r0, __ab_loop
+0407005D   // ADDI  r7, r0, ']'
+20001700   // RJAL  fast_putc
+0407000A   // ADDI  r7, r0, '\n'
+20001900   // RJAL  fast_putc
 4C000000   // JALR
 0407000D   // ADDI  r7, r0, '\r'
-60000100   // LBNE  r0, r0, __jpadP11
-20000A00   // LJAL  putc
+20002900   // LJAL  putc
 0407000A   // ADDI  r7, r0, '\n'
-60000100   // LBNE  r0, r0, __jpadP12
-20000D00   // LJAL  putc
+20002B00   // LJAL  putc
 4C000000   // JALR
 04080009   // ADDI  r8, r0, 9
-60000100   // LBNE  r0, r0, __jpadP13
-6C000387   // RBLTU r8, r7, __phx_af     # 前向
+6C000287   // RBLTU r8, r7, __phx_af     # 前向
 04070730   // ADDI  r7, r7, '0'
-60000100   // LBNE  r0, r0, __jpadP14
-20001400   // LJAL  putc
+20003000   // LJAL  putc
 4C000000   // JALR
 04070737   // ADDI  r7, r7, 55            # 'A'-10 = 55
-60000100   // LBNE  r0, r0, __jpadP15
-20001800   // LJAL  putc
+20003300   // LJAL  putc
 4C000000   // JALR
 04090700   // ADDI  r9, r7, 0             # r9 暂存输入（调度器保 r7-r11）
-60000100   // LBNE  r0, r0, __jpadP16
 40070904   // SRLI  r7, r9, 4
-60000100   // LBNE  r0, r0, __jpadP17
-20001100   // LJAL  print_hexdigit
+20000C00   // LJAL  print_hexdigit
 2807090F   // ANDI  r7, r9, 0x0F
-60000100   // LBNE  r0, r0, __jpadP18
-20001400   // LJAL  print_hexdigit
+20000E00   // LJAL  print_hexdigit
 4C000000   // JALR
 70079118   // LBU   r7, CURSOR
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000170   // RBNE  r7, r0, __sp_have
 4C000000   // JALR                        # 空行 → 直接返回
 50000000   // // 自动 NOP（bytmov 死区）
 04080001   // ADDI  r8, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64001778   // RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
+64001578   // RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
 70079110   // LBU   r7, LINE_BUF0
+7001911C   // LBU   r1, MENU
+64001710   // RBNE  r1, r0, game_menu_dispatch   # MENU!=0 → game 子菜单分派
 04080031   // ADDI  r8, r0, '1'
-60000100   // // 自动 jpad（IRET W+2 垫层）
+04080031   // ADDI  r8, r0, '1'
 64000178   // RBNE  r7, r8, __sp_m2
-24045000   // RJAL  cmd_credits
+24042F00   // RJAL  cmd_credits
 4C000000   // JALR
 04080032   // ADDI  r8, r0, '2'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000178   // RBNE  r7, r8, __sp_m3
-24047800   // RJAL  cmd_status
+24045100   // RJAL  cmd_status
 4C000000   // JALR
 04080033   // ADDI  r8, r0, '3'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000478   // RBNE  r7, r8, __sp_m0
+64000378   // RBNE  r7, r8, __sp_m0
 04010001   // ADDI  r1, r0, 1
 7401911C   // SB    r1, MENU
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000C00   // RJAL  game_start             # 进入俄罗斯方块（独占模式）
+24002000   // RJAL  game_menu             # 进 game 子菜单（俄罗斯方块/扫雷）
 4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000178   // RBNE  r7, r8, __sp_unknown
-2403FF00   // RJAL  menu_main
+2403EB00   // RJAL  menu_main
 4C000000   // JALR
 0407003F   // ADDI  r7, r0, '?'
-64012600   // LBNE  r0, r0, __jpadU1
-20004500   // LJAL  putc
-64012800   // LBNE  r0, r0, __jpadU2
-20004100   // LJAL  put_crlf
-2403F800   // RJAL  menu_main
+20005800   // LJAL  putc
+20003300   // LJAL  put_crlf
+2403E600   // RJAL  menu_main
+4C000000   // JALR
+7001911C   // LBU   r1, MENU
+04080001   // ADDI  r8, r0, 1
+64001118   // RBNE  r1, r8, __gmd_main    # MENU != 1 → 主菜单逻辑
+70079110   // LBU   r7, LINE_BUF0
+04080031   // ADDI  r8, r0, '1'
+64000178   // RBNE  r7, r8, __gmd_2
+24003500   // RJAL  game_start             # 俄罗斯方块
+4C000000   // JALR
+04080032   // ADDI  r8, r0, '2'
+64000178   // RBNE  r7, r8, __gmd_0
+240E9A00   // RJAL  minesweeper_start      # 扫雷
+4C000000   // JALR
+04080030   // ADDI  r8, r0, '0'
+64000278   // RBNE  r7, r8, __gmd_unknown
+7400911C   // SB    r0, MENU
+2403D500   // RJAL  menu_main
+4C000000   // JALR
+0407003F   // ADDI  r7, r0, '?'
+20006E00   // LJAL  putc
+24000200   // RJAL  game_menu
+4C000000   // JALR
+2403CF00   // RJAL  menu_main
+4C000000   // JALR
+040100A0   // .puts "--- GAME MENU ---"
+04020069   // .puts "--- GAME MENU ---"
+04060011   // .puts "--- GAME MENU ---"
+7C070102   // .puts "--- GAME MENU ---"
+04020201   // .puts "--- GAME MENU ---"
+20007800   // .puts "--- GAME MENU ---"
+040606FF   // .puts "--- GAME MENU ---"
+60000660   // .puts "--- GAME MENU ---"
+20005500   // RJAL  put_crlf
+040100A0   // .puts " 1. TETRIS"
+0402007A   // .puts " 1. TETRIS"
+0406000A   // .puts " 1. TETRIS"
+7C070102   // .puts " 1. TETRIS"
+04020201   // .puts " 1. TETRIS"
+20008100   // .puts " 1. TETRIS"
+040606FF   // .puts " 1. TETRIS"
+60000660   // .puts " 1. TETRIS"
+20005E00   // RJAL  put_crlf
+040100A0   // .puts " 2. MINESWEEP"
+04020084   // .puts " 2. MINESWEEP"
+0406000D   // .puts " 2. MINESWEEP"
+7C070102   // .puts " 2. MINESWEEP"
+04020201   // .puts " 2. MINESWEEP"
+20008A00   // .puts " 2. MINESWEEP"
+040606FF   // .puts " 2. MINESWEEP"
+60000660   // .puts " 2. MINESWEEP"
+20006700   // RJAL  put_crlf
+040100A0   // .puts " 0. MAIN MENU"
+04020091   // .puts " 0. MAIN MENU"
+0406000D   // .puts " 0. MAIN MENU"
+7C070102   // .puts " 0. MAIN MENU"
+04020201   // .puts " 0. MAIN MENU"
+20009300   // .puts " 0. MAIN MENU"
+040606FF   // .puts " 0. MAIN MENU"
+60000660   // .puts " 0. MAIN MENU"
+20007000   // RJAL  put_crlf
+20008D00   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 4C000000   // JALR
 04010001   // ADDI  r1, r0, 1
 74019486   // SB    r1, GAME_ACTIVE       # 调度器检测：只更新 TICK 不切任务
@@ -336,115 +415,36 @@
 80000102   // SIND  r0, r1, r2
 04020201   // ADDI  r2, r2, 1
 040303FF   // ADDI  r3, r3, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000630   // RBNE  r3, r0, __gf_fld
+60000530   // RBNE  r3, r0, __gf_fld
 04020050   // ADDI  r2, r0, 0x50
 04030028   // ADDI  r3, r0, 40
 80000102   // SIND  r0, r1, r2
 04020201   // ADDI  r2, r2, 1
 040303FF   // ADDI  r3, r3, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000630   // RBNE  r3, r0, __gf_ren
+60000530   // RBNE  r3, r0, __gf_ren
 74009480   // SB    r0, G_SCORE
 74009481   // SB    r0, G_LAST_TICK
 74009482   // SB    r0, G_ACC_LO
 74009483   // SB    r0, G_ACC_HI
 74009484   // SB    r0, G_OVER
 74009485   // SB    r0, PAUSED
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24087E00   // RJAL  spawn
-240AC100   // RJAL  render
-2407DB00   // RJAL  input_handle
+24081300   // RJAL  spawn
+2409ED00   // RJAL  render
+24078F00   // RJAL  input_handle
 70019484   // LBU   r1, G_OVER
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000810   // RBNE  r1, r0, game_over     # 按 0 设 G_OVER → 立即退出（暂停中也能退）
+64000610   // RBNE  r1, r0, game_over     # 按 0 设 G_OVER → 立即退出（暂停中也能退）
 70019485   // LBU   r1, PAUSED
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000810   // RBNE  r1, r0, game_loop     # 暂停 → 不下落
-240B7A00   // RJAL  drop_check
+60000610   // RBNE  r1, r0, game_loop     # 暂停 → 不下落
+240A7500   // RJAL  drop_check
 70019484   // LBU   r1, G_OVER
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000110   // RBNE  r1, r0, game_over
-58000D00   // LBEQ  r0, r0, game_loop
+58000A00   // LBEQ  r0, r0, game_loop
 50000000   // // 自动 NOP（bytmov 死区）
 74009486   // SB    r0, GAME_ACTIVE
-7400911C   // SB    r0, MENU
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2403CB00   // RJAL  menu_main
+04010001   // ADDI  r1, r0, 1
+7401911C   // SB    r1, MENU
+20004D00   // RJAL  game_menu
 4C000000   // JALR
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
 00000000
 00000000
 00000000
@@ -614,52 +614,37 @@
 70029108   // LBU   r2, RX_WR
 70039109   // LBU   r3, RX_RD
 07912B97   // ADDI  r2, r2, 1 | ANDI  r2, r2, 7
-60000100   // LBNE  r0, r0, __jpadU0
 64000123   // RBNE  r2, r3, __ur_room
-60000100   // LBNE  r0, r0, __jpadU1
-5C002F00   // RBEQ  r0, r0, __ur_restore
+5C002200   // RBEQ  r0, r0, __ur_restore
+50000000   // // 自动 NOP（bytmov 死区）
 70029108   // LBU   r2, RX_WR
 04030007   // ADDI  r3, r0, 7
-60000100   // LBNE  r0, r0, __jpadU2
-64000223   // RBNE  r2, r3, __ur_w6
+64000123   // RBNE  r2, r3, __ur_w6
 74019107   // SB    r1, RX_RING7
-60000100   // LBNE  r0, r0, __jpadU3
-5C002500   // RBEQ  r0, r0, __ur_winc
-04030006   // ADDI  r3, r0, 6
-60000100   // LBNE  r0, r0, __jpadU4
-64000223   // RBNE  r2, r3, __ur_w5
-74019106   // SB    r1, RX_RING6
-60000100   // LBNE  r0, r0, __jpadU5
-5C001F00   // RBEQ  r0, r0, __ur_winc
-04030005   // ADDI  r3, r0, 5
-60000100   // LBNE  r0, r0, __jpadU6
-64000223   // RBNE  r2, r3, __ur_w4
-74019105   // SB    r1, RX_RING5
-60000100   // LBNE  r0, r0, __jpadU7
 5C001900   // RBEQ  r0, r0, __ur_winc
+04030006   // ADDI  r3, r0, 6
+64000123   // RBNE  r2, r3, __ur_w5
+74019106   // SB    r1, RX_RING6
+5C001500   // RBEQ  r0, r0, __ur_winc
+04030005   // ADDI  r3, r0, 5
+64000123   // RBNE  r2, r3, __ur_w4
+74019105   // SB    r1, RX_RING5
+5C001100   // RBEQ  r0, r0, __ur_winc
 04030004   // ADDI  r3, r0, 4
-60000100   // LBNE  r0, r0, __jpadU8
-64000223   // RBNE  r2, r3, __ur_w3
+64000123   // RBNE  r2, r3, __ur_w3
 74019104   // SB    r1, RX_RING4
-60000100   // LBNE  r0, r0, __jpadU9
-5C001300   // RBEQ  r0, r0, __ur_winc
-04030003   // ADDI  r3, r0, 3
-60000100   // LBNE  r0, r0, __jpadU10
-64000223   // RBNE  r2, r3, __ur_w2
-74019103   // SB    r1, RX_RING3
-60000100   // LBNE  r0, r0, __jpadU11
 5C000D00   // RBEQ  r0, r0, __ur_winc
+04030003   // ADDI  r3, r0, 3
+64000123   // RBNE  r2, r3, __ur_w2
+74019103   // SB    r1, RX_RING3
+5C000900   // RBEQ  r0, r0, __ur_winc
 04030002   // ADDI  r3, r0, 2
-60000100   // LBNE  r0, r0, __jpadU12
-64000223   // RBNE  r2, r3, __ur_w1
+64000123   // RBNE  r2, r3, __ur_w1
 74019102   // SB    r1, RX_RING2
-60000100   // LBNE  r0, r0, __jpadU13
-5C000700   // RBEQ  r0, r0, __ur_winc
+5C000500   // RBEQ  r0, r0, __ur_winc
 04030001   // ADDI  r3, r0, 1
-60000100   // LBNE  r0, r0, __jpadU14
-64000223   // RBNE  r2, r3, __ur_w0
+64000123   // RBNE  r2, r3, __ur_w0
 74019101   // SB    r1, RX_RING1
-60000100   // LBNE  r0, r0, __jpadU15
 5C000100   // RBEQ  r0, r0, __ur_winc
 74019100   // SB    r1, RX_RING0
 50000000   // NOP                        # 拉开 __ur_winc 距离到 +3（bytmov=0 不可编码）
@@ -671,48 +656,49 @@
 70039004   // LBU   r3, UART_S3
 54000000   // IRET
 00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
 70019118   // LBU   r1, CURSOR
 04080007   // ADDI  r8, r0, 7
-60000100   // LBNE  r0, r0, __jpadA0
-64000218   // RBNE  r1, r8, __ap6
+64000118   // RBNE  r1, r8, __ap6
 74079117   // SB    r7, LINE_BUF7
-60000100   // LBNE  r0, r0, __jpadA1
-5C002500   // RBEQ  r0, r0, __ap_done
-04080006   // ADDI  r8, r0, 6
-60000100   // LBNE  r0, r0, __jpadA2
-64000218   // RBNE  r1, r8, __ap5
-74079116   // SB    r7, LINE_BUF6
-60000100   // LBNE  r0, r0, __jpadA3
-5C001F00   // RBEQ  r0, r0, __ap_done
-04080005   // ADDI  r8, r0, 5
-60000100   // LBNE  r0, r0, __jpadA4
-64000218   // RBNE  r1, r8, __ap4
-74079115   // SB    r7, LINE_BUF5
-60000100   // LBNE  r0, r0, __jpadA5
 5C001900   // RBEQ  r0, r0, __ap_done
+04080006   // ADDI  r8, r0, 6
+64000118   // RBNE  r1, r8, __ap5
+74079116   // SB    r7, LINE_BUF6
+5C001500   // RBEQ  r0, r0, __ap_done
+04080005   // ADDI  r8, r0, 5
+64000118   // RBNE  r1, r8, __ap4
+74079115   // SB    r7, LINE_BUF5
+5C001100   // RBEQ  r0, r0, __ap_done
 04080004   // ADDI  r8, r0, 4
-60000100   // LBNE  r0, r0, __jpadA6
-64000218   // RBNE  r1, r8, __ap3
+64000118   // RBNE  r1, r8, __ap3
 74079114   // SB    r7, LINE_BUF4
-60000100   // LBNE  r0, r0, __jpadA7
-5C001300   // RBEQ  r0, r0, __ap_done
-04080003   // ADDI  r8, r0, 3
-60000100   // LBNE  r0, r0, __jpadA8
-64000218   // RBNE  r1, r8, __ap2
-74079113   // SB    r7, LINE_BUF3
-60000100   // LBNE  r0, r0, __jpadA9
 5C000D00   // RBEQ  r0, r0, __ap_done
+04080003   // ADDI  r8, r0, 3
+64000118   // RBNE  r1, r8, __ap2
+74079113   // SB    r7, LINE_BUF3
+5C000900   // RBEQ  r0, r0, __ap_done
 04080002   // ADDI  r8, r0, 2
-60000100   // LBNE  r0, r0, __jpadA10
-64000218   // RBNE  r1, r8, __ap1
+64000118   // RBNE  r1, r8, __ap1
 74079112   // SB    r7, LINE_BUF2
-60000100   // LBNE  r0, r0, __jpadA11
-5C000700   // RBEQ  r0, r0, __ap_done
+5C000500   // RBEQ  r0, r0, __ap_done
 04080001   // ADDI  r8, r0, 1
-60000100   // LBNE  r0, r0, __jpadA12
-64000218   // RBNE  r1, r8, __ap0
+64000118   // RBNE  r1, r8, __ap0
 74079111   // SB    r7, LINE_BUF1
-60000100   // LBNE  r0, r0, __jpadA13
 5C000100   // RBEQ  r0, r0, __ap_done
 74079110   // SB    r7, LINE_BUF0
 50000000   // NOP                        # 拉开 __ap_done 距离到 +3（bytmov=0 不可编码）
@@ -721,9 +707,23 @@
 74019118   // SB    r1, CURSOR
 74009119   // SB    r0, LAST_CR
 7400911A   // SB    r0, IDLE_CNT           # 重置空闲累计（有新字符）
-60000100   // LBNE  r0, r0, __jpadA14
-2001D500   // LJAL  putc                  # 后向（putc@0x100）: echo
+2001C600   // LJAL  putc                  # 后向（putc@0x100）: echo
 4C000000   // JALR
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
 00000000
 00000000
 00000000
@@ -769,13 +769,11 @@
 00000000
 74003005   // SB    r0, TIMER_ACK        # ack timer（电平锁存，必清）
 700F9486   // LBU   r15, GAME_ACTIVE
-60000100   // // 自动 jpad（IRET W+2 垫层）
-640060F0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
+640055F0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
 700D5000   // LBU   r13, SLOT0_LO
 700E5001   // LBU   r14, SLOT0_HI
 700F9005   // LBU   r15, CUR_TASK
-60000100   // LBNE  r0, r0, __jpadS0
-64000AF0   // RBNE  r15, r0, __sv_t1     # 前向
+640009F0   // RBNE  r15, r0, __sv_t1     # 前向
 040CFD00   // ADDI  r12, r253, 0         # r12 = j
 740D9008   // SB    r13, TCB0_PC_LO
 740E9009   // SB    r14, TCB0_PC_HI
@@ -785,11 +783,9 @@
 7409900D   // SB    r9, TCB0_R9
 740A900E   // SB    r10, TCB0_R10
 740B900F   // SB    r11, TCB0_R11
-60000100   // LBNE  r0, r0, __jpadS1
-5C001600   // RBEQ  r0, r0, __pick        # 前向
+5C001400   // RBEQ  r0, r0, __pick        # 前向
 040C0001   // ADDI  r12, r0, 1
-60000100   // LBNE  r0, r0, __jpadS2
-64000AFC   // RBNE  r15, r12, __sv_t2     # 前向
+640009FC   // RBNE  r15, r12, __sv_t2     # 前向
 040CFD00   // ADDI  r12, r253, 0
 740D9010   // SB    r13, TCB1_PC_LO
 740E9011   // SB    r14, TCB1_PC_HI
@@ -799,7 +795,6 @@
 74099015   // SB    r9, TCB1_R9
 740A9016   // SB    r10, TCB1_R10
 740B9017   // SB    r11, TCB1_R11
-60000100   // LBNE  r0, r0, __jpadS3
 5C000800   // RBEQ  r0, r0, __pick        # 前向
 040CFD00   // ADDI  r12, r253, 0
 740D9018   // SB    r13, TCB2_PC_LO
@@ -813,20 +808,17 @@
 700C9000   // LBU   r12, TICK_LO
 040C0C01   // ADDI  r12, r12, 1
 740C9000   // SB    r12, TICK_LO
-60000100   // LBNE  r0, r0, __jpadS4
 640002C0   // RBNE  r12, r0, __nowrap     # 前向
 700C9001   // LBU   r12, TICK_HI
 040C0C01   // ADDI  r12, r12, 1
 740C9001   // SB    r12, TICK_HI
 040F0F01   // ADDI  r15, r15, 1
 040C0003   // ADDI  r12, r0, 3
-60000100   // LBNE  r0, r0, __jpadS5
 640001FC   // RBNE  r15, r12, __nw2       # 前向
 040F0000   // ADDI  r15, r0, 0
 50000000   // NOP                        # 拉开 __nw2 距离到 +3（bytmov=0 不可编码）
 740F9005   // SB    r15, CUR_TASK
-60000100   // LBNE  r0, r0, __jpadS6
-64000BF0   // RBNE  r15, r0, __ld_t1      # 前向
+64000AF0   // RBNE  r15, r0, __ld_t1      # 前向
 7800D000   // SBI   BASE_MAIN, BASELINE   # 切 baseline → 任务0 窗口（0 恒等）
 700D9009   // LBU   r13, TCB0_PC_HI
 700E9008   // LBU   r14, TCB0_PC_LO
@@ -837,11 +829,9 @@
 7009900D   // LBU   r9, TCB0_R9
 700A900E   // LBU   r10, TCB0_R10
 700B900F   // LBU   r11, TCB0_R11
-60000100   // LBNE  r0, r0, __jpadS7
-5C001800   // RBEQ  r0, r0, __redirect    # 前向
+5C001600   // RBEQ  r0, r0, __redirect    # 前向
 040C0001   // ADDI  r12, r0, 1
-60000100   // LBNE  r0, r0, __jpadS8
-64000BFC   // RBNE  r15, r12, __ld_t2     # 前向
+64000AFC   // RBNE  r15, r12, __ld_t2     # 前向
 7816D000   // SBI   BASE_TASK1, BASELINE  # 切 baseline → 任务1 窗口（0x16）
 700D9011   // LBU   r13, TCB1_PC_HI
 700E9010   // LBU   r14, TCB1_PC_LO
@@ -852,7 +842,6 @@
 70099015   // LBU   r9, TCB1_R9
 700A9016   // LBU   r10, TCB1_R10
 700B9017   // LBU   r11, TCB1_R11
-60000100   // LBNE  r0, r0, __jpadS9
 5C000900   // RBEQ  r0, r0, __redirect    # 前向
 7826D000   // SBI   BASE_TASK2, BASELINE  # 切 baseline → 任务2 窗口（0x26）
 700D9019   // LBU   r13, TCB2_PC_HI
@@ -866,7 +855,6 @@
 700B901F   // LBU   r11, TCB2_R11
 740D5000   // SB    r13, IRQW             # [11:8]
 740E5000   // SB    r14, IRQW             # [7:0]
-60000100   // LBNE  r0, r0, __jpadS10
 54000000   // IRET                       # → 新任务断点
 740C9487   // SB    r12, GAME_S1
 740D9488   // SB    r13, GAME_S2
@@ -874,7 +862,6 @@
 700C9000   // LBU   r12, TICK_LO
 040C0C01   // ADDI  r12, r12, 1
 740C9000   // SB    r12, TICK_LO
-60000100   // // 自动 jpad（IRET W+2 垫层）
 640002C0   // RBNE  r12, r0, __sg_done
 700C9001   // LBU   r12, TICK_HI
 040C0C01   // ADDI  r12, r12, 1
@@ -1023,6 +1010,19 @@
 00000000
 00000000
 00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
 70069041   // LBU   r6, CNT1
 04060601   // ADDI  r6, r6, 1
 74069041   // SB    r6, CNT1
@@ -1030,15 +1030,15 @@
 040400FF   // ADDI  r4, r0, 0xFF
 040300FF   // ADDI  r3, r0, 0xFF
 040303FF   // ADDI  r3, r3, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000430   // LBNE  r3, r0, dl1_i
+60000330   // LBNE  r3, r0, dl1_i
 040404FF   // ADDI  r4, r4, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000840   // LBNE  r4, r0, dl1_m
+60000640   // LBNE  r4, r0, dl1_m
 040505FF   // ADDI  r5, r5, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000C50   // LBNE  r5, r0, dl1_o
-58001100   // LBEQ  r0, r0, task1_loop
+60000950   // LBNE  r5, r0, dl1_o
+58000E00   // LBEQ  r0, r0, task1_loop
+00000000
+00000000
+00000000
 00000000
 00000000
 00000000
@@ -1286,15 +1286,15 @@
 040400FF   // ADDI  r4, r0, 0xFF
 040300FF   // ADDI  r3, r0, 0xFF
 040303FF   // ADDI  r3, r3, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000430   // LBNE  r3, r0, dl2_i
+60000330   // LBNE  r3, r0, dl2_i
 040404FF   // ADDI  r4, r4, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000840   // LBNE  r4, r0, dl2_m
+60000640   // LBNE  r4, r0, dl2_m
 040505FF   // ADDI  r5, r5, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000C50   // LBNE  r5, r0, dl2_o
-58001100   // LBEQ  r0, r0, task2_loop
+60000950   // LBNE  r5, r0, dl2_o
+58000E00   // LBEQ  r0, r0, task2_loop
+00000000
+00000000
+00000000
 00000000
 00000000
 00000000
@@ -1344,227 +1344,192 @@
 00000000
 00000000
 040100A0   // .puts "--- MAIN MENU ---"
-04020000   // .puts "--- MAIN MENU ---"
+040200B9   // .puts "--- MAIN MENU ---"
 04060011   // .puts "--- MAIN MENU ---"
 7C070102   // .puts "--- MAIN MENU ---"
 04020201   // .puts "--- MAIN MENU ---"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20044800   // .puts "--- MAIN MENU ---"
+20044700   // .puts "--- MAIN MENU ---"
 040606FF   // .puts "--- MAIN MENU ---"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts "--- MAIN MENU ---"
-20044600   // RJAL  put_crlf
+60000660   // .puts "--- MAIN MENU ---"
+20042400   // RJAL  put_crlf
 040100A0   // .puts " 1. CREDITS    CREDITS"
-04020011   // .puts " 1. CREDITS    CREDITS"
+040200CA   // .puts " 1. CREDITS    CREDITS"
 04060016   // .puts " 1. CREDITS    CREDITS"
 7C070102   // .puts " 1. CREDITS    CREDITS"
 04020201   // .puts " 1. CREDITS    CREDITS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20045300   // .puts " 1. CREDITS    CREDITS"
+20045000   // .puts " 1. CREDITS    CREDITS"
 040606FF   // .puts " 1. CREDITS    CREDITS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 1. CREDITS    CREDITS"
-20045100   // RJAL  put_crlf
+60000660   // .puts " 1. CREDITS    CREDITS"
+20042D00   // RJAL  put_crlf
 040100A0   // .puts " 2. STATUS     STATUS"
-04020027   // .puts " 2. STATUS     STATUS"
+040200E0   // .puts " 2. STATUS     STATUS"
 04060015   // .puts " 2. STATUS     STATUS"
 7C070102   // .puts " 2. STATUS     STATUS"
 04020201   // .puts " 2. STATUS     STATUS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20045E00   // .puts " 2. STATUS     STATUS"
+20045900   // .puts " 2. STATUS     STATUS"
 040606FF   // .puts " 2. STATUS     STATUS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 2. STATUS     STATUS"
-20045C00   // RJAL  put_crlf
-040100A0   // .puts " 3. GAME       TETRIS"
-0402003C   // .puts " 3. GAME       TETRIS"
-04060015   // .puts " 3. GAME       TETRIS"
-7C070102   // .puts " 3. GAME       TETRIS"
-04020201   // .puts " 3. GAME       TETRIS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20046900   // .puts " 3. GAME       TETRIS"
-040606FF   // .puts " 3. GAME       TETRIS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 3. GAME       TETRIS"
-20046700   // RJAL  put_crlf
-040100A0   // .puts " 0. MENU       SHOW MENU"
-04020051   // .puts " 0. MENU       SHOW MENU"
+60000660   // .puts " 2. STATUS     STATUS"
+20043600   // RJAL  put_crlf
+040100A1   // .puts " 3. GAME       TETRIS/MINE"
+04020000   // .puts " 3. GAME       TETRIS/MINE"
+0406001A   // .puts " 3. GAME       TETRIS/MINE"
+7C070102   // .puts " 3. GAME       TETRIS/MINE"
+04020201   // .puts " 3. GAME       TETRIS/MINE"
+20046200   // .puts " 3. GAME       TETRIS/MINE"
+040606FF   // .puts " 3. GAME       TETRIS/MINE"
+60000660   // .puts " 3. GAME       TETRIS/MINE"
+20043F00   // RJAL  put_crlf
+040100A1   // .puts " 0. MENU       SHOW MENU"
+0402001A   // .puts " 0. MENU       SHOW MENU"
 04060018   // .puts " 0. MENU       SHOW MENU"
 7C070102   // .puts " 0. MENU       SHOW MENU"
 04020201   // .puts " 0. MENU       SHOW MENU"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20047400   // .puts " 0. MENU       SHOW MENU"
+20046B00   // .puts " 0. MENU       SHOW MENU"
 040606FF   // .puts " 0. MENU       SHOW MENU"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 0. MENU       SHOW MENU"
-20047200   // RJAL  put_crlf
+60000660   // .puts " 0. MENU       SHOW MENU"
+20044800   // RJAL  put_crlf
+20046500   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 4C000000   // JALR
 0407003E   // .puts "> "
 60000100   // .puts "> "
-20047C00   // .puts "> "
+20047300   // .puts "> "
 04070020   // .puts "> "
 60000100   // .puts "> "
-20047F00   // .puts "> "
+20047600   // .puts "> "
 4C000000   // JALR
-040100A0   // .puts "--- CREDITS ---"
-04020069   // .puts "--- CREDITS ---"
+040100A1   // .puts "--- CREDITS ---"
+04020032   // .puts "--- CREDITS ---"
 0406000F   // .puts "--- CREDITS ---"
 7C070102   // .puts "--- CREDITS ---"
 04020201   // .puts "--- CREDITS ---"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20048700   // .puts "--- CREDITS ---"
+20047D00   // .puts "--- CREDITS ---"
 040606FF   // .puts "--- CREDITS ---"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts "--- CREDITS ---"
-20048500   // RJAL  put_crlf
-040100A0   // .puts " system: RTOS"
-04020078   // .puts " system: RTOS"
-0406000D   // .puts " system: RTOS"
-7C070102   // .puts " system: RTOS"
-04020201   // .puts " system: RTOS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20049200   // .puts " system: RTOS"
-040606FF   // .puts " system: RTOS"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " system: RTOS"
-20049000   // RJAL  put_crlf
-040100A0   // .puts " Author: Justin (hardware) & Agent (software)"
-04020085   // .puts " Author: Justin (hardware) & Agent (software)"
+60000660   // .puts "--- CREDITS ---"
+20045A00   // RJAL  put_crlf
+040100A1   // .puts " System: RTOS"
+04020041   // .puts " System: RTOS"
+0406000D   // .puts " System: RTOS"
+7C070102   // .puts " System: RTOS"
+04020201   // .puts " System: RTOS"
+20048600   // .puts " System: RTOS"
+040606FF   // .puts " System: RTOS"
+60000660   // .puts " System: RTOS"
+20046300   // RJAL  put_crlf
+040100A1   // .puts " Author: Justin (hardware) & Agent (software)"
+0402004E   // .puts " Author: Justin (hardware) & Agent (software)"
 0406002D   // .puts " Author: Justin (hardware) & Agent (software)"
 7C070102   // .puts " Author: Justin (hardware) & Agent (software)"
 04020201   // .puts " Author: Justin (hardware) & Agent (software)"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20049D00   // .puts " Author: Justin (hardware) & Agent (software)"
+20048F00   // .puts " Author: Justin (hardware) & Agent (software)"
 040606FF   // .puts " Author: Justin (hardware) & Agent (software)"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " Author: Justin (hardware) & Agent (software)"
-20049B00   // RJAL  put_crlf
-040100A0   // .puts " HW: Justin Green MCU (Zynq 7010)"
-040200B2   // .puts " HW: Justin Green MCU (Zynq 7010)"
+60000660   // .puts " Author: Justin (hardware) & Agent (software)"
+20046C00   // RJAL  put_crlf
+040100A1   // .puts " HW: Justin Green MCU (Zynq 7010)"
+0402007B   // .puts " HW: Justin Green MCU (Zynq 7010)"
 04060021   // .puts " HW: Justin Green MCU (Zynq 7010)"
 7C070102   // .puts " HW: Justin Green MCU (Zynq 7010)"
 04020201   // .puts " HW: Justin Green MCU (Zynq 7010)"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004A800   // .puts " HW: Justin Green MCU (Zynq 7010)"
+20049800   // .puts " HW: Justin Green MCU (Zynq 7010)"
 040606FF   // .puts " HW: Justin Green MCU (Zynq 7010)"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " HW: Justin Green MCU (Zynq 7010)"
-2004A600   // RJAL  put_crlf
+60000660   // .puts " HW: Justin Green MCU (Zynq 7010)"
+20047500   // RJAL  put_crlf
+20049200   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 4C000000   // JALR
-040100A0   // .puts "--- STATUS ---\r\n"
-040200D3   // .puts "--- STATUS ---\r\n"
+040100A1   // .puts "--- STATUS ---\r\n"
+0402009C   // .puts "--- STATUS ---\r\n"
 04060010   // .puts "--- STATUS ---\r\n"
 7C070102   // .puts "--- STATUS ---\r\n"
 04020201   // .puts "--- STATUS ---\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004B400   // .puts "--- STATUS ---\r\n"
+2004A300   // .puts "--- STATUS ---\r\n"
 040606FF   // .puts "--- STATUS ---\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts "--- STATUS ---\r\n"
-040100A0   // .puts " CPU: 50 MHz\r\n"
-040200E3   // .puts " CPU: 50 MHz\r\n"
+60000660   // .puts "--- STATUS ---\r\n"
+040100A1   // .puts " CPU: 50 MHz\r\n"
+040200AC   // .puts " CPU: 50 MHz\r\n"
 0406000E   // .puts " CPU: 50 MHz\r\n"
 7C070102   // .puts " CPU: 50 MHz\r\n"
 04020201   // .puts " CPU: 50 MHz\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004BE00   // .puts " CPU: 50 MHz\r\n"
+2004AB00   // .puts " CPU: 50 MHz\r\n"
 040606FF   // .puts " CPU: 50 MHz\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " CPU: 50 MHz\r\n"
-040100A0   // .puts " TASKS: 3\r\n"
-040200F1   // .puts " TASKS: 3\r\n"
+60000660   // .puts " CPU: 50 MHz\r\n"
+040100A1   // .puts " TASKS: 3\r\n"
+040200BA   // .puts " TASKS: 3\r\n"
 0406000B   // .puts " TASKS: 3\r\n"
 7C070102   // .puts " TASKS: 3\r\n"
 04020201   // .puts " TASKS: 3\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004C800   // .puts " TASKS: 3\r\n"
+2004B300   // .puts " TASKS: 3\r\n"
 040606FF   // .puts " TASKS: 3\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " TASKS: 3\r\n"
+60000660   // .puts " TASKS: 3\r\n"
 04070020   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004CE00   // .puts " RAM: "
+2004B800   // .puts " RAM: "
 04070052   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004D100   // .puts " RAM: "
+2004BB00   // .puts " RAM: "
 04070041   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004D400   // .puts " RAM: "
+2004BE00   // .puts " RAM: "
 0407004D   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004D700   // .puts " RAM: "
+2004C100   // .puts " RAM: "
 0407003A   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004DA00   // .puts " RAM: "
+2004C400   // .puts " RAM: "
 04070020   // .puts " RAM: "
 60000100   // .puts " RAM: "
-2004DD00   // .puts " RAM: "
+2004C700   // .puts " RAM: "
 04070001   // ADDI  r7, r0, 1             # fill = 1（RAM_USED 296B/16KB ≈ 2%，20 段里 1 段）
 04080014   // ADDI  r8, r0, 20            # width = 20
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24001800   // RJAL  print_bar
-040100A0   // .puts " 2% (296B/16KB)\r\n"
-040200FC   // .puts " 2% (296B/16KB)\r\n"
+24001400   // RJAL  print_bar
+040100A1   // .puts " 2% (296B/16KB)\r\n"
+040200C5   // .puts " 2% (296B/16KB)\r\n"
 04060011   // .puts " 2% (296B/16KB)\r\n"
 7C070102   // .puts " 2% (296B/16KB)\r\n"
 04020201   // .puts " 2% (296B/16KB)\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004E800   // .puts " 2% (296B/16KB)\r\n"
+2004D000   // .puts " 2% (296B/16KB)\r\n"
 040606FF   // .puts " 2% (296B/16KB)\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 2% (296B/16KB)\r\n"
+60000660   // .puts " 2% (296B/16KB)\r\n"
 040100A1   // .puts " 0. BACK TO MENU\r\n"
-0402000D   // .puts " 0. BACK TO MENU\r\n"
+040200D6   // .puts " 0. BACK TO MENU\r\n"
 04060012   // .puts " 0. BACK TO MENU\r\n"
 7C070102   // .puts " 0. BACK TO MENU\r\n"
 04020201   // .puts " 0. BACK TO MENU\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2004F200   // .puts " 0. BACK TO MENU\r\n"
+2004D800   // .puts " 0. BACK TO MENU\r\n"
 040606FF   // .puts " 0. BACK TO MENU\r\n"
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // .puts " 0. BACK TO MENU\r\n"
+60000660   // .puts " 0. BACK TO MENU\r\n"
+2004D100   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 04010003   // ADDI  r1, r0, 3
 7401911C   // SB    r1, MENU
 04010002   // ADDI  r1, r0, 2
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04110000   // ADDI  r17, r0, 0            # cnt = 0
 04120700   // ADDI  r18, r7, 0            # fill
 04130800   // ADDI  r19, r8, 0            # width
 0407005B   // ADDI  r7, r0, '['
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20050000   // RJAL  putc
+2004E400   // RJAL  putc
 04011100   // ADDI  r1, r17, 0
 04021200   // ADDI  r2, r18, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000312   // RBLTU r1, r2, pb_hash       # cnt < fill → '#'
+6C000212   // RBLTU r1, r2, pb_hash       # cnt < fill → '#'
 0407002E   // ADDI  r7, r0, '.'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20050700   // RJAL  putc
-5C000200   // RBEQ  r0, r0, pb_next
+2004E900   // RJAL  putc
+5C000100   // RBEQ  r0, r0, pb_next
 04070023   // ADDI  r7, r0, '#'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20050B00   // RJAL  putc
+2004EC00   // RJAL  putc
 04111101   // ADDI  r17, r17, 1           # cnt++
 04011100   // ADDI  r1, r17, 0
 04021300   // ADDI  r2, r19, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-68001112   // LBLTU r1, r2, pb_loop       # cnt < width → 继续
+68000D12   // LBLTU r1, r2, pb_loop       # cnt < width → 继续
 0407005D   // ADDI  r7, r0, ']'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20051300   // RJAL  putc
+2004F200   // RJAL  putc
 4C000000   // JALR
 70019000   // LBU   r1, TICK_LO
 7002911B   // LBU   r2, LAST_TICK
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000712   // RBNE  r1, r2, __tb_ch
+64000612   // RBNE  r1, r2, __tb_ch
 4C000000   // JALR                        # tick 未变 → 直接返回
 10070102   // SUB   r7, r1, r2
 7401911B   // SB    r1, LAST_TICK
 7001911A   // LBU   r1, IDLE_CNT
 08010107   // ADD   r1, r1, r7
 7401911A   // SB    r1, IDLE_CNT
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 10070102   // SUB   r7, r1, r2
 7401911B   // SB    r1, LAST_TICK
@@ -1572,7 +1537,6 @@
 08010107   // ADD   r1, r1, r7
 7401911A   // SB    r1, IDLE_CNT
 70089124   // LBU   r8, LED_MODE
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000180   // RBNE  r8, r0, __tb_blink
 4C000000   // JALR                        # 非闪烁模式 → 返回
 50000000   // // 自动 NOP（bytmov 死区）
@@ -1582,19 +1546,55 @@
 70089126   // LBU   r8, BLINK_ACC_HI
 08080809   // ADD   r8, r8, r9
 04090004   // ADDI  r9, r0, 0x04
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000889   // RBLTU r8, r9, __tb_done     # hi < 4 → 未到 0.25s
-64000389   // LBNE  r8, r9, __tb_toggle
+6C000789   // RBLTU r8, r9, __tb_done     # hi < 4 → 未到 0.25s
+64000289   // LBNE  r8, r9, __tb_toggle
 70089125   // LBU   r8, BLINK_ACC_LO
 040900E2   // ADDI  r9, r0, 0xE2
-60000100   // // 自动 jpad（IRET W+2 垫层）
 6C000389   // RBLTU r8, r9, __tb_done     # hi==4 且 lo<0xE2 → 未到
 70089044   // LBU   r8, LED_STATE
 30080840   // XORI  r8, r8, 0x40
 74084000   // SB    r8, GPIO
 74089044   // SB    r8, LED_STATE
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
 00000000
 00000000
 00000000
@@ -2369,51 +2369,36 @@
 00000000
 70019108   // LBU   r1, RX_WR
 70029109   // LBU   r2, RX_RD
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000112   // RBNE  r1, r2, __ih_have
 4C000000   // JALR
 50000000   // // 自动 NOP（bytmov 死区）
 04080007   // ADDI  r8, r0, 7
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r6
+64000128   // RBNE  r2, r8, __ih_r6
 70079107   // LBU   r7, RX_RING7
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C002500   // RBEQ  r0, r0, __ih_rdinc
-04080006   // ADDI  r8, r0, 6
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r5
-70079106   // LBU   r7, RX_RING6
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C001F00   // RBEQ  r0, r0, __ih_rdinc
-04080005   // ADDI  r8, r0, 5
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r4
-70079105   // LBU   r7, RX_RING5
-60000100   // // 自动 jpad（IRET W+2 垫层）
 5C001900   // RBEQ  r0, r0, __ih_rdinc
+04080006   // ADDI  r8, r0, 6
+64000128   // RBNE  r2, r8, __ih_r5
+70079106   // LBU   r7, RX_RING6
+5C001500   // RBEQ  r0, r0, __ih_rdinc
+04080005   // ADDI  r8, r0, 5
+64000128   // RBNE  r2, r8, __ih_r4
+70079105   // LBU   r7, RX_RING5
+5C001100   // RBEQ  r0, r0, __ih_rdinc
 04080004   // ADDI  r8, r0, 4
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r3
+64000128   // RBNE  r2, r8, __ih_r3
 70079104   // LBU   r7, RX_RING4
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C001300   // RBEQ  r0, r0, __ih_rdinc
-04080003   // ADDI  r8, r0, 3
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r2
-70079103   // LBU   r7, RX_RING3
-60000100   // // 自动 jpad（IRET W+2 垫层）
 5C000D00   // RBEQ  r0, r0, __ih_rdinc
+04080003   // ADDI  r8, r0, 3
+64000128   // RBNE  r2, r8, __ih_r2
+70079103   // LBU   r7, RX_RING3
+5C000900   // RBEQ  r0, r0, __ih_rdinc
 04080002   // ADDI  r8, r0, 2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r1
+64000128   // RBNE  r2, r8, __ih_r1
 70079102   // LBU   r7, RX_RING2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000700   // RBEQ  r0, r0, __ih_rdinc
+5C000500   // RBEQ  r0, r0, __ih_rdinc
 04080001   // ADDI  r8, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000228   // RBNE  r2, r8, __ih_r0
+64000128   // RBNE  r2, r8, __ih_r0
 70079101   // LBU   r7, RX_RING1
-60000100   // // 自动 jpad（IRET W+2 垫层）
 5C000100   // RBEQ  r0, r0, __ih_rdinc
 70079100   // LBU   r7, RX_RING0
 50000000   // NOP
@@ -2421,50 +2406,40 @@
 07912B97   // ADDI  r2, r2, 1 | ANDI  r2, r2, 7
 74029109   // SB    r2, RX_RD
 04080034   // ADDI  r8, r0, '4'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000278   // RBNE  r7, r8, __ih_6
-24002A00   // RJAL  move_left
-2402AA00   // RJAL  render
+24002100   // RJAL  move_left
+24023200   // RJAL  render
 4C000000   // JALR
 04080036   // ADDI  r8, r0, '6'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000278   // RBNE  r7, r8, __ih_5
-24003C00   // RJAL  move_right
-2402A400   // RJAL  render
+24003200   // RJAL  move_right
+24022D00   // RJAL  render
 4C000000   // JALR
 04080035   // ADDI  r8, r0, '5'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000278   // RBNE  r7, r8, __ih_0
-24004E00   // RJAL  rotate
-24029E00   // RJAL  render
+24004300   // RJAL  rotate
+24022800   // RJAL  render
 4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000378   // RBNE  r7, r8, __ih_1
+64000278   // RBNE  r7, r8, __ih_1
 04010001   // ADDI  r1, r0, 1
 74019484   // SB    r1, G_OVER
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04080031   // ADDI  r8, r0, '1'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000478   // RBNE  r7, r8, __ih_7
+64000378   // RBNE  r7, r8, __ih_7
 70019485   // LBU   r1, PAUSED
 30010101   // XORI  r1, r1, 1
 74019485   // SB    r1, PAUSED
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04080037   // ADDI  r8, r0, '7'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000978   // RBNE  r7, r8, __ih_other
+64000778   // RBNE  r7, r8, __ih_other
 7400948A   // SB    r0, DROP_SOLID
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2401EA00   // RJAL  drop_piece
+24019500   // RJAL  drop_piece
 7001948A   // LBU   r1, DROP_SOLID
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000110   // RBNE  r1, r0, __hd_done
-58000700   // LBEQ  r0, r0, __hard_loop
+58000500   // LBEQ  r0, r0, __hard_loop
 50000000   // // 自动 NOP（bytmov 死区）
-24028200   // RJAL  render
+24021300   // RJAL  render
 4C000000   // JALR
 4C000000   // JALR
 04010094   // ADDI  r1, r0, 0x94
@@ -2481,15 +2456,13 @@
 04020201   // ADDI  r2, r2, 1
 04050501   // ADDI  r5, r5, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000D60   // RBNE  r6, r0, __ml_loop
-24014900   // RJAL  check_candidate
+60000C60   // RBNE  r6, r0, __ml_loop
+24011200   // RJAL  check_candidate
 64000310   // RBNE  r1, r0, __ml_end
-2401C300   // RJAL  apply_candidate
+24017100   // RJAL  apply_candidate
 7001943B   // LBU   r1, P_ANCHOR_C
 040101FF   // ADDI  r1, r1, 0xFF
 7401943B   // SB    r1, P_ANCHOR_C
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010094   // ADDI  r1, r0, 0x94
 04020030   // ADDI  r2, r0, 0x30
@@ -2505,33 +2478,28 @@
 04020201   // ADDI  r2, r2, 1
 04050501   // ADDI  r5, r5, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000D60   // RBNE  r6, r0, __mr_loop
-24013100   // RJAL  check_candidate
+60000C60   // RBNE  r6, r0, __mr_loop
+2400FC00   // RJAL  check_candidate
 64000310   // RBNE  r1, r0, __mr_end
-2401AB00   // RJAL  apply_candidate
+24015B00   // RJAL  apply_candidate
 7001943B   // LBU   r1, P_ANCHOR_C
 04010101   // ADDI  r1, r1, 1
 7401943B   // SB    r1, P_ANCHOR_C
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 70019439   // LBU   r1, P_ROT
 07492B4B   // ADDI  r1, r1, 1 | ANDI  r1, r1, 3
 040D0100   // ADDI  r13, r1, 0
 04090100   // ADDI  r9, r1, 0
 70089438   // LBU   r8, P_SHAPE
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24001E00   // RJAL  compute_cells
-24012200   // RJAL  check_candidate
+24001A00   // RJAL  compute_cells
+2400EF00   // RJAL  check_candidate
 64000110   // RBNE  r1, r0, __rt_end
-24019C00   // RJAL  apply_candidate
+24014E00   // RJAL  apply_candidate
 740D9439   // SB    r13, P_ROT
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 70019000   // LBU   r1, TICK_LO
 43492B4F   // SRLI  r1, r1, 1 | ANDI  r1, r1, 7
 04020007   // ADDI  r2, r0, 7
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000112   // RBNE  r1, r2, __sp_ok
 04010000   // ADDI  r1, r0, 0
 50000000   // // 自动 NOP（bytmov 死区）
@@ -2543,276 +2511,227 @@
 04010004   // ADDI  r1, r0, 4
 7401943B   // SB    r1, P_ANCHOR_C
 04090000   // ADDI  r9, r0, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000700   // RJAL  compute_cells
-24010B00   // RJAL  check_candidate
+24000600   // RJAL  compute_cells
+2400DB00   // RJAL  check_candidate
 64000110   // RBNE  r1, r0, __sp_over
-24018500   // RJAL  apply_candidate
+24013A00   // RJAL  apply_candidate
 4C000000   // JALR
 04010001   // ADDI  r1, r0, 1
 74019484   // SB    r1, G_OVER
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 7011943A   // LBU   r17, P_ANCHOR_R
 7012943B   // LBU   r18, P_ANCHOR_C
 04010000   // ADDI  r1, r0, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000E81   // RBEQ  r8, r1, __cs_0
+5C000981   // RBEQ  r8, r1, __cs_0
 04010001   // ADDI  r1, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C002A81   // RBEQ  r8, r1, __cs_1
+5C002181   // RBEQ  r8, r1, __cs_1
 04010002   // ADDI  r1, r0, 2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C004581   // RBEQ  r8, r1, __cs_2
+5C003881   // RBEQ  r8, r1, __cs_2
 04010003   // ADDI  r1, r0, 3
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C006181   // RBEQ  r8, r1, __cs_3
+5C005081   // RBEQ  r8, r1, __cs_3
 04010004   // ADDI  r1, r0, 4
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C007D81   // RBEQ  r8, r1, __cs_4
+5C006881   // RBEQ  r8, r1, __cs_4
 04010005   // ADDI  r1, r0, 5
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C009981   // RBEQ  r8, r1, __cs_5
+5C008081   // RBEQ  r8, r1, __cs_5
 04010000   // ADDI  r1, r0, 0x00   # I 格1 dr
 040200FF   // ADDI  r2, r0, 0xFF   # I 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400D400   // RJAL  transform
+2400B200   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400780   // ADDI  r1, r0, 0x00   # I 格2 dr | ADDI  r2, r0, 0x00   # I 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400CD00   // RJAL  transform
+2400AC00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07400781   // ADDI  r1, r0, 0x00   # I 格3 dr | ADDI  r2, r0, 0x01   # I 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400C600   // RJAL  transform
+2400A600   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07400782   // ADDI  r1, r0, 0x00   # I 格4 dr | ADDI  r2, r0, 0x02   # I 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400BF00   // RJAL  transform
+2400A000   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 07400780   // ADDI  r1, r0, 0x00   # O 格1 dr | ADDI  r2, r0, 0x00   # O 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400B600   // RJAL  transform
+24009900   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400781   // ADDI  r1, r0, 0x00   # O 格2 dr | ADDI  r2, r0, 0x01   # O 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400AF00   // RJAL  transform
+24009300   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07410780   // ADDI  r1, r0, 0x01   # O 格3 dr | ADDI  r2, r0, 0x00   # O 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400A800   // RJAL  transform
+24008D00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07410781   // ADDI  r1, r0, 0x01   # O 格4 dr | ADDI  r2, r0, 0x01   # O 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2400A100   // RJAL  transform
+24008700   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010000   // ADDI  r1, r0, 0x00   # T 格1 dr
 040200FF   // ADDI  r2, r0, 0xFF   # T 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24009700   // RJAL  transform
+24007F00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400780   // ADDI  r1, r0, 0x00   # T 格2 dr | ADDI  r2, r0, 0x00   # T 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24009000   // RJAL  transform
+24007900   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07400781   // ADDI  r1, r0, 0x00   # T 格3 dr | ADDI  r2, r0, 0x01   # T 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24008900   // RJAL  transform
+24007300   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07410780   // ADDI  r1, r0, 0x01   # T 格4 dr | ADDI  r2, r0, 0x00   # T 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24008200   // RJAL  transform
+24006D00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010000   // ADDI  r1, r0, 0x00   # S 格1 dr
 040200FF   // ADDI  r2, r0, 0xFF   # S 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24007800   // RJAL  transform
+24006500   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400780   // ADDI  r1, r0, 0x00   # S 格2 dr | ADDI  r2, r0, 0x00   # S 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24007100   // RJAL  transform
+24005F00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07410780   // ADDI  r1, r0, 0x01   # S 格3 dr | ADDI  r2, r0, 0x00   # S 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24006A00   // RJAL  transform
+24005900   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07410781   // ADDI  r1, r0, 0x01   # S 格4 dr | ADDI  r2, r0, 0x01   # S 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24006300   // RJAL  transform
+24005300   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 07400780   // ADDI  r1, r0, 0x00   # Z 格1 dr | ADDI  r2, r0, 0x00   # Z 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24005A00   // RJAL  transform
+24004C00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400781   // ADDI  r1, r0, 0x00   # Z 格2 dr | ADDI  r2, r0, 0x01   # Z 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24005300   // RJAL  transform
+24004600   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 04010001   // ADDI  r1, r0, 0x01   # Z 格3 dr
 040200FF   // ADDI  r2, r0, 0xFF   # Z 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24004B00   // RJAL  transform
+24003F00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07410780   // ADDI  r1, r0, 0x01   # Z 格4 dr | ADDI  r2, r0, 0x00   # Z 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24004400   // RJAL  transform
+24003900   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010000   // ADDI  r1, r0, 0x00   # J 格1 dr
 040200FF   // ADDI  r2, r0, 0xFF   # J 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24003A00   // RJAL  transform
+24003100   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400780   // ADDI  r1, r0, 0x00   # J 格2 dr | ADDI  r2, r0, 0x00   # J 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24003300   // RJAL  transform
+24002B00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07400781   // ADDI  r1, r0, 0x00   # J 格3 dr | ADDI  r2, r0, 0x01   # J 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24002C00   // RJAL  transform
+24002500   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 04010001   // ADDI  r1, r0, 0x01   # J 格4 dr
 040200FF   // ADDI  r2, r0, 0xFF   # J 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24002400   // RJAL  transform
+24001E00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010000   // ADDI  r1, r0, 0x00   # L 格1 dr
 040200FF   // ADDI  r2, r0, 0xFF   # L 格1 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24001A00   // RJAL  transform
+24001600   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943C   // SB    r1, C_ROW1
 7402943D   // SB    r2, C_COL1
 07400780   // ADDI  r1, r0, 0x00   # L 格2 dr | ADDI  r2, r0, 0x00   # L 格2 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24001300   // RJAL  transform
+24001000   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 7401943E   // SB    r1, C_ROW2
 7402943F   // SB    r2, C_COL2
 07400781   // ADDI  r1, r0, 0x00   # L 格3 dr | ADDI  r2, r0, 0x01   # L 格3 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000C00   // RJAL  transform
+24000A00   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019440   // SB    r1, C_ROW3
 74029441   // SB    r2, C_COL3
 07410781   // ADDI  r1, r0, 0x01   # L 格4 dr | ADDI  r2, r0, 0x01   # L 格4 dc
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000500   // RJAL  transform
+24000400   // RJAL  transform
 08011101   // ADD   r1, r17, r1
 08021202   // ADD   r2, r18, r2
 74019442   // SB    r1, C_ROW4
 74029443   // SB    r2, C_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04030001   // ADDI  r3, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000693   // RBEQ  r9, r3, __tf_1
+5C000493   // RBEQ  r9, r3, __tf_1
 04030002   // ADDI  r3, r0, 2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000793   // RBEQ  r9, r3, __tf_2
+5C000593   // RBEQ  r9, r3, __tf_2
 04030003   // ADDI  r3, r0, 3
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000993   // RBEQ  r9, r3, __tf_3
+5C000793   // RBEQ  r9, r3, __tf_3
 4C000000   // JALR
 07C80750   // ADDI  r3, r1, 0 | ADDI  r1, r2, 0
 10020003   // SUB   r2, r0, r3
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04030100   // ADDI  r3, r1, 0
 04040200   // ADDI  r4, r2, 0
 13431384   // SUB   r1, r0, r3 | SUB   r2, r0, r4
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04030200   // ADDI  r3, r2, 0
 04040100   // ADDI  r4, r1, 0
 134307A0   // SUB   r1, r0, r3 | ADDI  r2, r4, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010094   // ADDI  r1, r0, 0x94
 0402003C   // ADDI  r2, r0, 0x3C
@@ -2821,32 +2740,24 @@
 04020201   // ADDI  r2, r2, 1
 7C040102   // LIND  r4, r1, r2
 04020201   // ADDI  r2, r2, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000900   // RJAL  check_cell
-64000550   // RBNE  r5, r0, __cc_blocked
+24000600   // RJAL  check_cell
+64000350   // RBNE  r5, r0, __cc_blocked
 040C0CFF   // ADDI  r12, r12, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000BC0   // RBNE  r12, r0, __cc_loop
+600009C0   // RBNE  r12, r0, __cc_loop
 04010000   // ADDI  r1, r0, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010001   // ADDI  r1, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04060080   // ADDI  r6, r0, 0x80
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C002263   // RBLTU r6, r3, __ce_free
+6C001B63   // RBLTU r6, r3, __ce_free
 04060014   // ADDI  r6, r0, 20
-60000100   // // 自动 jpad（IRET W+2 垫层）
 6C000136   // RBLTU r3, r6, __ce_rowok
-5C002100   // RBEQ  r0, r0, __ce_blocked
+5C001A00   // RBEQ  r0, r0, __ce_blocked
 50000000   // // 自动 NOP（bytmov 死区）
 04060080   // ADDI  r6, r0, 0x80
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001D64   // RBLTU r6, r4, __ce_blocked
+6C001764   // RBLTU r6, r4, __ce_blocked
 04060009   // ADDI  r6, r0, 9
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001A64   // RBLTU r6, r4, __ce_blocked
+6C001564   // RBLTU r6, r4, __ce_blocked
 3C0B0301   // SLLI  r11, r3, 1           # addr_lo = row*2
 040A0094   // ADDI  r10, r0, 0x94        # addr_hi = FIELD_BASE>>8
 04050B00   // ADDI  r5, r11, 0
@@ -2855,68 +2766,51 @@
 7C070A0B   // LIND  r7, r10, r11         # r7 = field[row] hi
 04080400   // ADDI  r8, r4, 0            # r8 = col
 04090008   // ADDI  r9, r0, 8
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000389   // RBLTU r8, r9, __ce_lobit
+6C000289   // RBLTU r8, r9, __ce_lobit
 040808F8   // ADDI  r8, r8, 0xF8
 04060700   // ADDI  r6, r7, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
 58000100   // RBEQ  r0, r0, __ce_bt
 64000180   // RBNE  r8, r0, __ce_shift
-5C000400   // RBEQ  r0, r0, __ce_test
+5C000300   // RBEQ  r0, r0, __ce_test
 50000000   // // 自动 NOP（bytmov 死区）
 40060601   // SRLI  r6, r6, 1
 040808FF   // ADDI  r8, r8, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-58000800   // RBEQ  r0, r0, __ce_bt
+58000700   // RBEQ  r0, r0, __ce_bt
 28060601   // ANDI  r6, r6, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000260   // RBNE  r6, r0, __ce_blocked
+64000160   // RBNE  r6, r0, __ce_blocked
 04050000   // ADDI  r5, r0, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04050001   // ADDI  r5, r0, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04050001   // ADDI  r5, r0, 1
 04060400   // ADDI  r6, r4, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000160   // RBNE  r6, r0, __sb_shift
-5C000400   // RBEQ  r0, r0, __sb_or
+5C000300   // RBEQ  r0, r0, __sb_or
 50000000   // // 自动 NOP（bytmov 死区）
 3C050501   // SLLI  r5, r5, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-58000900   // RBEQ  r0, r0, __sb_loop
+58000700   // RBEQ  r0, r0, __sb_loop
 04060008   // ADDI  r6, r0, 8
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000A46   // RBLTU r4, r6, __sb_lo
+6C000746   // RBLTU r4, r6, __sb_lo
 04060008   // ADDI  r6, r0, 8
-60000100   // // 自动 jpad（IRET W+2 垫层）
-5C000346   // RBEQ  r4, r6, __sb_hi1
+5C000246   // RBEQ  r4, r6, __sb_hi1
 04050002   // ADDI  r5, r0, 2
 18020205   // OR    r2, r2, r5
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04050001   // ADDI  r5, r0, 1
 18020205   // OR    r2, r2, r5
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 18010105   // OR    r1, r1, r5
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04060080   // ADDI  r6, r0, 0x80
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001C64   // RBLTU r6, r4, __sc_out
+6C001864   // RBLTU r6, r4, __sc_out
 04060009   // ADDI  r6, r0, 9
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001964   // RBLTU r6, r4, __sc_out
+6C001664   // RBLTU r6, r4, __sc_out
 04060080   // ADDI  r6, r0, 0x80
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001663   // RBLTU r6, r3, __sc_out
+6C001463   // RBLTU r6, r3, __sc_out
 04060014   // ADDI  r6, r0, 20
-60000100   // // 自动 jpad（IRET W+2 垫层）
 6C000136   // RBLTU r3, r6, __sc_rowo
-5C001200   // RBEQ  r0, r0, __sc_out
+5C001100   // RBEQ  r0, r0, __sc_out
 50000000   // // 自动 NOP（bytmov 死区）
 3C020301   // SLLI  r2, r3, 1
 0802020D   // ADD   r2, r2, r13         # addr_lo = 基址低 + row*2
@@ -2926,8 +2820,7 @@
 04020501   // ADDI  r2, r5, 1
 7C070102   // LIND  r7, r1, r2          # hi
 077007B8   // ADDI  r1, r6, 0 | ADDI  r2, r7, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20003400   // RJAL  set_bit
+20002800   // RJAL  set_bit
 04080100   // ADDI  r8, r1, 0
 04090200   // ADDI  r9, r2, 0
 3C020301   // SLLI  r2, r3, 1
@@ -2936,7 +2829,6 @@
 80080102   // SIND  r8, r1, r2          # 写回 lo'
 04020201   // ADDI  r2, r2, 1
 80090102   // SIND  r9, r1, r2          # 写回 hi'
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010094   // ADDI  r1, r0, 0x94
 0402003C   // ADDI  r2, r0, 0x3C
@@ -2947,8 +2839,7 @@
 04020201   // ADDI  r2, r2, 1
 04050501   // ADDI  r5, r5, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000860   // RBNE  r6, r0, __ac_loop
+60000760   // RBNE  r6, r0, __ac_loop
 4C000000   // JALR
 04010094   // ADDI  r1, r0, 0x94
 04020030   // ADDI  r2, r0, 0x30
@@ -2963,45 +2854,37 @@
 04020201   // ADDI  r2, r2, 1
 04050501   // ADDI  r5, r5, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000C60   // RBNE  r6, r0, __dp_loop
-20009900   // RJAL  check_candidate
-64000510   // RBNE  r1, r0, __dp_solidify
-20001F00   // RJAL  apply_candidate
+60000B60   // RBNE  r6, r0, __dp_loop
+20007C00   // RJAL  check_candidate
+64000410   // RBNE  r1, r0, __dp_solidify
+20001D00   // RJAL  apply_candidate
 7001943A   // LBU   r1, P_ANCHOR_R
 04010101   // ADDI  r1, r1, 1
 7401943A   // SB    r1, P_ANCHOR_R
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 04010001   // ADDI  r1, r0, 1
 7401948A   // SB    r1, DROP_SOLID
-60000100   // // 自动 jpad（IRET W+2 垫层）
 24000200   // RJAL  solidify
-24001300   // RJAL  clear_lines
-2001C400   // RJAL  spawn
+24000F00   // RJAL  clear_lines
+20017300   // RJAL  spawn
 4C000000   // JALR
 040D0000   // ADDI  r13, r0, 0x00       # 基址低 = 0（FIELD_BASE=0x9400）
 70039430   // LBU   r3, P_ROW1
 70049431   // LBU   r4, P_COL1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20005200   // RJAL  set_cell
+20004700   // RJAL  set_cell
 70039432   // LBU   r3, P_ROW2
 70049433   // LBU   r4, P_COL2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20005600   // RJAL  set_cell
+20004A00   // RJAL  set_cell
 70039434   // LBU   r3, P_ROW3
 70049435   // LBU   r4, P_COL3
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20005A00   // RJAL  set_cell
+20004D00   // RJAL  set_cell
 70039436   // LBU   r3, P_ROW4
 70049437   // LBU   r4, P_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20005E00   // RJAL  set_cell
+20005000   // RJAL  set_cell
 4C000000   // JALR
 04060013   // ADDI  r6, r0, 19
 04010080   // ADDI  r1, r0, 0x80
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C001416   // RBLTU r1, r6, __cl_done
+6C001016   // RBLTU r1, r6, __cl_done
 3C020601   // SLLI  r2, r6, 1
 04010094   // ADDI  r1, r0, 0x94
 04050200   // ADDI  r5, r2, 0
@@ -3009,25 +2892,20 @@
 04020501   // ADDI  r2, r5, 1
 7C040102   // LIND  r4, r1, r2
 040500FF   // ADDI  r5, r0, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000835   // RBNE  r3, r5, __cl_next
+64000635   // RBNE  r3, r5, __cl_next
 04050003   // ADDI  r5, r0, 0x03
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000545   // RBNE  r4, r5, __cl_next
-24000800   // RJAL  clear_row
+64000445   // RBNE  r4, r5, __cl_next
+24000600   // RJAL  clear_row
 70019480   // LBU   r1, G_SCORE
 04010101   // ADDI  r1, r1, 1
 74019480   // SB    r1, G_SCORE
-60000100   // // 自动 jpad（IRET W+2 垫层）
-58001700   // RBEQ  r0, r0, cl_loop
+58001300   // RBEQ  r0, r0, cl_loop
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-58001900   // RBEQ  r0, r0, __cl_scan
+58001400   // RBEQ  r0, r0, __cl_scan
 4C000000   // JALR
 04050600   // ADDI  r5, r6, 0            # r5 = 目标行（从 k 往下到 1）
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000150   // RBNE  r5, r0, __cr_copy    # r5 != 0 → 拷贝
-5C000E00   // RBEQ  r0, r0, __cr_zero
+5C000D00   // RBEQ  r0, r0, __cr_zero
 50000000   // // 自动 NOP（bytmov 死区）
 040405FF   // ADDI  r4, r5, 0xFF         # 源行 = r5-1
 3C020401   // SLLI  r2, r4, 1
@@ -3041,11 +2919,9 @@
 04020301   // ADDI  r2, r3, 1
 80070102   // SIND  r7, r1, r2           # 目标 hi
 040505FF   // ADDI  r5, r5, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-58001300   // RBEQ  r0, r0, __cr_next
+58001100   // RBEQ  r0, r0, __cr_next
 74009400   // SB    r0, FIELD_BASE       # 行 0 = 0
 74009401   // SB    r0, FIELD_BASE+1
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 700D948B   // LBU   r13, FRAME_IDX_LO
 700E948C   // LBU   r14, FRAME_IDX_HI
@@ -3054,49 +2930,38 @@
 040D0D01   // ADDI  r13, r13, 1        # 16 位自增（LO 回绕时进位 HI）
 280C0DFF   // ANDI  r12, r13, 0xFF
 740D948B   // SB    r13, FRAME_IDX_LO
-60000100   // // 自动 jpad（IRET W+2 垫层）
 640002C0   // RBNE  r12, r0, __fputc_done
 700C948C   // LBU   r12, FRAME_IDX_HI
 040C0C01   // ADDI  r12, r12, 1
 740C948C   // SB    r12, FRAME_IDX_HI
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 0407000D   // ADDI  r7, r0, '\r'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20001200   // RJAL  fputc
+20000F00   // RJAL  fputc
 0407000A   // ADDI  r7, r0, '\n'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20001500   // RJAL  fputc
+20001100   // RJAL  fputc
 4C000000   // JALR
 04080700   // ADDI  r8, r7, 0
 040A0700   // ADDI  r10, r7, 0
 40080804   // SRLI  r8, r8, 4
 2808080F   // ANDI  r8, r8, 0xF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24000400   // RJAL  fprint_hexdigit
+24000300   // RJAL  fprint_hexdigit
 28080A0F   // ANDI  r8, r10, 0xF
-60000100   // // 自动 jpad（IRET W+2 垫层）
 24000100   // RJAL  fprint_hexdigit
 4C000000   // JALR
 50000000   // // 自动 NOP（bytmov 死区）
 04090800   // ADDI  r9, r8, 0
 0408000A   // ADDI  r8, r0, 10
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000398   // RBLTU r9, r8, __fhd_num
+6C000298   // RBLTU r9, r8, __fhd_num
 04070937   // ADDI  r7, r9, 0x37
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20002800   // RJAL  fputc
+20002000   // RJAL  fputc
 4C000000   // JALR
 04070930   // ADDI  r7, r9, '0'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20002C00   // RJAL  fputc
+20002300   // RJAL  fputc
 4C000000   // JALR
 70017600   // LBU   r1, DMA_CNT_HI
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000410   // RBNE  r1, r0, wait_dma
+60000310   // RBNE  r1, r0, wait_dma
 70017700   // LBU   r1, DMA_CNT_LO
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000710   // RBNE  r1, r0, wait_dma
+60000510   // RBNE  r1, r0, wait_dma
 4C000000   // JALR
 740070C0   // SB    r0, DMA_INI
 7001948B   // LBU   r1, FRAME_IDX_LO
@@ -3106,78 +2971,58 @@
 74007320   // SB    r0, DMA_DES
 74007400   // SB    r0, DMA_BANK
 74007500   // SB    r0, DMA_TRIG
-60000100   // // 自动 jpad（IRET W+2 垫层）
 4C000000   // JALR
 7400948B   // SB    r0, FRAME_IDX_LO      # 帧指针清零（16bit）
 7400948C   // SB    r0, FRAME_IDX_HI
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20001600   // RJAL  wait_dma               # 等上一帧 DMA 完成（首帧 cnt=0 直接过）
+20001200   // RJAL  wait_dma               # 等上一帧 DMA 完成（首帧 cnt=0 直接过）
 04010094   // ADDI  r1, r0, 0x94
 04020050   // ADDI  r2, r0, 0x50
 04030028   // ADDI  r3, r0, 40
 80000102   // SIND  r0, r1, r2
 04020201   // ADDI  r2, r2, 1
 040303FF   // ADDI  r3, r3, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000630   // RBNE  r3, r0, __clr_ren
+60000530   // RBNE  r3, r0, __clr_ren
 040D0050   // ADDI  r13, r0, 0x50
 70039430   // LBU   r3, P_ROW1
 70049431   // LBU   r4, P_COL1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000DE00   // RJAL  set_cell
+2000B900   // RJAL  set_cell
 70039432   // LBU   r3, P_ROW2
 70049433   // LBU   r4, P_COL2
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000E200   // RJAL  set_cell
+2000BC00   // RJAL  set_cell
 70039434   // LBU   r3, P_ROW3
 70049435   // LBU   r4, P_COL3
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000E600   // RJAL  set_cell
+2000BF00   // RJAL  set_cell
 70039436   // LBU   r3, P_ROW4
 70049437   // LBU   r4, P_COL4
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000EA00   // RJAL  set_cell
+2000C200   // RJAL  set_cell
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20005E00   // RJAL  fputc
+20004B00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
+20004D00   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20004F00   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005100   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005300   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005500   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005700   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005900   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005B00   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005D00   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
+20005F00   // RJAL  fputc
+04070040   // ADDI  r7, r0, '@'
 20006100   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20006400   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20006700   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20006A00   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20006D00   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007000   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007300   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007600   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007900   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007C00   // RJAL  fputc
-04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20007F00   // RJAL  fputc
-20007200   // RJAL  fput_crlf
+20005600   // RJAL  fput_crlf
 04110000   // ADDI  r17, r0, 0            # r17 = 行
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20008400   // RJAL  fputc
+20006500   // RJAL  fputc
 04031100   // ADDI  r3, r17, 0
 3C020301   // SLLI  r2, r3, 1
 04010094   // ADDI  r1, r0, 0x94
@@ -3192,118 +3037,85 @@
 18060604   // OR    r6, r6, r4
 18070708   // OR    r7, r7, r8
 077007B8   // ADDI  r1, r6, 0 | ADDI  r2, r7, 0
-60000100   // // 自动 jpad（IRET W+2 垫层）
-24004B00   // RJAL  print_cells
+24003400   // RJAL  print_cells
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20009700   // RJAL  fputc
-20008A00   // RJAL  fput_crlf
+20007600   // RJAL  fputc
+20006B00   // RJAL  fput_crlf
 04111101   // ADDI  r17, r17, 1
 04011100   // ADDI  r1, r17, 0
 04020014   // ADDI  r2, r0, 20
-60000100   // // 自动 jpad（IRET W+2 垫层）
-68001D12   // RBLTU r1, r2, __r_loop
+68001912   // RBLTU r1, r2, __r_loop
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000A000   // RJAL  fputc
+20007D00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000A300   // RJAL  fputc
+20007F00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000A600   // RJAL  fputc
+20008100   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000A900   // RJAL  fputc
+20008300   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000AC00   // RJAL  fputc
+20008500   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000AF00   // RJAL  fputc
+20008700   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000B200   // RJAL  fputc
+20008900   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000B500   // RJAL  fputc
+20008B00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000B800   // RJAL  fputc
+20008D00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000BB00   // RJAL  fputc
+20008F00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000BE00   // RJAL  fputc
+20009100   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000C100   // RJAL  fputc
-2000B400   // RJAL  fput_crlf
+20009300   // RJAL  fputc
+20008800   // RJAL  fput_crlf
 04070053   // ADDI  r7, r0, 'S'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000C500   // RJAL  fputc
+20009600   // RJAL  fputc
 04070043   // ADDI  r7, r0, 'C'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000C800   // RJAL  fputc
+20009800   // RJAL  fputc
 0407004F   // ADDI  r7, r0, 'O'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000CB00   // RJAL  fputc
+20009A00   // RJAL  fputc
 04070052   // ADDI  r7, r0, 'R'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000CE00   // RJAL  fputc
+20009C00   // RJAL  fputc
 04070045   // ADDI  r7, r0, 'E'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000D100   // RJAL  fputc
+20009E00   // RJAL  fputc
 0407003A   // ADDI  r7, r0, ':'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000D400   // RJAL  fputc
+2000A000   // RJAL  fputc
 04070020   // ADDI  r7, r0, ' '
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000D700   // RJAL  fputc
+2000A200   // RJAL  fputc
 70079480   // LBU   r7, G_SCORE
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000C500   // RJAL  fprint_hex
-2000CD00   // RJAL  fput_crlf
+20009300   // RJAL  fprint_hex
+20009900   // RJAL  fput_crlf
 04010055   // ADDI  r1, r0, 0x55
 7401948D   // SB    r1, 0x948D
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000AC00   // RJAL  dma_frame_send
+20008000   // RJAL  dma_frame_send
 4C000000   // JALR
 04060008   // ADDI  r6, r0, 8
 28030101   // ANDI  r3, r1, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000330   // RBNE  r3, r0, __pc_hash
+64000230   // RBNE  r3, r0, __pc_hash
 0407002E   // ADDI  r7, r0, '.'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000E700   // RJAL  fputc
-5C000200   // RBEQ  r0, r0, __pc_next
+2000AE00   // RJAL  fputc
+5C000100   // RBEQ  r0, r0, __pc_next
 04070023   // ADDI  r7, r0, '#'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000EB00   // RJAL  fputc
+2000B100   // RJAL  fputc
 40010101   // SRLI  r1, r1, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000F60   // RBNE  r6, r0, __pc_loop
+60000B60   // RBNE  r6, r0, __pc_loop
 04060002   // ADDI  r6, r0, 2
 28030201   // ANDI  r3, r2, 1
-60000100   // // 自动 jpad（IRET W+2 垫层）
-64000330   // RBNE  r3, r0, __pc_hhash
+64000230   // RBNE  r3, r0, __pc_hhash
 0407002E   // ADDI  r7, r0, '.'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000F600   // RJAL  fputc
-5C000200   // RBEQ  r0, r0, __pc_hnext
+2000B900   // RJAL  fputc
+5C000100   // RBEQ  r0, r0, __pc_hnext
 04070023   // ADDI  r7, r0, '#'
-60000100   // // 自动 jpad（IRET W+2 垫层）
-2000FA00   // RJAL  fputc
+2000BC00   // RJAL  fputc
 40020201   // SRLI  r2, r2, 1
 040606FF   // ADDI  r6, r6, 0xFF
-60000100   // // 自动 jpad（IRET W+2 垫层）
-60000F60   // RBNE  r6, r0, __pc_hi
+60000B60   // RBNE  r6, r0, __pc_hi
 4C000000   // JALR
 70019000   // LBU   r1, TICK_LO
 70029481   // LBU   r2, G_LAST_TICK
-60000100   // // 自动 jpad（IRET W+2 垫层）
 64000112   // RBNE  r1, r2, __dc_changed
 4C000000   // JALR
 50000000   // // 自动 NOP（bytmov 死区）
@@ -3317,18 +3129,15 @@
 08020204   // ADD   r2, r2, r4
 74029483   // SB    r2, G_ACC_HI
 04060013   // ADDI  r6, r0, 0x13
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000926   // RBLTU r2, r6, __dc_done
-64000326   // LBNE  r2, r6, __dc_drop
+6C000726   // RBLTU r2, r6, __dc_done
+64000226   // LBNE  r2, r6, __dc_drop
 70019482   // LBU   r1, G_ACC_LO
 04060088   // ADDI  r6, r0, 0x88
-60000100   // // 自动 jpad（IRET W+2 垫层）
-6C000416   // RBLTU r1, r6, __dc_done
+6C000316   // RBLTU r1, r6, __dc_done
 74009482   // SB    r0, G_ACC_LO
 74009483   // SB    r0, G_ACC_HI
-60000100   // // 自动 jpad（IRET W+2 垫层）
-20017B00   // RJAL  drop_piece
-2000DE00   // RJAL  render
+20012900   // RJAL  drop_piece
+2000A700   // RJAL  render
 4C000000   // JALR
 00000000
 00000000
@@ -4286,164 +4095,355 @@
 00000000
 00000000
 00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
+04010001   // ADDI  r1, r0, 1
+74019486   // SB    r1, GAME_ACTIVE       # 独占 CPU（调度器只更新 TICK）
+7400B000   // SB    r0, 0xB000            # 选片 ram_ext bank0（渲染帧缓冲）
+04010095   // ADDI  r1, r0, 0x95
+04020000   // ADDI  r2, r0, 0x00
+04030040   // ADDI  r3, r0, 64
+80000102   // SIND  r0, r1, r2
+04020201   // ADDI  r2, r2, 1
+040303FF   // ADDI  r3, r3, 0xFF
+60000530   // RBNE  r3, r0, ms_clr_mine
+04020040   // ADDI  r2, r0, 0x40
+04030040   // ADDI  r3, r0, 64
+80000102   // SIND  r0, r1, r2
+04020201   // ADDI  r2, r2, 1
+040303FF   // ADDI  r3, r3, 0xFF
+60000530   // RBNE  r3, r0, ms_clr_view
+74009587   // SB    r0, MS_OVER
+74009584   // SB    r0, MS_OPEN
+74009585   // SB    r0, MS_FLG
+74009583   // SB    r0, MS_INN
+74009580   // SB    r0, MS_COL
+74009581   // SB    r0, MS_ROW
+74009582   // SB    r0, MS_OP
+70059000   // LBU   r5, TICK_LO
+04050513   // ADDI  r5, r5, 0x13
+74059586   // SB    r5, MS_SEED
+0406000A   // ADDI  r6, r0, 10            # 布雷计数
+04010095   // ADDI  r1, r0, 0x95          # MINE 基址高字节
+70049586   // LBU   r4, MS_SEED
+3C050403   // SLLI  r5, r4, 3             # s*8
+08050504   // ADD   r5, r5, r4            # s*9
+3C030402   // SLLI  r3, r4, 2             # s*4
+08040503   // ADD   r4, r5, r3            # s*13
+04040407   // ADDI  r4, r4, 7             # s*13+7
+280404FF   // ANDI  r4, r4, 0xFF
+74049586   // SB    r4, MS_SEED
+2804043F   // ANDI  r4, r4, 0x3F          # pos = 0-63
+08020004   // ADD   r2, r0, r4            # 低字节 = pos
+7C030102   // LIND  r3, r1, r2            # 查重
+28050380   // ANDI  r5, r3, 0x80
+60000E50   // RBNE  r5, r0, ms_place      # 已布雷，重抽
+2C030380   // ORI   r3, r3, 0x80          # 布雷
+80030102   // SIND  r3, r1, r2
+040606FF   // ADDI  r6, r6, 0xFF
+60001260   // RBNE  r6, r0, ms_place
+04010095   // ADDI  r1, r0, 0x95
+04020000   // ADDI  r2, r0, 0x00          # i = 0（扫 64 格）
+7C030102   // LIND  r3, r1, r2            # MINE[i]
+28040380   // ANDI  r4, r3, 0x80
+64000340   // RBNE  r4, r0, ms_cnt_isMine # 是雷 → 处理它的 8 邻
+04020201   // ADDI  r2, r2, 1             # 非雷跳过
+04040040   // ADDI  r4, r0, 64
+68000724   // RBLTU r2, r4, ms_cnt_outer
+5C001B00   // RBEQ  r0, r0, ms_after_cnt
+40060203   // SRLI  r6, r2, 3             # row = i>>3
+28070207   // ANDI  r7, r2, 7             # col = i&7
+040300FF   // ADDI  r3, r0, 0xFF          # dr = -1
+040400FF   // ADDI  r4, r0, 0xFF          # dc = -1
+08080603   // ADD   r8, r6, r3            # nr = row+dr
+08090704   // ADD   r9, r7, r4            # nc = col+dc
+480A0808   // SLTIU r10, r8, 8            # nr<8（负数=255 也 >=8，天然越界）
+5C000AA0   // RBEQ  r10, r0, ms_cnt_nxt   # nr>=8 越界
+480B0908   // SLTIU r11, r9, 8            # nc<8
+5C0008B0   // RBEQ  r11, r0, ms_cnt_nxt   # nc>=8 越界
+3C080803   // SLLI  r8, r8, 3             # nr*8
+080A0809   // ADD   r10, r8, r9           # nidx（0-63）
+040B0095   // ADDI  r11, r0, 0x95         # 基址高字节
+7C0D0B0A   // LIND  r13, r11, r10         # 读邻居 MINE
+280E0D80   // ANDI  r14, r13, 0x80
+640002E0   // RBNE  r14, r0, ms_cnt_nxt   # 邻格是雷，跳过（雷格不累加）
+040D0D01   // ADDI  r13, r13, 1           # 非雷邻格 count+1
+280D0D0F   // ANDI  r13, r13, 0x0F
+800D0B0A   // SIND  r13, r11, r10
+04040401   // ADDI  r4, r4, 1
+04050002   // ADDI  r5, r0, 2
+68001345   // RBLTU r4, r5, ms_cnt_dc    # dc: -1,0,1
+04030301   // ADDI  r3, r3, 1
+04050002   // ADDI  r5, r0, 2
+68001735   // RBLTU r3, r5, ms_cnt_dr    # dr: -1,0,1
+04020201   // ADDI  r2, r2, 1
+04050040   // ADDI  r5, r0, 64
+68002425   // RBLTU r2, r5, ms_cnt_outer
+2400C900   // RJAL  ms_render
+24002800   // RJAL  ms_getchar
+58000370   // RBEQ  r7, r0, ms_loop       # 无字符 → 继续等
+04080030   // ADDI  r8, r0, '0'
+5C002078   // RBEQ  r7, r8, __ms_done     # '0' → 退出
+04080031   // ADDI  r8, r0, '1'
+68000778   // RBLTU r7, r8, ms_loop       # <'1' 忽略
+04080039   // ADDI  r8, r0, '9'
+6C000178   // RBLTU r7, r8, __ms_digit    # <='8' 是数字
+58000A00   // RBEQ  r0, r0, ms_loop
+50000000   // // 自动 NOP（bytmov 死区）
+0C070730   // SUBI  r7, r7, '0'           # 数字 1-8
+70089583   // LBU   r8, MS_INN
+64000380   // RBNE  r8, r0, __ms_d2
+74079580   // SB    r7, MS_COL            # 第1数：横坐标
+04080001   // ADDI  r8, r0, 1
+74089583   // SB    r8, MS_INN
+58001200   // RBEQ  r0, r0, ms_loop
+04090001   // ADDI  r9, r0, 1
+64000389   // RBNE  r8, r9, __ms_d3
+74079581   // SB    r7, MS_ROW            # 第2数：纵坐标
+04080002   // ADDI  r8, r0, 2
+74089583   // SB    r8, MS_INN
+58001800   // RBEQ  r0, r0, ms_loop
+74079582   // SB    r7, MS_OP             # 第3数：操作(1探 2旗)
+74009583   // SB    r0, MS_INN
+24003500   // RJAL  ms_do
+2400AE00   // RJAL  ms_render
+70019587   // LBU   r1, MS_OVER
+64000110   // RBNE  r1, r0, __ms_gameover
+58001F00   // RBEQ  r0, r0, ms_loop
+50000000   // // 自动 NOP（bytmov 死区）
+2400D300   // RJAL  ms_over_msg
+74009486   // SB    r0, GAME_ACTIVE
+04010001   // ADDI  r1, r0, 1
+7401911C   // SB    r1, MENU
+200F0700   // RJAL  game_menu
+4C000000   // JALR
+74009486   // SB    r0, GAME_ACTIVE
+04010001   // ADDI  r1, r0, 1
+7401911C   // SB    r1, MENU
+200F0C00   // RJAL  game_menu
+4C000000   // JALR
+70019108   // LBU   r1, RX_WR
+70029109   // LBU   r2, RX_RD
+64000112   // RBNE  r1, r2, __mgc_have
+04070000   // ADDI  r7, r0, 0             # 空
+4C000000   // JALR
+04030007   // ADDI  r3, r0, 7
+64000123   // RBNE  r2, r3, __mgc_6
+70079107   // LBU   r7, RX_RING7
+5C001900   // RBEQ  r0, r0, __mgc_inc
+04030006   // ADDI  r3, r0, 6
+64000123   // RBNE  r2, r3, __mgc_5
+70079106   // LBU   r7, RX_RING6
+5C001500   // RBEQ  r0, r0, __mgc_inc
+04030005   // ADDI  r3, r0, 5
+64000123   // RBNE  r2, r3, __mgc_4
+70079105   // LBU   r7, RX_RING5
+5C001100   // RBEQ  r0, r0, __mgc_inc
+04030004   // ADDI  r3, r0, 4
+64000123   // RBNE  r2, r3, __mgc_3
+70079104   // LBU   r7, RX_RING4
+5C000D00   // RBEQ  r0, r0, __mgc_inc
+04030003   // ADDI  r3, r0, 3
+64000123   // RBNE  r2, r3, __mgc_2
+70079103   // LBU   r7, RX_RING3
+5C000900   // RBEQ  r0, r0, __mgc_inc
+04030002   // ADDI  r3, r0, 2
+64000123   // RBNE  r2, r3, __mgc_1
+70079102   // LBU   r7, RX_RING2
+5C000500   // RBEQ  r0, r0, __mgc_inc
+04030001   // ADDI  r3, r0, 1
+64000123   // RBNE  r2, r3, __mgc_0
+70079101   // LBU   r7, RX_RING1
+5C000100   // RBEQ  r0, r0, __mgc_inc
+70079100   // LBU   r7, RX_RING0
+50000000   // // 自动 NOP（bytmov 死区）
+07912B97   // ADDI  r2, r2, 1 | ANDI  r2, r2, 7
+74029109   // SB    r2, RX_RD
+4C000000   // JALR
+70039581   // LBU   r3, MS_ROW
+040303FF   // ADDI  r3, r3, 0xFF          # row-1
+3C030303   // SLLI  r3, r3, 3             # (row-1)*8
+70049580   // LBU   r4, MS_COL
+040404FF   // ADDI  r4, r4, 0xFF          # col-1
+08030304   // ADD   r3, r3, r4            # index
+70059582   // LBU   r5, MS_OP
+04060001   // ADDI  r6, r0, 1
+64000656   // RBNE  r5, r6, __msdo_flag
+24001700   // RJAL  ms_probe              # 探雷
+70069584   // LBU   r6, MS_OPEN
+04080036   // ADDI  r8, r0, 54
+64000168   // RBNE  r6, r8, __msdo_done
+04080002   // ADDI  r8, r0, 2
+74089587   // SB    r8, MS_OVER
+4C000000   // JALR
+24000100   // RJAL  ms_flag               # 插旗
+4C000000   // JALR
+50000000   // // 自动 NOP（bytmov 死区）
+04010095   // ADDI  r1, r0, 0x95
+04020340   // ADDI  r2, r3, 0x40          # VIEW 基址 0x9540 + index
+7C040102   // LIND  r4, r1, r2
+04050001   // ADDI  r5, r0, 1
+64000445   // RBNE  r4, r5, __msf_set     # !=1 → 设为旗
+80000102   // SIND  r0, r1, r2            # 拔旗
+70049585   // LBU   r4, MS_FLG
+040404FF   // ADDI  r4, r4, 0xFF
+74049585   // SB    r4, MS_FLG
+4C000000   // JALR
+80050102   // SIND  r5, r1, r2            # 插旗
+70049585   // LBU   r4, MS_FLG
+04040401   // ADDI  r4, r4, 1
+74049585   // SB    r4, MS_FLG
+4C000000   // JALR
+04010095   // ADDI  r1, r0, 0x95
+04020300   // ADDI  r2, r3, 0x00          # MINE 基址 0x9500 + index
+7C040102   // LIND  r4, r1, r2            # MINE[index]
+28050480   // ANDI  r5, r4, 0x80
+64000C50   // RBNE  r5, r0, __msp_mine    # 是雷
+04020340   // ADDI  r2, r3, 0x40
+7C050102   // LIND  r5, r1, r2            # VIEW[index]
+64000850   // RBNE  r5, r0, __msp_skip    # 已探/旗 → 不动
+04050002   // ADDI  r5, r0, 2             # VIEW=2 已探
+80050102   // SIND  r5, r1, r2
+70059584   // LBU   r5, MS_OPEN
+04050501   // ADDI  r5, r5, 1
+74059584   // SB    r5, MS_OPEN
+2806040F   // ANDI  r6, r4, 0x0F
+64000160   // RBNE  r6, r0, __msp_skip
+24000F00   // RJAL  ms_flood              # 洪水展开
+50000000   // // 自动 NOP（bytmov 死区）
+4C000000   // JALR
+04050001   // ADDI  r5, r0, 1
+74059587   // SB    r5, MS_OVER           # 踩雷死
+04060000   // ADDI  r6, r0, 0             # i = 0
+04020600   // ADDI  r2, r6, 0x00
+7C040102   // LIND  r4, r1, r2            # MINE[i]
+28050480   // ANDI  r5, r4, 0x80
+5C000250   // RBEQ  r5, r0, __msp_rv_next # 非雷跳过
+04020640   // ADDI  r2, r6, 0x40
+04050003   // ADDI  r5, r0, 3             # VIEW=3 标雷
+80050102   // SIND  r5, r1, r2
+04060601   // ADDI  r6, r6, 1
+04050040   // ADDI  r5, r0, 64
+68000B65   // RBLTU r6, r5, __msp_reveal
+4C000000   // JALR
+04010095   // ADDI  r1, r0, 0x95
+04040000   // ADDI  r4, r0, 0             # sp = 0
+04020388   // ADDI  r2, r3, 0x88          # QUEUE 基址低字节 0x88
+80030102   // SIND  r3, r1, r2
+04040401   // ADDI  r4, r4, 1             # sp = 1
+64000140   // RBNE  r4, r0, __msf_pop     # sp>0 继续
+4C000000   // JALR                        # 空栈 → 完成
+50000000   // // 自动 NOP（bytmov 死区）
+040404FF   // ADDI  r4, r4, 0xFF          # sp-1
+2804043F   // ANDI  r4, r4, 0x3F
+04020488   // ADDI  r2, r4, 0x88
+7C030102   // LIND  r3, r1, r2            # pop → r3 = idx
+40080303   // SRLI  r8, r3, 3
+28090307   // ANDI  r9, r3, 7
+040A08FF   // ADDI  r10, r8, 0xFF
+040B0900   // ADDI  r11, r9, 0
+24000A00   // RJAL  msf_adj
+040A0801   // ADDI  r10, r8, 1
+040B0900   // ADDI  r11, r9, 0
+24000700   // RJAL  msf_adj
+040A0800   // ADDI  r10, r8, 0
+040B09FF   // ADDI  r11, r9, 0xFF
+24000400   // RJAL  msf_adj
+040A0800   // ADDI  r10, r8, 0
+040B0901   // ADDI  r11, r9, 1
+24000100   // RJAL  msf_adj
+58001700   // RBEQ  r0, r0, msf_loop
+50000000   // // 自动 NOP（bytmov 死区）
+48060A08   // SLTIU r6, r10, 8
+5C001860   // RBEQ  r6, r0, __msfa_out
+48060B08   // SLTIU r6, r11, 8
+5C001660   // RBEQ  r6, r0, __msfa_out
+3C060A03   // SLLI  r6, r10, 3
+0806060B   // ADD   r6, r6, r11           # nidx
+04020640   // ADDI  r2, r6, 0x40
+7C0C0102   // LIND  r12, r1, r2
+640011C0   // RBNE  r12, r0, __msfa_out
+04020600   // ADDI  r2, r6, 0x00
+7C0C0102   // LIND  r12, r1, r2
+280C0C80   // ANDI  r12, r12, 0x80
+64000DC0   // RBNE  r12, r0, __msfa_out
+04020640   // ADDI  r2, r6, 0x40
+040C0002   // ADDI  r12, r0, 2
+800C0102   // SIND  r12, r1, r2
+700C9584   // LBU   r12, MS_OPEN
+040C0C01   // ADDI  r12, r12, 1
+740C9584   // SB    r12, MS_OPEN
+04020600   // ADDI  r2, r6, 0x00
+7C0C0102   // LIND  r12, r1, r2
+280C0C0F   // ANDI  r12, r12, 0x0F
+640003C0   // RBNE  r12, r0, __msfa_out
+04020688   // ADDI  r2, r6, 0x88
+80060102   // SIND  r6, r1, r2
+04040401   // ADDI  r4, r4, 1
+2804043F   // ANDI  r4, r4, 0x3F
+4C000000   // JALR
+7400948B   // SB    r0, FRAME_IDX_LO
+7400948C   // SB    r0, FRAME_IDX_HI
+20059200   // RJAL  wait_dma              # 等上一帧
+04090000   // ADDI  r9, r0, 0             # row
+040A0000   // ADDI  r10, r0, 0            # col
+0407005B   // ADDI  r7, r0, '['
+2005B900   // RJAL  fputc
+3C030903   // SLLI  r3, r9, 3
+0803030A   // ADD   r3, r3, r10
+04010095   // ADDI  r1, r0, 0x95
+04020340   // ADDI  r2, r3, 0x40
+7C040102   // LIND  r4, r1, r2            # VIEW[index]
+04050002   // ADDI  r5, r0, 2
+64000545   // RBNE  r4, r5, __msr_f       # VIEW==2 → 数字
+04020300   // ADDI  r2, r3, 0x00
+7C060102   // LIND  r6, r1, r2
+2806060F   // ANDI  r6, r6, 0x0F
+04070630   // ADDI  r7, r6, '0'
+2005C500   // RJAL  fputc
+5C000B00   // RBEQ  r0, r0, __msr_close
+04050001   // ADDI  r5, r0, 1
+64000245   // RBNE  r4, r5, __msr_un      # VIEW==1 → 旗
+04070046   // ADDI  r7, r0, 'F'
+2005CA00   // RJAL  fputc
+5C000600   // RBEQ  r0, r0, __msr_close
+04050003   // ADDI  r5, r0, 3
+64000245   // RBNE  r4, r5, __msr_blank
+0407002A   // ADDI  r7, r0, '*'
+2005CF00   // RJAL  fputc
+5C000100   // RBEQ  r0, r0, __msr_close
+04070020   // ADDI  r7, r0, ' '
+2005D200   // RJAL  fputc
+0407005D   // ADDI  r7, r0, ']'
+2005D400   // RJAL  fputc
+040A0A01   // ADDI  r10, r10, 1
+04080008   // ADDI  r8, r0, 8
+680021A8   // RBLTU r10, r8, __msr_col
+2005CC00   // RJAL  fput_crlf             # 行尾换行
+04090901   // ADDI  r9, r9, 1
+68002598   // RBLTU r9, r8, __msr_row
+2005B300   // RJAL  dma_frame_send        # 发帧
+4C000000   // JALR
+2005BA00   // RJAL  wait_dma              # 等棋盘帧发完（GAME OVER 才能安全直发）
+70019587   // LBU   r1, MS_OVER
+04020001   // ADDI  r2, r0, 1
+64000812   // RBNE  r1, r2, __mso_win
+040100A0   // .puts "\r\n GAME OVER\r\n"
+0402009E   // .puts "\r\n GAME OVER\r\n"
+0406000E   // .puts "\r\n GAME OVER\r\n"
+7C070102   // .puts "\r\n GAME OVER\r\n"
+04020201   // .puts "\r\n GAME OVER\r\n"
+20105200   // .puts "\r\n GAME OVER\r\n"
+040606FF   // .puts "\r\n GAME OVER\r\n"
+60000660   // .puts "\r\n GAME OVER\r\n"
+4C000000   // JALR
+040100A0   // .puts "\r\n CLEARED!\r\n"
+040200AC   // .puts "\r\n CLEARED!\r\n"
+0406000D   // .puts "\r\n CLEARED!\r\n"
+7C070102   // .puts "\r\n CLEARED!\r\n"
+04020201   // .puts "\r\n CLEARED!\r\n"
+20105B00   // .puts "\r\n CLEARED!\r\n"
+040606FF   // .puts "\r\n CLEARED!\r\n"
+60000660   // .puts "\r\n CLEARED!\r\n"
+4C000000   // JALR
 00000000
 00000000
 00000000
