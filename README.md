@@ -67,9 +67,9 @@
 
 - 搭载抢占式RTOS内核（v2.3起，v2.2为协作式RTOS），支持任务调用栈分区核基于硬件中断的抢占调度，类Shell操作界面
 
-<img width="779" height="690" alt="52dde083ee5517a04f0d582f8a24f920" src="https://github.com/user-attachments/assets/c3c0a6c4-f83c-4afb-9532-f930326aa439" />  
-
-*v3.3.x version MCU running RTOS system with UART in/output*
+<img width="779" height="690" alt="52dde083ee5517a04f0d582f8a24f920" src="https://github.com/user-attachments/assets/c3c0a6c4-f83c-4afb-9532-f930326aa439" /> 
+   
+*v3.4.x version MCU running RTOS system with UART in/output*
   
 ### 备注：
   
