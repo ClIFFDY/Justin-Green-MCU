@@ -21,7 +21,7 @@
 
 
 module wr_reg(
-    input wire clk, we_in, flush2, rst, stall,
+    input wire clk, we_in, rst, stall,
     input wire [1:0] stage,
     input wire [7:0] result_in,
     input wire [7:0] rd_in,
@@ -36,11 +36,16 @@ module wr_reg(
             rd_data <= 8'b0;
             we <= 1'b0;
         end
-        else if (!stall) begin
-            if (stage == 1'b1 && !flush2) begin
+        else begin
+            if (stage == 2'b01 && !stall && we_in) begin
                 rd_data <= result_in;
-                rd <= (we_in)? rd_in : 8'b0;
+                rd <= rd_in;
                 we <= we_in;
+            end
+            else if (stage == 2'b01 && stall && we_in) begin
+                rd_data <= rd_data;
+                rd <= rd;
+                we <= we;
             end
             else begin
                 rd_data <= 8'b0;

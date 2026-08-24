@@ -248,6 +248,7 @@ reset:
     ADDI  r1, r0, 3
     SB    r1, 0x6008
     SB    r0, 0x6009
+    # RX 已接线：prio=2 使能（刷屏根因=bubble/resume bug 已修，非 RX 误判）
     ADDI  r1, r0, 2
     SB    r1, 0x600A
     SB    r0, 0x600B
@@ -300,6 +301,10 @@ reset:
 task0_entry:
     RJAL  menu_main           # 主菜单
     RJAL  print_prompt
+    # NOP 填充：shell_loop 距 task0_entry ≥3 词，resume(pcIn-2) 落进 shell_loop 而非启动代码
+    NOP
+    NOP
+    NOP
 shell_loop:
     RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
     # ---- 等字符: WR != RD ? ----
@@ -426,15 +431,6 @@ putc_wait:
     ADDI  r8, r255, 0
     LBNE  r8, r0, putc_wait
     SB    r7, UART
-    # 打字机效果：逐字延迟（r9 外层计数 × r8 内层）
-    ADDI  r9, r0, 250           # 外层 250 次 ≈ 5ms/字符
-__typing_o:
-    ADDI  r8, r0, 0xFF          # 内层 255 次
-__typing_i:
-    ADDI  r8, r8, 0xFF
-    LBNE  r8, r0, __typing_i
-    ADDI  r9, r9, 0xFF
-    LBNE  r9, r0, __typing_o
     JALR
 
 # flush_rx: 清空 UART RX 环形缓冲（丢弃打印期间积压的按键）→ 打印完成后才接受新输入
@@ -520,23 +516,44 @@ __sp_have:
     RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
     LBU   r7, LINE_BUF0
     LBU   r1, MENU
-    RBNE  r1, r0, game_menu_dispatch   # MENU!=0 → game 子菜单分派
-    ADDI  r8, r0, '1'
+    RBEQ  r1, r0, __sp_main       # MENU=0 → 主菜单
+    ADDI  r8, r0, 1
+    RBEQ  r1, r8, game_menu_dispatch  # MENU=1 → 游戏子菜单
+    ADDI  r8, r0, 2
+    RBEQ  r1, r8, __sp_credits    # MENU=2 → CREDITS（只认 0）
+    # MENU=3 → STATUS（只认 0）
+__sp_status:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__sp_credits:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__sp_main:
     ADDI  r8, r0, '1'
     RBNE  r7, r8, __sp_m2
+    ADDI  r1, r0, 2
+    SB    r1, MENU                 # MENU=2 → CREDITS 子菜单
     RJAL  cmd_credits
     JALR
 __sp_m2:
     ADDI  r8, r0, '2'
     RBNE  r7, r8, __sp_m3
+    ADDI  r1, r0, 3
+    SB    r1, MENU                 # MENU=3 → STATUS 子菜单
     RJAL  cmd_status
     JALR
 __sp_m3:
     ADDI  r8, r0, '3'
     RBNE  r7, r8, __sp_m0
     ADDI  r1, r0, 1
-    SB    r1, MENU
-    RJAL  game_menu             # 进 game 子菜单（俄罗斯方块/扫雷）
+    SB    r1, MENU                 # MENU=1 → 游戏子菜单
+    RJAL  game_menu
     JALR
 __sp_m0:
     ADDI  r8, r0, '0'
@@ -547,7 +564,16 @@ __sp_unknown:
     ADDI  r7, r0, '?'
     LJAL  putc
     LJAL  put_crlf
+    LBU   r1, MENU
+    RBEQ  r1, r0, __sp_unk_main   # MENU=0 → 主菜单
+    ADDI  r8, r0, 1
+    RBEQ  r1, r8, __sp_unk_gm     # MENU=1 → 游戏子菜单
+    JALR                          # MENU=2/3（CREDITS/STATUS）→ 只打印 ? 停留
+__sp_unk_main:
     RJAL  menu_main
+    JALR
+__sp_unk_gm:
+    RJAL  game_menu
     JALR
 
 # ---- game 子菜单分派（MENU==1）：1=俄罗斯方块 2=扫雷 0=回主菜单 ----
@@ -797,6 +823,7 @@ rotate:
     ADDI  r13, r1, 0
     ADDI  r9, r1, 0
     LBU   r8, P_SHAPE
+    NOP                        # 拉开 LBU r8 写回（数据冒险修复）
     RJAL  compute_cells
     RJAL  check_candidate
     RBNE  r1, r0, __rt_end
@@ -806,6 +833,7 @@ __rt_end:
     JALR
 spawn:
     LBU   r1, TICK_LO
+    NOP                        # 拉开 LBU r1 写回（数据冒险修复）
     SRLI  r1, r1, 1
     ANDI  r1, r1, 7
     ADDI  r2, r0, 7
@@ -832,6 +860,7 @@ __sp_over:
 
 compute_cells:                 # 入参 r8=shape r9=rot → 写候选 C_ROW1..C_COL4
     LBU   r17, P_ANCHOR_R
+    LBU   r8, P_SHAPE              # 重读 shape（修复：不依赖调用者 r8 残留）
     LBU   r18, P_ANCHOR_C
     ADDI  r1, r0, 0
     RBEQ  r8, r1, __cs_0
@@ -1795,7 +1824,11 @@ ms_do:
     ADD   r3, r3, r4            # index
     LBU   r5, MS_OP
     ADDI  r6, r0, 1
-    RBNE  r5, r6, __msdo_flag
+    RBEQ  r5, r6, __msdo_probe   # op==1 → 探雷
+    ADDI  r6, r0, 2
+    RBEQ  r5, r6, __msdo_flag    # op==2 → 插旗
+    JALR                         # op 非法（3-8）→ 不操作
+__msdo_probe:
     RJAL  ms_probe              # 探雷
     # 胜利判定：探开后 MS_OPEN==54 → 全探开
     LBU   r6, MS_OPEN
@@ -1814,6 +1847,8 @@ ms_flag:
     ADDI  r1, r0, 0x95
     ADDI  r2, r3, 0x40          # VIEW 基址 0x9540 + index
     LIND  r4, r1, r2
+    ADDI  r5, r0, 2
+    RBEQ  r4, r5, __msf_out     # VIEW==2（已探开）→ 不插旗/拔旗
     ADDI  r5, r0, 1
     RBNE  r4, r5, __msf_set     # !=1 → 设为旗
     SIND  r0, r1, r2            # 拔旗
@@ -1826,6 +1861,8 @@ __msf_set:
     LBU   r4, MS_FLG
     ADDI  r4, r4, 1
     SB    r4, MS_FLG
+    JALR
+__msf_out:
     JALR
 
 # ms_probe: 探雷（index=r3）；雷→死(MS_OVER=1) 非雷→探开
@@ -1948,6 +1985,7 @@ ms_render:
     SB    r0, FRAME_IDX_LO
     SB    r0, FRAME_IDX_HI
     RJAL  wait_dma              # 等上一帧
+    RJAL  fput_crlf             # 棋盘前先换行（帧首字符为 \r\n）
     ADDI  r9, r0, 0             # row
 __msr_row:
     ADDI  r10, r0, 0            # col
@@ -2144,21 +2182,21 @@ __ap_done:
 .org 0x400
 task1_entry:
 task1_loop:
-    LBU   r6, CNT1
-    ADDI  r6, r6, 1
-    SB    r6, CNT1
-    ADDI  r5, r0, 0x10        # 外层 16 次 ≈ 80ms
+    LBU   r7, CNT1
+    ADDI  r7, r7, 1
+    SB    r7, CNT1
+    ADDI  r11, r0, 0x10       # 外层 16 次 ≈ 80ms（r7-r11 保存组，不破坏低区 r1-r6）
 dl1_o:
-    ADDI  r4, r0, 0xFF
+    ADDI  r10, r0, 0xFF
 dl1_m:
-    ADDI  r3, r0, 0xFF
+    ADDI  r9, r0, 0xFF
 dl1_i:
-    ADDI  r3, r3, 0xFF
-    LBNE  r3, r0, dl1_i
-    ADDI  r4, r4, 0xFF
-    LBNE  r4, r0, dl1_m
-    ADDI  r5, r5, 0xFF
-    LBNE  r5, r0, dl1_o
+    ADDI  r9, r9, 0xFF
+    LBNE  r9, r0, dl1_i
+    ADDI  r10, r10, 0xFF
+    LBNE  r10, r0, dl1_m
+    ADDI  r11, r11, 0xFF
+    LBNE  r11, r0, dl1_o
     LBEQ  r0, r0, task1_loop
 
 # ============================================================
@@ -2167,21 +2205,21 @@ dl1_i:
 .org 0x500
 task2_entry:
 task2_loop:
-    LBU   r6, CNT2
-    ADDI  r6, r6, 1
-    SB    r6, CNT2
-    ADDI  r5, r0, 0x40        # 外层 64 次 ≈ 320ms
+    LBU   r7, CNT2
+    ADDI  r7, r7, 1
+    SB    r7, CNT2
+    ADDI  r11, r0, 0x40       # 外层 64 次 ≈ 320ms（r7-r11 保存组，不破坏低区 r1-r6）
 dl2_o:
-    ADDI  r4, r0, 0xFF
+    ADDI  r10, r0, 0xFF
 dl2_m:
-    ADDI  r3, r0, 0xFF
+    ADDI  r9, r0, 0xFF
 dl2_i:
-    ADDI  r3, r3, 0xFF
-    LBNE  r3, r0, dl2_i
-    ADDI  r4, r4, 0xFF
-    LBNE  r4, r0, dl2_m
-    ADDI  r5, r5, 0xFF
-    LBNE  r5, r0, dl2_o
+    ADDI  r9, r9, 0xFF
+    LBNE  r9, r0, dl2_i
+    ADDI  r10, r10, 0xFF
+    LBNE  r10, r0, dl2_m
+    ADDI  r11, r11, 0xFF
+    LBNE  r11, r0, dl2_o
     LBEQ  r0, r0, task2_loop
 
 # ============================================================
@@ -2346,6 +2384,8 @@ cmd_credits:
     .puts " HW: Justin Green MCU (Zynq 7010)"
     RJAL  put_crlf
     RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+    ADDI  r1, r0, 2
+    SB    r1, MENU             # MENU=2 → CREDITS 子菜单
     JALR
 
 cmd_status:
@@ -2360,8 +2400,7 @@ cmd_status:
     .puts " 0. BACK TO MENU\r\n"
     RJAL  flush_rx             # 打印完成 → 丢弃积压按键
     ADDI  r1, r0, 3
-    SB    r1, MENU
-    ADDI  r1, r0, 2
+    SB    r1, MENU             # MENU=3 → STATUS 子菜单
     JALR
 
 # ---- 进度条: 打印 [####....]，入参 r7=填充段数 r8=总段数 ----
@@ -2397,14 +2436,6 @@ tick_bookkeeping:
     LBU   r2, LAST_TICK
     RBNE  r1, r2, __tb_ch
     JALR                        # tick 未变 → 直接返回
-__tb_ch:
-    SUB   r7, r1, r2
-    SB    r1, LAST_TICK
-    LBU   r1, IDLE_CNT
-    ADD   r1, r1, r7
-    SB    r1, IDLE_CNT
-    JALR
-
 __tb_ch:
     SUB   r7, r1, r2
     SB    r1, LAST_TICK

@@ -35,7 +35,8 @@ module single_mcu_top(
     wire tx_flg, tx_busy, i2c_busy;
     wire stall_bus_in, stall_bus_1, stall_bus_2;
 
-    wire [7:0] bus_data_uart, bus_data_ram1, bus_data_ram2, bus_data_gpio, bus_data_irq, bus_data_to_dma;
+    wire [7:0] bus_data_uart, bus_data_ram1, bus_data_ram2, bus_data_gpio, 
+        bus_data_irq, bus_data_to_dma, bus_data_base;
 
     wire [8:0] irq_bus;
     wire rx, tx, pwm1, pwm2, scl, sda;
@@ -61,6 +62,7 @@ module single_mcu_top(
         .bus_addr_out(bus_addr_f1),
         .bus_data_out(bus_data_f1),
         .bus_data_irq(bus_data_irq),
+        .bus_data_base(bus_data_base),
         .bus_sig_out(bus_sig_f1)
     );
 
@@ -88,6 +90,7 @@ module single_mcu_top(
         .bus_data_gpio(bus_data_gpio),
         .bus_data_irq(bus_data_irq),
         .bus_data_dma(bus_data_dma_cnt),
+        .bus_data_base(bus_data_base),
         .bus_data_b(bus_data_b),
         .bus_data_to_dma(bus_data_to_dma)
     );
@@ -199,4 +202,5 @@ module single_mcu_top(
         .pwm1(pwm1),
         .pwm2(pwm2)
     );
+
 endmodule

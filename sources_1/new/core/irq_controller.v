@@ -21,10 +21,11 @@
 
 
 module irq_controller(
-    input wire clk, rst, iret, stall,
+    input wire clk, rst, iret, stall, cstalled,
+    input wire [1:0] bubble,
     input wire [8:0] irq_bus_in,
     input wire [12:0] pc_addr_in, 
-    input wire [1:0] irq_en,
+    input wire irq_en,
     output reg [12:0] irq_addr,
     output reg irq_flush,
 
@@ -87,10 +88,10 @@ module irq_controller(
             end
             case (stage)
             IDLE: begin
-                if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall) begin 
+                if (irq_bus_in != 13'b0 && irq_en == 1'b1 && !stall) begin 
                     stage <= IRQ;
                     prio <= irq_bus_in[8:6];
-                    pc_addr[j] <= pc_addr_in - 1;
+                    pc_addr[j] <= pc_addr_in - ((cstalled) ? 1 : 2) + bubble;
                     j <= j + 1;
                 end
             end
@@ -106,11 +107,11 @@ module irq_controller(
                         pc_addr[0][12:8] <= bus_data_in;
                         stage <= OPR;
                     end
-                    else if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall 
+                    else if (irq_bus_in != 13'b0 && irq_en == 1'b1 && !stall 
                         && irq_bus_in[8:6] > prio && j <= 4'd15) begin 
                         stage <= IRQ;
                         prio <= irq_bus_in[8:6];
-                        pc_addr[j] <= pc_addr_in - 1;
+                        pc_addr[j] <= pc_addr_in - ((cstalled) ? 1 : 2) + bubble;
                         j <= j + 1;
                     end
                 end
@@ -143,21 +144,21 @@ module irq_controller(
             end
             case (stage)
             IDLE: begin
-                if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall) begin 
+                if (irq_bus_in != 13'b0 && irq_en == 1'b1 && !stall) begin
                     irq_flush = 1'b1;
                     irq_addr = irq_vex[irq_bus_in[5:3] + irq_bus_in[2:0] - 1];
                 end
             end
             IRQ: begin
                 if (iret == 1'b1) begin
-                    if (j >= 1'b1) begin 
+                    if (j >= 1'b1) begin
                         irq_addr = pc_addr[j - 1];
                     end
                     irq_flush = 1'b1;
                 end
                 else begin
-                    if (irq_bus_in != 13'b0 && irq_en == 2'b11 && !stall
-                        && irq_bus_in[8:6] > prio && j <= 4'd15) begin 
+                    if (irq_bus_in != 13'b0 && irq_en == 1'b1 && !stall
+                        && irq_bus_in[8:6] > prio && j <= 4'd15) begin
                         irq_addr = irq_vex[irq_bus_in[5:3] + irq_bus_in[2:0] - 1];
                         irq_flush = 1'b1;
                     end

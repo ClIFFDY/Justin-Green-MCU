@@ -71,12 +71,19 @@ module i2c_out(
     assign busy = (wr_ptr != rd_ptr + 1'b1) ? 1'b1 : 1'b0;
 
     always @(*) begin
-        if (rst) begin cnt_l = 9'd0; cnt_h = 9'd0; end
+        if (rst) begin 
+            cnt_l = 9'd0; 
+            cnt_h = 9'd0; 
+        end
         else begin
             case (frq_mode)
             2'd0: begin cnt_l = CLK * 2 / (LOW_FREQ * 5);   cnt_h = CLK * 3 / (LOW_FREQ * 5);  end
             2'd1: begin cnt_l = CLK * 2 / (HIGH_FREQ * 5);  cnt_h = CLK * 3 / (HIGH_FREQ * 5); end
             2'd2: begin cnt_l = CLK * 2 / (ULTRA_FREQ * 5); cnt_h = CLK * 3 / (ULTRA_FREQ * 5); end
+            default begin
+                cnt_l = 9'd0;
+                cnt_h = 9'd0;
+            end
             endcase
         end
     end

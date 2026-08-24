@@ -29,9 +29,9 @@ module fsm(
     IDLE = 2'b00, 
     EXE = 2'b01;
 
-    initial stage = 2'b01;
+    initial stage = 2'b00;
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
             stage <= EXE;
         end

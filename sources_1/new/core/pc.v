@@ -21,7 +21,7 @@
 
 
 module pc(
-    input wire clk, rst, frz, stall_bus, cstall, irq_flag,
+    input wire clk, rst, frz, stall_bus, cstall, cstalled, irq_flag, jmp_flush,
     input wire [1:0] stage,
     input wire [1:0] j_flag,
     input wire [5:0] op_raw,
@@ -29,16 +29,16 @@ module pc(
     input wire [12:0] ra_in, irq_addr,
     output reg [12:0] pc_addr,
     output reg [12:0] ra,
-    output reg [1:0] jmpflg
+    output reg [1:0] jmpflg,
+    output reg [1:0] bubble
     );
 
-    localparam  
-    IDLE = 2'b00, 
+    localparam
+    IDLE = 2'b00,
     EXE = 2'b01,
     WAIT = 2'b10;
 
-    localparam [5:0]  
-    
+    localparam [5:0]
     LJAL  = 6'b00_1000,
     RJAL  = 6'b00_1001,
     JALR  = 6'b01_0011,
@@ -47,63 +47,55 @@ module pc(
     LBNE  = 6'b01_1000,
     RBNE  = 6'b01_1001,
     LBLTU = 6'b01_1010,
-    RBLTU = 6'b01_1011,
-    IRET  = 6'b01_0101;
+    RBLTU = 6'b01_1011;
 
-    
     always @(posedge clk) begin
-        if (rst) begin 
+        if (rst) begin
             pc_addr <= 13'b0;
             ra <= 13'b0;
             jmpflg <= 2'b0;
+            bubble <= 2'b0;
         end
         else if (stage == EXE && !stall_bus) begin
             jmpflg <= 2'b0;
-            case (op_raw)
-            LJAL, RJAL: begin 
-                if (bytmov != 16'b0 && !j_flag[1]) begin
-                    ra <= pc_addr - 1;
-                    jmpflg[1] <= 1'b1;
-                    case (op_raw[0])
-                    1'b0: pc_addr <= pc_addr - bytmov;
-                    1'b1: pc_addr <= pc_addr + bytmov;
-                    endcase                
-                end
-                else begin
-                    if(!frz && !cstall) begin
-                        pc_addr <= pc_addr + 1;
+            bubble <= (bubble != 2'd0) ? bubble - 2'd1 : 2'd0;
+            if (irq_flag) begin
+                pc_addr <= irq_addr;
+                bubble <= 2'd2;
+            end
+            else if (frz) begin
+            end
+            else begin
+                case (op_raw)
+                LJAL, RJAL: begin
+                    if (jmp_flush && !j_flag[1]) begin
+                        ra <= pc_addr - ((cstalled) ? 1 : 2);
+                        jmpflg[1] <= 1'b1;
+                        bubble <= 2'd2;
+                        pc_addr <= op_raw[0] ? pc_addr + bytmov : pc_addr - bytmov;
                     end
+                    else if (!cstall) begin
+                        pc_addr <= pc_addr + 1'b1;
+                    end 
                 end
-            end
-            LBEQ, RBEQ, LBNE, RBNE, LBLTU, RBLTU: begin
-                if (bytmov != 16'b0) begin
-                    case (op_raw[0])
-                    1'b0: pc_addr <= pc_addr - bytmov;
-                    1'b1: pc_addr <= pc_addr + bytmov;
-                    endcase                
-                end
-                else begin
-                    if(!frz && !cstall) begin
-                        pc_addr <= pc_addr + 1;
+                LBEQ, RBEQ, LBNE, RBNE, LBLTU, RBLTU: begin
+                    if (jmp_flush) begin 
+                        bubble <= 2'd2;
+                        pc_addr <= op_raw[0] ? pc_addr + bytmov : pc_addr - bytmov;
                     end
-                end                
-            end
-            JALR: begin
-                jmpflg[0] <= 1'b1;
-                if (!j_flag[0]) begin 
-                    pc_addr <= ra_in;
+                    else if (!cstall) pc_addr <= pc_addr + 1'b1;
                 end
-                else begin 
-                    if (!frz && !cstall) pc_addr <= pc_addr + 1;
+                JALR: begin
+                    jmpflg[0] <= 1'b1;
+                    if (!j_flag[0]) begin
+                        bubble <= 2'd2;
+                        pc_addr <= ra_in;
+                    end
+                    else if (!cstall) pc_addr <= pc_addr + 1'b1;
                 end
+                default: if (!cstall) pc_addr <= pc_addr + 1'b1;
+                endcase
             end
-            default: begin
-                if(!frz && !cstall) begin
-                    pc_addr <= pc_addr + 1;
-                end
-            end
-            endcase
-            if (irq_flag) pc_addr <= irq_addr;
         end
     end
 endmodule

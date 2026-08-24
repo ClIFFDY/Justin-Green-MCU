@@ -28,7 +28,7 @@ module bus_controller(
     input wire [3:0] bus_sig_f_in,
     input wire [7:0] bus_data_in_cpu,
     input wire [7:0] bus_data_ram1, bus_data_ram2, bus_data_uart, bus_data_gpio, bus_data_dma,
-    input wire [7:0] bus_data_irq,
+    input wire [7:0] bus_data_irq, bus_data_base,
     output reg [7:0] bus_data_b, bus_data_to_dma,
     output reg [8:0] irq_bus,
     output reg stall_bus
@@ -47,7 +47,8 @@ module bus_controller(
     RAM_2 = 4'b1001,
     RAM_3 = 4'b1010,
     BANK_SEL = 4'b1011,
-    RAM_EXT = 4'b1100;
+    RAM_EXT = 4'b1100,
+    BASEL = 4'b1101;
 
     reg [2:0] irq_prio [0:5];
     reg irq_h1, irq_h2, irq_h3, irq_lock;
@@ -62,6 +63,7 @@ module bus_controller(
         GPIO: bus_data_b = bus_data_gpio;
         IRQ: bus_data_b = bus_data_irq;
         DMA: bus_data_b = bus_data_dma;
+        BASEL: bus_data_b = bus_data_base;
         default: bus_data_b = 8'b0;
         endcase
         case (bus_addr_dma_in[15:12])

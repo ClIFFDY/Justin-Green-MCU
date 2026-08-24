@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ============================================================
-# MCU 汇编器（词寻址 + 自动压缩/打包）：助记符 .asm → ins_rom.hex
-#   （2026-08-17 架构：12 位词寻址 ROM，32bit 定长取指）
+# MCU æ±ç¼å¨ï¼è¯å¯»å + èªå¨åç¼©/æåï¼ï¼å©è®°ç¬¦ .asm â ins_rom.hex
+#   ï¼2026-08-17 æ¶æï¼12 ä½è¯å¯»å ROMï¼32bit å®é¿åæï¼
 #
-# 编码依据：decoder.v / if_reg.v / pc.v / ins_rom.v
-#   PC 13 位【词地址】0x000-0x1FFF（8192 词 × 32bit BRAM）
+# ç¼ç ä¾æ®ï¼decoder.v / if_reg.v / pc.v / ins_rom.v
+#   PC 13 ä½ãè¯å°åã0x000-0x1FFFï¼8192 è¯ Ã 32bit BRAMï¼
 #   byte0 = opcode[5:0]<<2 | flag[1:0]
-#     flag=00 原长指令（长度由 opcode 决定，独占一个 32bit 词，不足 4 字节补 0）
-#     flag=11 ALU 类压缩 16bit：6op + 2flag + 2rd + 3r1 + 3r2（I 型末字段=imm[2:0]）
-#     flag=01 无操作数压缩 16bit：NOP / IRET
-#   bytmov 16 位【词单位】，基准 W+2（指令在词 W 执行时 pc_addr 已到 W+2）：
-#     R(向前) = target-(W+2)，L(向后) = (W+2)-target；1 ≤ bytmov ≤ 0xFFFF
-#     （目标=当前词+2 时 bytmov=0 不可编码；向前最少跳 2 词）
-#   自动压缩：ALU-R/I 满足 rd≤3、r1/r2≤7（I 型 imm≤7）→ flag=11；NOP/IRET → flag=01
-#   自动打包：相邻两条压缩指令共享一个 32bit 词（前=[31:16]，后=[15:0]）
-#     跳转/分支目标必须落在【词首指令】；.org 处恒为词首
-#     压缩但无法配对的指令退回原长（保证每个压缩词两半都非空，cstall 才正确）
-# 用法：
-#   python tools/asm.py 程序.asm [-o 输出.hex]   # 默认写 project_self-try.srcs/ins_rom.hex
-# .asm 语法：
-#   注释：# 或 //；寄存器 rN 或裸数字（分支须 0-15，r255 只读=tx_busy）
-#   跳转/分支目标：label 名 或 绝对词地址（汇编器自动算 bytmov）
-#   标签：`名字:` 独立一行 或 指令行首
-#   伪指令：.org <词地址>  .equ NAME <值>  .byte <b>[,<b>..]  .str "text"
-#   伪指令：MOV rd, rs = 复制，自动翻译为 ADDI rd, rs, 0（RTL 已放弃 MOV 独立 opcode）
+#     flag=00 åé¿æä»¤ï¼é¿åº¦ç± opcode å³å®ï¼ç¬å ä¸ä¸ª 32bit è¯ï¼ä¸è¶³ 4 å­èè¡¥ 0ï¼
+#     flag=11 ALU ç±»åç¼© 16bitï¼6op + 2flag + 2rd + 3r1 + 3r2ï¼I åæ«å­æ®µ=imm[2:0]ï¼
+#     flag=01 æ æä½æ°åç¼© 16bitï¼NOP / IRET
+#   bytmov 16 ä½ãè¯åä½ãï¼åºå W+2ï¼æä»¤å¨è¯ W æ§è¡æ¶ pc_addr å·²å° W+2ï¼ï¼
+#     R(åå) = target-(W+2)ï¼L(åå) = (W+2)-targetï¼1 â¤ bytmov â¤ 0xFFFF
+#     ï¼ç®æ =å½åè¯+2 æ¶ bytmov=0 ä¸å¯ç¼ç ï¼ååæå°è·³ 2 è¯ï¼
+#   èªå¨åç¼©ï¼ALU-R/I æ»¡è¶³ rdâ¤3ãr1/r2â¤7ï¼I å immâ¤7ï¼â flag=11ï¼NOP/IRET â flag=01
+#   èªå¨æåï¼ç¸é»ä¸¤æ¡åç¼©æä»¤å±äº«ä¸ä¸ª 32bit è¯ï¼å=[31:16]ï¼å=[15:0]ï¼
+#     è·³è½¬/åæ¯ç®æ å¿é¡»è½å¨ãè¯é¦æä»¤ãï¼.org å¤æä¸ºè¯é¦
+#     åç¼©ä½æ æ³éå¯¹çæä»¤éååé¿ï¼ä¿è¯æ¯ä¸ªåç¼©è¯ä¸¤åé½éç©ºï¼cstall ææ­£ç¡®ï¼
+# ç¨æ³ï¼
+#   python tools/asm.py ç¨åº.asm [-o è¾åº.hex]   # é»è®¤å project_self-try.srcs/ins_rom.hex
+# .asm è¯­æ³ï¼
+#   æ³¨éï¼# æ //ï¼å¯å­å¨ rN æè£¸æ°å­ï¼åæ¯é¡» 0-15ï¼r255 åªè¯»=tx_busyï¼
+#   è·³è½¬/åæ¯ç®æ ï¼label å æ ç»å¯¹è¯å°åï¼æ±ç¼å¨èªå¨ç® bytmovï¼
+#   æ ç­¾ï¼`åå­:` ç¬ç«ä¸è¡ æ æä»¤è¡é¦
+#   ä¼ªæä»¤ï¼.org <è¯å°å>  .equ NAME <å¼>  .byte <b>[,<b>..]  .str "text"
+#   ä¼ªæä»¤ï¼MOV rd, rs = å¤å¶ï¼èªå¨ç¿»è¯ä¸º ADDI rd, rs, 0ï¼RTL å·²æ¾å¼ MOV ç¬ç« opcodeï¼
 # ============================================================
 
 import argparse
@@ -33,32 +33,32 @@ import sys
 from pathlib import Path
 
 
-# ---------------------------------------------------------------- 指令集
-# opcode[5:0]（来自 decoder.v localparam）
+# ---------------------------------------------------------------- æä»¤é
+# opcode[5:0]ï¼æ¥èª decoder.v localparamï¼
 OPCODE = {
-    'HALT': 0x00, 'ADDI': 0x01, 'ADD': 0x02, 'SUBI': 0x03, 'SUB': 0x04,
+    'NOP': 0x00, 'ADDI': 0x01, 'ADD': 0x02, 'SUBI': 0x03, 'SUB': 0x04,
     'AND': 0x05, 'OR': 0x06, 'XOR': 0x07, 'LJAL': 0x08, 'RJAL': 0x09,
     'ANDI': 0x0A, 'ORI': 0x0B, 'XORI': 0x0C, 'SLL': 0x0D, 'SRL': 0x0E,
     'SLLI': 0x0F, 'SRLI': 0x10, 'SLTU': 0x11, 'SLTIU': 0x12, 'JALR': 0x13,
-    'NOP': 0x14, 'IRET': 0x15, 'LBEQ': 0x16, 'RBEQ': 0x17, 'LBNE': 0x18,
+    'HALT': 0x14, 'IRET': 0x15, 'LBEQ': 0x16, 'RBEQ': 0x17, 'LBNE': 0x18,
     'RBNE': 0x19, 'LBLTU': 0x1A, 'RBLTU': 0x1B, 'LBU': 0x1C, 'SB': 0x1D,
     'SBI': 0x1E, 'LIND': 0x1F, 'SIND': 0x20,
-    # 'MOV' 无独立 opcode：RTL 已放弃 MOV，汇编器把 `MOV rd, rs` 翻译为 ADDI rd,rs,0（见 parse_lines）
+    # 'MOV' æ ç¬ç« opcodeï¼RTL å·²æ¾å¼ MOVï¼æ±ç¼å¨æ `MOV rd, rs` ç¿»è¯ä¸º ADDI rd,rs,0ï¼è§ parse_linesï¼
 }
 
-# (格式, 原长字节数)
-# 格式：none=无操作数；jalr=返回；jump=绝对目标→bytmov；branch=r1,r2,绝对目标→bytmov；
-#       alu_r=rd,rs1,rs2；alu_i=rd,rs1,imm8；lb=rd,addr16；sb=rs,addr16；sbi=imm8,addr16
+# (æ ¼å¼, åé¿å­èæ°)
+# æ ¼å¼ï¼none=æ æä½æ°ï¼jalr=è¿åï¼jump=ç»å¯¹ç®æ âbytmovï¼branch=r1,r2,ç»å¯¹ç®æ âbytmovï¼
+#       alu_r=rd,rs1,rs2ï¼alu_i=rd,rs1,imm8ï¼lb=rd,addr16ï¼sb=rs,addr16ï¼sbi=imm8,addr16
 INS = {
-    # 控制
+    # æ§å¶
     'HALT': ('none', 1),
     'NOP':  ('none', 1),
     'IRET': ('none', 1),
-    # 跳转
-    'LJAL': ('jump', 3),   # 向后压栈调用
-    'RJAL': ('jump', 3),   # 向前压栈调用
-    'JALR': ('jalr', 2),   # 弹栈返回
-    # 分支（寄存器 4 位 0-15；bytmov 16 位词单位）
+    # è·³è½¬
+    'LJAL': ('jump', 3),   # åååæ è°ç¨
+    'RJAL': ('jump', 3),   # åååæ è°ç¨
+    'JALR': ('jalr', 2),   # å¼¹æ è¿å
+    # åæ¯ï¼å¯å­å¨ 4 ä½ 0-15ï¼bytmov 16 ä½è¯åä½ï¼
     'LBEQ':  ('branch', 4),
     'RBEQ':  ('branch', 4),
     'LBNE':  ('branch', 4),
@@ -73,23 +73,23 @@ INS = {
     'ADDI': ('alu_i', 4), 'SUBI': ('alu_i', 4), 'ANDI': ('alu_i', 4),
     'ORI': ('alu_i', 4), 'XORI': ('alu_i', 4), 'SLLI': ('alu_i', 4),
     'SRLI': ('alu_i', 4), 'SLTIU': ('alu_i', 4),
-    # 访存
+    # è®¿å­
     'LBU': ('lb', 4),
     'SB':  ('sb', 4),
     'SBI': ('sbi', 4),
-    # 间接访存（寄存器寻址，addr = r1:r2）
+    # é´æ¥è®¿å­ï¼å¯å­å¨å¯»åï¼addr = r1:r2ï¼
     'LIND': ('lind', 4),
     'SIND': ('sind', 4),
 }
 
-# flag=01 无操作数压缩（对应 decoder 注释 CNOP/CIRET/CMOV 里的前两个；MOV 按 ALU 类 flag=11 处理）
+# flag=01 æ æä½æ°åç¼©ï¼å¯¹åº decoder æ³¨é CNOP/CIRET/CMOV éçåä¸¤ä¸ªï¼MOV æ ALU ç±» flag=11 å¤çï¼
 COMPRESSIBLE_01 = ('NOP', 'IRET')
-# flag=11 ALU 类压缩：alu_r / alu_i（字段满足才可压）
+# flag=11 ALU ç±»åç¼©ï¼alu_r / alu_iï¼å­æ®µæ»¡è¶³æå¯åï¼
 
-ROM_TOP = 0x1FFF  # PC 13 位词地址，0x000-0x1FFF（8192 词，ins_rom 扩容）
-DATA_BASE = 0xA000  # 数据区总线地址（ram_sec_init @0xA000；0xB000 已被 ram_ext 选片占用）
-DATA_ROM_START = 8192  # words 数组里数据区起始（程序 0-8191 词 + 数据区 4096 字节）
-HEX_TOP = 12287  # words 数组总槽（8192 程序 + 4096 数据）
+ROM_TOP = 0x1FFF  # PC 13 ä½è¯å°åï¼0x000-0x1FFFï¼8192 è¯ï¼ins_rom æ©å®¹ï¼
+DATA_BASE = 0xA000  # æ°æ®åºæ»çº¿å°åï¼ram_sec_init @0xA000ï¼0xB000 å·²è¢« ram_ext éçå ç¨ï¼
+DATA_ROM_START = 8192  # words æ°ç»éæ°æ®åºèµ·å§ï¼ç¨åº 0-8191 è¯ + æ°æ®åº 4096 å­èï¼
+HEX_TOP = 12287  # words æ°ç»æ»æ§½ï¼8192 ç¨åº + 4096 æ°æ®ï¼
 
 OPERAND_N = {'none': 0, 'jalr': 0, 'jump': 1, 'branch': 3,
              'alu_r': 3, 'alu_i': 3, 'lb': 2, 'sb': 2, 'sbi': 2,
@@ -101,13 +101,13 @@ class AsmError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- 解析工具
+# ---------------------------------------------------------------- è§£æå·¥å·
 def parse_int(tok, symbols):
-    """数字、.equ 常量、字符字面量、简单表达式（base&N / base>>N / base±N）→ int。"""
+    """æ°å­ã.equ å¸¸éãå­ç¬¦å­é¢éãç®åè¡¨è¾¾å¼ï¼base&N / base>>N / baseÂ±Nï¼â intã"""
     tok = tok.strip()
     if not tok:
-        raise AsmError('空操作数')
-    # 简单表达式：base op num（递归解析 base，支持 datalabel 如 (msg>>8)/(msg&0xFF)）
+        raise AsmError('ç©ºæä½æ°')
+    # ç®åè¡¨è¾¾å¼ï¼base op numï¼éå½è§£æ baseï¼æ¯æ datalabel å¦ (msg>>8)/(msg&0xFF)ï¼
     m = re.match(r'^\(?(.+?)\)?\s*(&|>>|<<|\+|-)\s*(\d+|0x[0-9a-fA-F]+)$', tok)
     if m:
         base, op, num = m.group(1).strip(), m.group(2), int(m.group(3), 0)
@@ -128,13 +128,13 @@ def parse_int(tok, symbols):
                       '\\': 92, "'": 39, '0': 0}
             if inner[1] in simple:
                 return simple[inner[1]]
-            raise AsmError(f'无效字符转义: {tok}')
+            raise AsmError(f'æ æå­ç¬¦è½¬ä¹: {tok}')
         if len(inner) == 4 and inner[0] == '\\' and inner[1] == 'x':
             try:
                 return int(inner[2:4], 16)
             except ValueError:
                 pass
-        raise AsmError(f'无效字符字面量: {tok}')
+        raise AsmError(f'æ æå­ç¬¦å­é¢é: {tok}')
     try:
         low = tok.lower()
         if low.startswith('0x'):
@@ -143,12 +143,12 @@ def parse_int(tok, symbols):
             return int(tok, 2)
         return int(tok, 10)
     except ValueError:
-        raise AsmError(f'无效数字/未定义常量: {tok}')
+        raise AsmError(f'æ ææ°å­/æªå®ä¹å¸¸é: {tok}')
 
 
 def eval_expr(tok, symbols):
-    """安全求值算术表达式：十进制/0x/0b 字面量 + 符号，支持 + - * / % ( )。
-    供 .rep 展开后的地址表达式（如 `0x9400 + 2*$i`）使用。"""
+    """å®å¨æ±å¼ç®æ¯è¡¨è¾¾å¼ï¼åè¿å¶/0x/0b å­é¢é + ç¬¦å·ï¼æ¯æ + - * / % ( )ã
+    ä¾ .rep å±å¼åçå°åè¡¨è¾¾å¼ï¼å¦ `0x9400 + 2*$i`ï¼ä½¿ç¨ã"""
     src = tok.strip()
     n = len(src)
     pos = 0
@@ -166,7 +166,7 @@ def eval_expr(tok, symbols):
         skip()
         m = re.match(r'(0[xX][0-9a-fA-F]+|0[bB][01]+|\d+|[A-Za-z_][A-Za-z0-9_]*)', src[pos:])
         if not m:
-            raise AsmError(f'表达式无效: {tok}')
+            raise AsmError(f'è¡¨è¾¾å¼æ æ: {tok}')
         t = m.group()
         pos += len(t)
         if t in symbols:
@@ -185,7 +185,7 @@ def eval_expr(tok, symbols):
             v = expr()
             skip()
             if peek() != ')':
-                raise AsmError(f'表达式括号不配对: {tok}')
+                raise AsmError(f'è¡¨è¾¾å¼æ¬å·ä¸éå¯¹: {tok}')
             pos += 1
             return v
         if peek() == '-':
@@ -206,13 +206,13 @@ def eval_expr(tok, symbols):
                 pos += 1
                 d = factor()
                 if d == 0:
-                    raise AsmError(f'除零: {tok}')
+                    raise AsmError(f'é¤é¶: {tok}')
                 v //= d
             elif c == '%':
                 pos += 1
                 d = factor()
                 if d == 0:
-                    raise AsmError(f'取模除零: {tok}')
+                    raise AsmError(f'åæ¨¡é¤é¶: {tok}')
                 v %= d
             else:
                 return v
@@ -235,15 +235,15 @@ def eval_expr(tok, symbols):
     v = expr()
     skip()
     if pos != n:
-        raise AsmError(f'表达式尾部多余: {tok}')
+        raise AsmError(f'è¡¨è¾¾å¼å°¾é¨å¤ä½: {tok}')
     return int(v)
 
 
 def parse_int(tok, symbols):
     tok = tok.strip()
     if not tok:
-        raise AsmError('空操作数')
-    # datalabel 偏移表达式：lab>>N / lab&N（数据区标签 → 0xA000+偏移）
+        raise AsmError('ç©ºæä½æ°')
+    # datalabel åç§»è¡¨è¾¾å¼ï¼lab>>N / lab&Nï¼æ°æ®åºæ ç­¾ â 0xA000+åç§»ï¼
     m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*(&|>>)\s*(\d+|0x[0-9a-fA-F]+)$', tok)
     if m:
         base, op, num = m.group(1), m.group(2), int(m.group(3), 0)
@@ -260,13 +260,13 @@ def parse_int(tok, symbols):
                       '\\': 92, "'": 39, '0': 0}
             if inner[1] in simple:
                 return simple[inner[1]]
-            raise AsmError(f'无效字符转义: {tok}')
+            raise AsmError(f'æ æå­ç¬¦è½¬ä¹: {tok}')
         if len(inner) == 4 and inner[0] == '\\' and inner[1] == 'x':
             try:
                 return int(inner[2:4], 16)
             except ValueError:
                 pass
-        raise AsmError(f'无效字符字面量: {tok}')
+        raise AsmError(f'æ æå­ç¬¦å­é¢é: {tok}')
     try:
         if re.search(r'[+\-*/%()]', tok):
             return eval_expr(tok, symbols)
@@ -277,7 +277,7 @@ def parse_int(tok, symbols):
             return int(tok, 2)
         return int(tok, 10)
     except ValueError:
-        raise AsmError(f'无效数字/未定义常量: {tok}')
+        raise AsmError(f'æ ææ°å­/æªå®ä¹å¸¸é: {tok}')
 
 
 def parse_reg(tok, symbols):
@@ -291,21 +291,21 @@ def parse_reg(tok, symbols):
     else:
         v = parse_int(t, symbols)
     if abs_reg:
-        # 物理绝对号 K：编码相对号 raw = K - base（K>=253 豁免，硬件不加 base → raw 保持 K）
+        # ç©çç»å¯¹å· Kï¼ç¼ç ç¸å¯¹å· raw = K - baseï¼K>=253 è±åï¼ç¡¬ä»¶ä¸å  base â raw ä¿æ Kï¼
         if v >= 253:
             raw = v
         else:
             raw = v - CURRENT_BASE
         if not (0 <= raw <= 0xFF):
-            raise AsmError(f'绝对寄存器 {tok} 换算越界: {v}-{CURRENT_BASE} 不在 0-255')
+            raise AsmError(f'ç»å¯¹å¯å­å¨ {tok} æ¢ç®è¶ç: {v}-{CURRENT_BASE} ä¸å¨ 0-255')
         return raw
     if not (0 <= v <= 0xFF):
-        raise AsmError(f'寄存器号越界: {tok}（须 0-255）')
+        raise AsmError(f'å¯å­å¨å·è¶ç: {tok}ï¼é¡» 0-255ï¼')
     return v
 
 
 def strip_comment(line):
-    """去掉 # 和 // 注释；引号内的 # 和 // 是字符常量，不处理。"""
+    """å»æ # å // æ³¨éï¼å¼å·åç # å // æ¯å­ç¬¦å¸¸éï¼ä¸å¤çã"""
     i, n = 0, len(line)
     while i < n:
         c = line[i]
@@ -329,8 +329,8 @@ def strip_comment(line):
 
 
 def expand_reps(src_lines):
-    """展开 `.rep N` .. `.endr` 循环（支持嵌套）：`$i`=最内层索引，`$j`=外层索引。
-    行级预处理，在 parse_lines 之前。"""
+    """å±å¼ `.rep N` .. `.endr` å¾ªç¯ï¼æ¯æåµå¥ï¼ï¼`$i`=æåå±ç´¢å¼ï¼`$j`=å¤å±ç´¢å¼ã
+    è¡çº§é¢å¤çï¼å¨ parse_lines ä¹åã"""
     result = []
     i, n = 0, len(src_lines)
     while i < n:
@@ -354,7 +354,7 @@ def expand_reps(src_lines):
                     body.append(src_lines[i])
                 i += 1
             if depth != 0:
-                raise AsmError('.rep 缺少 .endr 配对')
+                raise AsmError('.rep ç¼ºå° .endr éå¯¹')
             inner = expand_reps(body)
             for idx in range(count):
                 for bl in inner:
@@ -366,7 +366,7 @@ def expand_reps(src_lines):
 
 
 def split_operands(s):
-    """按逗号/空白切分操作数；引号内的空格/逗号不切（支持 ' ' 这类字符常量）。"""
+    """æéå·/ç©ºç½ååæä½æ°ï¼å¼å·åçç©ºæ ¼/éå·ä¸åï¼æ¯æ ' ' è¿ç±»å­ç¬¦å¸¸éï¼ã"""
     toks = []
     cur = []
     i, n = 0, len(s)
@@ -398,11 +398,11 @@ def split_operands(s):
 
 
 def parse_str(operands):
-    """从 .str 操作数里取双引号串并解码转义 → bytes。"""
+    """ä» .str æä½æ°éååå¼å·ä¸²å¹¶è§£ç è½¬ä¹ â bytesã"""
     s = operands.strip()
     a, b = s.find('"'), s.rfind('"')
     if a < 0 or b <= a:
-        raise AsmError('.str 需要双引号字符串')
+        raise AsmError('.str éè¦åå¼å·å­ç¬¦ä¸²')
     inner = s[a + 1:b]
     out = bytearray()
     i = 0
@@ -418,60 +418,60 @@ def parse_str(operands):
                     out.append(int(inner[i + 2:i + 4], 16)); i += 4; continue
                 except ValueError:
                     pass
-            raise AsmError(f'.str 未知转义: \\{n}')
+            raise AsmError(f'.str æªç¥è½¬ä¹: \\{n}')
         o = ord(c)
         if o < 128:
-            out.append(o)                # ASCII 单字节
+            out.append(o)                # ASCII åå­è
         else:
-            out += c.encode('utf-8')     # 非 ASCII（中文等）→ UTF-8 多字节
+            out += c.encode('utf-8')     # é ASCIIï¼ä¸­æç­ï¼â UTF-8 å¤å­è
         i += 1
     return bytes(out)
 
 
-# ---------------------------------------------------------------- 编码
-# 自动修正计数（main 里汇总打印）
+# ---------------------------------------------------------------- ç¼ç 
+# èªå¨ä¿®æ­£è®¡æ°ï¼main éæ±æ»æå°ï¼
 AUTO_NOP_COUNT = 0
 AUTO_FLIP_COUNT = 0
-# .puts 展开用唯一标签计数器
+# .puts å±å¼ç¨å¯ä¸æ ç­¾è®¡æ°å¨
 _PUTS_CTR = 0
-# 自动 jpad 计数 + 标签计数器
+# èªå¨ jpad è®¡æ° + æ ç­¾è®¡æ°å¨
 AUTO_JPAD_COUNT = 0
 _JPAD_CTR = 0
-# 当前 .base（任务窗口基准，用于把 rK.base 绝对号换算成相对号）
+# å½å .baseï¼ä»»å¡çªå£åºåï¼ç¨äºæ rK.base ç»å¯¹å·æ¢ç®æç¸å¯¹å·ï¼
 CURRENT_BASE = 0
 
 
 def _flip_side(m):
-    """翻转分支前缀 L↔R（语义不变，仅编码方向位）。"""
+    """ç¿»è½¬åæ¯åç¼ LâRï¼è¯­ä¹ä¸åï¼ä»ç¼ç æ¹åä½ï¼ã"""
     return ('L' if m[0] == 'R' else 'R') + m[1:]
 
 
 def bytmov_for(mnem, word, target):
-    """bytmov 16 位【词单位】，基准 W+2。R=向前 target-(W+2)，L=向后 (W+2)-target。
-    须 1 ≤ bytmov ≤ 0xFFFF（pc.v 判 0 为不跳 → 目标=W+2 不可编码）。
-    方向与前缀相反时自动翻转前缀（L↔R），仍越界才报错（此时需人工处理）。"""
+    """bytmov 16 ä½ãè¯åä½ãï¼åºå W+3ï¼rpu æµæ°´çº¿çº§ï¼åæå»¶è¿ 3 æï¼ãR=åå target-(W+3)ï¼L=åå (W+3)-targetã
+    é¡» 1 â¤ bytmov â¤ 0xFFFFï¼pc.v å¤ 0 ä¸ºä¸è·³ â ç®æ =W+3 ä¸å¯ç¼ç ï¼ã
+    æ¹åä¸åç¼ç¸åæ¶èªå¨ç¿»è½¬åç¼ï¼LâRï¼ï¼ä»è¶çææ¥éï¼æ­¤æ¶éäººå·¥å¤çï¼ã"""
     global AUTO_FLIP_COUNT
     if not (0 <= target <= ROM_TOP):
-        raise AsmError(f'跳转目标越界: 0x{target:03X}（须 0x000-0x1FFF）')
-    fwd = target - (word + 2)
-    bwd = (word + 2) - target
+        raise AsmError(f'è·³è½¬ç®æ è¶ç: 0x{target:03X}ï¼é¡» 0x000-0x1FFFï¼')
+    fwd = target - (word + 3)
+    bwd = (word + 3) - target
     d0 = mnem[0]
     for d, bm in ((d0, fwd if d0 == 'R' else bwd),
                   ('L' if d0 == 'R' else 'R', bwd if d0 == 'R' else fwd)):
-        if 1 <= bm <= 0xFFFF:
+        if 0 <= bm <= 0xFFFF:
             if d != d0:
                 AUTO_FLIP_COUNT += 1
                 return bm, _flip_side(mnem)
             return bm, mnem
-    raise AsmError(f'跳转越界：word=0x{word:03X} target=0x{target:03X} '
-                   f'bytmov={fwd if d0 == "R" else bwd}（须 1-0xFFFF；'
-                   f'目标=当前词+2 时 bytmov=0 不可编码，属死区）')
+    raise AsmError(f'è·³è½¬è¶çï¼word=0x{word:03X} target=0x{target:03X} '
+                   f'bytmov={fwd if d0 == "R" else bwd}ï¼é¡» 1-0xFFFFï¼'
+                   f'ç®æ =å½åè¯+3 æ¶ bytmov=0 ä¸å¯ç¼ç ï¼å±æ­»åºï¼')
 
 
 def compressed_bytes(m, fmt, ops, symbols):
-    """返回 16bit 压缩编码 [b0,b1]，不可压返回 None。
-    flag=11（ALU-R/I）：byte1={rd[1:0],r1[2:0],r2[2:0]}，I 型末字段=imm[2:0]；
-    flag=01（NOP/IRET）：byte1=0x00。"""
+    """è¿å 16bit åç¼©ç¼ç  [b0,b1]ï¼ä¸å¯åè¿å Noneã
+    flag=11ï¼ALU-R/Iï¼ï¼byte1={rd[1:0],r1[2:0],r2[2:0]}ï¼I åæ«å­æ®µ=imm[2:0]ï¼
+    flag=01ï¼NOP/IRETï¼ï¼byte1=0x00ã"""
     if m in COMPRESSIBLE_01:
         return [OPCODE[m] << 2 | 0x01, 0x00]
     if fmt == 'alu_r':
@@ -486,14 +486,14 @@ def compressed_bytes(m, fmt, ops, symbols):
         try:
             imm = parse_int(ops[2], symbols)
         except AsmError:
-            return None      # 表达式含未定义 datalabel（如 __pdN>>8）→ 不压缩
+            return None      # è¡¨è¾¾å¼å«æªå®ä¹ datalabelï¼å¦ __pdN>>8ï¼â ä¸åç¼©
         if rd <= 3 and rs1 <= 7 and 0 <= imm <= 7:
             return [OPCODE[m] << 2 | 0x03, (rd << 6) | (rs1 << 3) | imm]
     return None
 
 
 def long_bytes(m, fmt, ops, symbols, word, tget):
-    """原长编码（flag=00）→ 4 字节 [b0,b1,b2,b3]（不足补 0）。tget(tok)→绝对词地址。"""
+    """åé¿ç¼ç ï¼flag=00ï¼â 4 å­è [b0,b1,b2,b3]ï¼ä¸è¶³è¡¥ 0ï¼ãtget(tok)âç»å¯¹è¯å°åã"""
     b0 = OPCODE[m] << 2
     if fmt == 'none':
         return [b0, 0, 0, 0]
@@ -507,7 +507,7 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         r1 = parse_reg(ops[0], symbols)
         r2 = parse_reg(ops[1], symbols)
         if r1 > 0xF or r2 > 0xF:
-            raise AsmError(f'{m} 分支寄存器须 0-15（4 位）：r1={r1} r2={r2}')
+            raise AsmError(f'{m} åæ¯å¯å­å¨é¡» 0-15ï¼4 ä½ï¼ï¼r1={r1} r2={r2}')
         target = tget(ops[2])
         bm, eff = bytmov_for(m, word, target)
         return [OPCODE[eff] << 2, (bm >> 8) & 0xFF, bm & 0xFF, (r1 << 4) | r2]
@@ -519,53 +519,53 @@ def long_bytes(m, fmt, ops, symbols, word, tget):
         rs1 = parse_reg(ops[1], symbols)
         imm = parse_int(ops[2], symbols)
         if not (0 <= imm <= 0xFF):
-            raise AsmError(f'{m} 立即数越界: {ops[2]}（须 0-255）')
+            raise AsmError(f'{m} ç«å³æ°è¶ç: {ops[2]}ï¼é¡» 0-255ï¼')
         return [b0, rd, rs1, imm]
     if fmt == 'lb':
         rd = parse_reg(ops[0], symbols)
         a = tget(ops[1])
         if not (0 <= a <= 0xFFFF):
-            raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
+            raise AsmError(f'{m} 16 ä½å°åè¶ç: {ops[1]}')
         return [b0, rd, (a >> 8) & 0xFF, a & 0xFF]
     if fmt == 'sb':
         rs = parse_reg(ops[0], symbols)
         a = tget(ops[1])
         if not (0 <= a <= 0xFFFF):
-            raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
+            raise AsmError(f'{m} 16 ä½å°åè¶ç: {ops[1]}')
         return [b0, rs, (a >> 8) & 0xFF, a & 0xFF]
     if fmt == 'sbi':
-        # SBI imm8, addr16：byte1=立即数，byte2:3=16 位地址（与 SB 布局一致，仅源改为立即数）
+        # SBI imm8, addr16ï¼byte1=ç«å³æ°ï¼byte2:3=16 ä½å°åï¼ä¸ SB å¸å±ä¸è´ï¼ä»æºæ¹ä¸ºç«å³æ°ï¼
         imm = parse_int(ops[0], symbols)
         a = parse_int(ops[1], symbols)
         if not (0 <= imm <= 0xFF):
-            raise AsmError(f'{m} 立即数越界: {ops[0]}（须 0-255）')
+            raise AsmError(f'{m} ç«å³æ°è¶ç: {ops[0]}ï¼é¡» 0-255ï¼')
         if not (0 <= a <= 0xFFFF):
-            raise AsmError(f'{m} 16 位地址越界: {ops[1]}')
+            raise AsmError(f'{m} 16 ä½å°åè¶ç: {ops[1]}')
         return [b0, imm, (a >> 8) & 0xFF, a & 0xFF]
     if fmt == 'lind':
-        # LIND rd, r1, r2：byte1=rd，byte2=r1(addr 高8位)，byte3=r2(addr 低8位)；addr = r1:r2
+        # LIND rd, r1, r2ï¼byte1=rdï¼byte2=r1(addr é«8ä½)ï¼byte3=r2(addr ä½8ä½)ï¼addr = r1:r2
         rd = parse_reg(ops[0], symbols)
         r1 = parse_reg(ops[1], symbols)
         r2 = parse_reg(ops[2], symbols)
         return [b0, rd, r1, r2]
     if fmt == 'sind':
-        # SIND rs, r1, r2：byte1=rs(源寄存器，RTL 存 bus_data_final=r_bus 值)，
-        #   byte2=r1(addr 高8位)，byte3=r2(addr 低8位)；写 rs 的值到 [r1:r2]
+        # SIND rs, r1, r2ï¼byte1=rs(æºå¯å­å¨ï¼RTL å­ bus_data_final=r_bus å¼)ï¼
+        #   byte2=r1(addr é«8ä½)ï¼byte3=r2(addr ä½8ä½)ï¼å rs çå¼å° [r1:r2]
         rs = parse_reg(ops[0], symbols)
         r1 = parse_reg(ops[1], symbols)
         r2 = parse_reg(ops[2], symbols)
         return [b0, rs, r1, r2]
-    raise AsmError(f'未知格式 {fmt}')
+    raise AsmError(f'æªç¥æ ¼å¼ {fmt}')
 
 
-# ---------------------------------------------------------------- 解析
+# ---------------------------------------------------------------- è§£æ
 def parse_lines(src_lines):
     global _PUTS_CTR, CURRENT_BASE
     CURRENT_BASE = 0
     symbols = {}
     items = []
     errs = []
-    in_data = False          # .data 数据区：后续 .byte/.str/.db 进数据区（0xA000 区）
+    in_data = False          # .data æ°æ®åºï¼åç»­ .byte/.str/.db è¿æ°æ®åºï¼0xA000 åºï¼
     for ln, raw in enumerate(src_lines, 1):
         line = strip_comment(raw).strip()
         if not line:
@@ -590,7 +590,7 @@ def parse_lines(src_lines):
                 continue
             if mnem == '.DB':
                 if not in_data:
-                    raise AsmError('.db 必须位于 .data 数据区内')
+                    raise AsmError('.db å¿é¡»ä½äº .data æ°æ®åºå')
                 bs = []
                 for t in ops:
                     if t.startswith('"') or t.startswith("'"):
@@ -598,29 +598,29 @@ def parse_lines(src_lines):
                     else:
                         b = parse_int(t, symbols)
                         if not (0 <= b <= 0xFF):
-                            raise AsmError(f'.db 越界: {t}')
+                            raise AsmError(f'.db è¶ç: {t}')
                         bs.append(b)
                 items.append({'kind': 'datadata', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
                 continue
             if mnem == '.ORG':
                 if len(ops) != 1:
-                    raise AsmError('.org 需要 1 个词地址')
+                    raise AsmError('.org éè¦ 1 ä¸ªè¯å°å')
                 a = parse_int(ops[0], symbols)
                 if not (0 <= a <= ROM_TOP):
-                    raise AsmError(f'.org 越界: 0x{a:03X}')
+                    raise AsmError(f'.org è¶ç: 0x{a:03X}')
                 items.append({'kind': 'org', 'addr': a, 'ln': ln})
                 continue
             if mnem == '.EQU':
                 if len(ops) != 2:
-                    raise AsmError('.equ 需要 .equ NAME value')
+                    raise AsmError('.equ éè¦ .equ NAME value')
                 symbols[ops[0]] = parse_int(ops[1], symbols)
                 continue
             if mnem == '.BASE':
                 if len(ops) != 1:
-                    raise AsmError('.base 需要 1 个寄存器基准值')
+                    raise AsmError('.base éè¦ 1 ä¸ªå¯å­å¨åºåå¼')
                 b = parse_int(ops[0], symbols)
                 if not (0 <= b <= 0xF0):
-                    raise AsmError(f'.base 越界: 0x{b:02X}（须 0-240；窗口须留 16 格 + 豁免段）')
+                    raise AsmError(f'.base è¶ç: 0x{b:02X}ï¼é¡» 0-240ï¼çªå£é¡»ç 16 æ ¼ + è±åæ®µï¼')
                 CURRENT_BASE = b
                 continue
             if mnem == '.BYTE':
@@ -628,7 +628,7 @@ def parse_lines(src_lines):
                 for t in ops:
                     b = parse_int(t, symbols)
                     if not (0 <= b <= 0xFF):
-                        raise AsmError(f'.byte 越界: {t}')
+                        raise AsmError(f'.byte è¶ç: {t}')
                     bs.append(b)
                 items.append({'kind': 'datadata' if in_data else 'data',
                               'bytes': bs, 'src': raw.strip(), 'ln': ln})
@@ -639,9 +639,9 @@ def parse_lines(src_lines):
                               'bytes': bs, 'src': raw.strip(), 'ln': ln})
                 continue
             if mnem == '.PUTS':
-                # 伪指令 .puts "text"：>3 字符用数据区 LIND 循环（文本进 hex 后半，每字符 1 字节；
-                # 循环 ~13 词固定 + 数据区）。短文本（≤3 字符）保持内联逐字符（3 词/字符）——
-                # 长文本数据区省、短文本内联省。默认目标 putc，可用第二个参数换。
+                # ä¼ªæä»¤ .puts "text"ï¼>3 å­ç¬¦ç¨æ°æ®åº LIND å¾ªç¯ï¼ææ¬è¿ hex ååï¼æ¯å­ç¬¦ 1 å­èï¼
+                # å¾ªç¯ ~13 è¯åºå® + æ°æ®åºï¼ãç­ææ¬ï¼â¤3 å­ç¬¦ï¼ä¿æåèéå­ç¬¦ï¼3 è¯/å­ç¬¦ï¼ââ
+                # é¿ææ¬æ°æ®åºçãç­ææ¬åèçãé»è®¤ç®æ  putcï¼å¯ç¨ç¬¬äºä¸ªåæ°æ¢ã
                 bs = list(parse_str(operands))
                 ops = split_operands(operands)
                 tgt = 'putc'
@@ -649,7 +649,7 @@ def parse_lines(src_lines):
                     tgt = ops[1]
                 if len(bs) > 8 and tgt == 'putc':
                     lab = f'__pd{_PUTS_CTR}'
-                    # datalabel 必须在 datadata 前：偏移 = 当前累积（文本起始），否则取到文本后
+                    # datalabel å¿é¡»å¨ datadata åï¼åç§» = å½åç´¯ç§¯ï¼ææ¬èµ·å§ï¼ï¼å¦ååå°ææ¬å
                     items.append({'kind': 'datalabel', 'name': lab, 'ln': ln})
                     items.append({'kind': 'datadata', 'bytes': bs, 'src': raw.strip(), 'ln': ln})
                     items.append({'kind': 'ins', 'mnem': 'ADDI', 'fmt': 'alu_i', 'nbytes': 4,
@@ -683,32 +683,32 @@ def parse_lines(src_lines):
                 _PUTS_CTR += 1
                 continue
             if mnem == 'MOV':
-                # 伪指令：MOV rd, rs = rd 复制 rs。RTL 已放弃 MOV，翻译为 ADDI rd, rs, 0（语义等价，
-                # 自动继承 ADDI 的压缩能力：rd≤3 且 rs≤7 时压成 16bit，否则原长 4 字节）。
+                # ä¼ªæä»¤ï¼MOV rd, rs = rd å¤å¶ rsãRTL å·²æ¾å¼ MOVï¼ç¿»è¯ä¸º ADDI rd, rs, 0ï¼è¯­ä¹ç­ä»·ï¼
+                # èªå¨ç»§æ¿ ADDI çåç¼©è½åï¼rdâ¤3 ä¸ rsâ¤7 æ¶åæ 16bitï¼å¦ååé¿ 4 å­èï¼ã
                 if len(ops) != 2:
-                    raise AsmError('MOV 需要 2 个操作数（复制语义，自动转 ADDI）：MOV rd, rs')
+                    raise AsmError('MOV éè¦ 2 ä¸ªæä½æ°ï¼å¤å¶è¯­ä¹ï¼èªå¨è½¬ ADDIï¼ï¼MOV rd, rs')
                 mnem = 'ADDI'
                 ops = ops + ['0']
             if mnem not in INS:
-                raise AsmError(f'未知助记符/伪指令: {mnem}')
+                raise AsmError(f'æªç¥å©è®°ç¬¦/ä¼ªæä»¤: {mnem}')
             fmt, nb = INS[mnem]
             if len(ops) != OPERAND_N[fmt]:
-                raise AsmError(f'{mnem} 需要 {OPERAND_N[fmt]} 个操作数，给了 {len(ops)}')
-            cb = compressed_bytes(mnem, fmt, ops, symbols)  # 可压则给出 16bit，否则 None
+                raise AsmError(f'{mnem} éè¦ {OPERAND_N[fmt]} ä¸ªæä½æ°ï¼ç»äº {len(ops)}')
+            cb = compressed_bytes(mnem, fmt, ops, symbols)  # å¯ååç»åº 16bitï¼å¦å None
             items.append({'kind': 'ins', 'mnem': mnem, 'fmt': fmt, 'nbytes': nb,
                           'ops': ops, 'cbytes': cb, 'src': raw.strip(), 'ln': ln})
         except AsmError as e:
-            errs.append(f'第 {ln} 行: {e}')
+            errs.append(f'ç¬¬ {ln} è¡: {e}')
             errs.append(f'    {raw.rstrip()}')
     if errs:
         raise AsmError('\n'.join(errs))
     return items, symbols
 
 
-# ---------------------------------------------------------------- 布局
+# ---------------------------------------------------------------- å¸å±
 def compute_layout(items, must_first):
-    """分配每条指令/数据的词地址。返回 (layout: item_idx→(word,is_second), word_packed: set, final_word)。
-    相邻两条都可压且第二条非 must_first → 打包共享一词。"""
+    """åéæ¯æ¡æä»¤/æ°æ®çè¯å°åãè¿å (layout: item_idxâ(word,is_second), word_packed: set, final_word)ã
+    ç¸é»ä¸¤æ¡é½å¯åä¸ç¬¬äºæ¡é must_first â æåå±äº«ä¸è¯ã"""
     layout = {}
     word_packed = set()
     word = 0
@@ -747,7 +747,7 @@ def compute_layout(items, must_first):
 
 
 def run_layout(items):
-    """固定点布局：让所有跳转目标（label）落在词首。返回 (layout, word_packed, label_word)。"""
+    """åºå®ç¹å¸å±ï¼è®©ææè·³è½¬ç®æ ï¼labelï¼è½å¨è¯é¦ãè¿å (layout, word_packed, label_word)ã"""
     label_item = {}
     for idx, it in enumerate(items):
         if it['kind'] == 'label':
@@ -774,14 +774,14 @@ def run_layout(items):
 
 
 def _insert_deadzone_nops(items, layout, label_word):
-    """死区自动补 NOP：前向分支(jump/branch)目标落在死区（target < word+3，
-    bytmov 0/-1 硬件判不跳）时，在目标 label 前自动插 NOP 把距离拉到 ≥1。
-    返回本次插入的 NOP 总数（0=无需再插）。label 紧跟 .org 时跳过（避免移位破坏固定地址）。"""
+    """æ­»åºèªå¨è¡¥ NOPï¼åååæ¯(jump/branch)ç®æ è½å¨æ­»åºï¼target < word+3ï¼
+    bytmov 0/-1 ç¡¬ä»¶å¤ä¸è·³ï¼æ¶ï¼å¨ç®æ  label åèªå¨æ NOP æè·ç¦»æå° â¥1ã
+    è¿åæ¬æ¬¡æå¥ç NOP æ»æ°ï¼0=æ éåæï¼ãlabel ç´§è· .org æ¶è·³è¿ï¼é¿åç§»ä½ç ´ååºå®å°åï¼ã"""
     label_pos = {}
     for idx, it in enumerate(items):
         if it['kind'] == 'label':
             label_pos[it['name']] = idx
-    need = {}   # label item 下标 → 需插 NOP 数
+    need = {}   # label item ä¸æ  â éæ NOP æ°
     for idx, it in enumerate(items):
         if it['kind'] == 'ins' and it['fmt'] in ('jump', 'branch'):
             tok = it['ops'][0] if it['fmt'] == 'jump' else it['ops'][2]
@@ -789,22 +789,22 @@ def _insert_deadzone_nops(items, layout, label_word):
             if is_label(t) and t in label_word and t in label_pos:
                 word = layout[idx][0]
                 target = label_word[t]
-                # 死区 = target 恰在 word+2：L 与 R 的 bytmov 都=0，无前缀可救。
-                # (target=word+1 可用 L 编码 bytmov=1，方向翻转可救，不需要补 NOP)
-                if target == word + 2:
+                # æ­»åº = target æ°å¨ word+3ï¼L ä¸ R ç bytmov é½=0ï¼æ åç¼å¯æã
+                # (target=word+2 å¯ç¨ L ç¼ç  bytmov=1ï¼æ¹åç¿»è½¬å¯æï¼ä¸éè¦è¡¥ NOP)
+                if target == word + 3:
                     li = label_pos[t]
                     if li > 0 and items[li - 1]['kind'] == 'org':
-                        continue      # label 紧跟 .org：不自动移位，留给编码报错
-                    n = word + 3 - target
+                        continue      # label ç´§è· .orgï¼ä¸èªå¨ç§»ä½ï¼çç»ç¼ç æ¥é
+                    n = word + 4 - target
                     need[li] = max(need.get(li, 0), n)
     if not need:
         return 0
-    for li in sorted(need, reverse=True):   # 从后往前插，保证下标稳定
+    for li in sorted(need, reverse=True):   # ä»åå¾åæï¼ä¿è¯ä¸æ ç¨³å®
         for _ in range(need[li]):
             items.insert(li, {
                 'kind': 'ins', 'mnem': 'NOP', 'fmt': 'none', 'nbytes': 1,
                 'ops': [], 'cbytes': [OPCODE['NOP'] << 2 | 0x01, 0x00],
-                'src': '// 自动 NOP（bytmov 死区）', 'ln': 0,
+                'src': '// èªå¨ NOPï¼bytmov æ­»åºï¼', 'ln': 0,
                 'force_first': True,
             })
     return sum(need.values())
@@ -814,14 +814,14 @@ def is_label(tok):
     return LABEL_RE.match(tok) is not None
 
 
-# ---- 自动 __jpad 垫层（IRET W+2 语义硬性约定）----
-# 中断只在顺序指令（授权点，irq_en==11）派发；派发时 W+1 被跳过。
-# 若控制转移在 W+1 槽位会被吞 → 每条【顺序指令后的控制转移】前必须垫
-# `LBNE r0,r0,<lab>` + `<lab>:`（自跳 1 词、永不取）。汇编器自动补：
-#   · 控制转移 = 9 条（LJAL/RJAL/JALR/LBEQ/RBEQ/LBNE/RBNE/LBLTU/RBLTU）
-#   · 前一条真实指令是顺序指令 → 插入垫层；是控制转移（含 IRET/HALT）→ 天然安全不插
-#   · 源里已手写垫层（LBNE r0,r0,<lab> 紧跟 <lab>:）→ 跳过（对既有程序字节兼容）
-# 不 pad IRET/HALT（前者是返回、后者停机，均无授权点跳过问题）。
+# ---- èªå¨ __jpad å«å±ï¼IRET W+2 è¯­ä¹ç¡¬æ§çº¦å®ï¼----
+# ä¸­æ­åªå¨é¡ºåºæä»¤ï¼ææç¹ï¼irq_en==11ï¼æ´¾åï¼æ´¾åæ¶ W+1 è¢«è·³è¿ã
+# è¥æ§å¶è½¬ç§»å¨ W+1 æ§½ä½ä¼è¢«å â æ¯æ¡ãé¡ºåºæä»¤åçæ§å¶è½¬ç§»ãåå¿é¡»å«
+# `LBNE r0,r0,<lab>` + `<lab>:`ï¼èªè·³ 1 è¯ãæ°¸ä¸åï¼ãæ±ç¼å¨èªå¨è¡¥ï¼
+#   Â· æ§å¶è½¬ç§» = 9 æ¡ï¼LJAL/RJAL/JALR/LBEQ/RBEQ/LBNE/RBNE/LBLTU/RBLTUï¼
+#   Â· åä¸æ¡çå®æä»¤æ¯é¡ºåºæä»¤ â æå¥å«å±ï¼æ¯æ§å¶è½¬ç§»ï¼å« IRET/HALTï¼â å¤©ç¶å®å¨ä¸æ
+#   Â· æºéå·²æåå«å±ï¼LBNE r0,r0,<lab> ç´§è· <lab>:ï¼â è·³è¿ï¼å¯¹æ¢æç¨åºå­èå¼å®¹ï¼
+# ä¸ pad IRET/HALTï¼åèæ¯è¿åãåèåæºï¼åæ ææç¹è·³è¿é®é¢ï¼ã
 
 CTRL_FMTS = ('jump', 'branch', 'jalr')
 
@@ -832,7 +832,7 @@ def _is_ctrl_ins(it):
 
 
 def _is_jpad_pair(items, i):
-    """items[i] 是否为源里手写的 jpad：LBNE r0,r0,<lab> 紧跟 <lab> 标签。"""
+    """items[i] æ¯å¦ä¸ºæºéæåç jpadï¼LBNE r0,r0,<lab> ç´§è· <lab> æ ç­¾ã"""
     return (i + 1 < len(items)
             and items[i]['kind'] == 'ins' and items[i]['mnem'] == 'LBNE'
             and len(items[i]['ops']) == 3 and items[i]['ops'][0] == 'r0'
@@ -842,19 +842,19 @@ def _is_jpad_pair(items, i):
 
 
 def auto_jpad(items):
-    """按序扫描，给需要垫层的控制转移前插 jpad。返回新 items。
-    控制转移本身是分支，若前一条真实指令是顺序指令（授权点）则需垫层。
-    源里手写的 jpad（LBNE r0,r0,<lab>+<lab>:）是已完成的垫层：不重复垫、
-    且其后紧邻的控制转移视为已有垫层。"""
+    """æåºæ«æï¼ç»éè¦å«å±çæ§å¶è½¬ç§»åæ jpadãè¿åæ° itemsã
+    æ§å¶è½¬ç§»æ¬èº«æ¯åæ¯ï¼è¥åä¸æ¡çå®æä»¤æ¯é¡ºåºæä»¤ï¼ææç¹ï¼åéå«å±ã
+    æºéæåç jpadï¼LBNE r0,r0,<lab>+<lab>:ï¼æ¯å·²å®æçå«å±ï¼ä¸éå¤å«ã
+    ä¸å¶åç´§é»çæ§å¶è½¬ç§»è§ä¸ºå·²æå«å±ã"""
     global AUTO_JPAD_COUNT, _JPAD_CTR
     out = []
-    prev_ctrl = True            # 程序首指令前无授权点，视为安全
+    prev_ctrl = True            # ç¨åºé¦æä»¤åæ ææç¹ï¼è§ä¸ºå®å¨
     i = 0
     n = len(items)
     while i < n:
         it = items[i]
         if _is_jpad_pair(items, i):
-            # 源里手写 jpad：原样搬运（不垫它自己），并把下一个真实指令视为安全
+            # æºéæå jpadï¼åæ ·æ¬è¿ï¼ä¸å«å®èªå·±ï¼ï¼å¹¶æä¸ä¸ä¸ªçå®æä»¤è§ä¸ºå®å¨
             out.append(it)
             out.append(items[i + 1])
             prev_ctrl = True
@@ -865,44 +865,39 @@ def auto_jpad(items):
             _JPAD_CTR += 1
             out.append({'kind': 'ins', 'mnem': 'LBNE', 'fmt': 'branch', 'nbytes': 4,
                         'ops': ['r0', 'r0', lab], 'cbytes': None,
-                        'src': '// 自动 jpad（IRET W+2 垫层）', 'ln': 0})
+                        'src': '// èªå¨ jpadï¼IRET W+2 å«å±ï¼', 'ln': 0})
             out.append({'kind': 'label', 'name': lab, 'ln': 0})
             AUTO_JPAD_COUNT += 1
         out.append(it)
         if it['kind'] == 'ins':
             prev_ctrl = _is_ctrl_ins(it)
         elif it['kind'] == 'data':
-            prev_ctrl = False   # 数据词视作顺序，保守补垫
+            prev_ctrl = False   # æ°æ®è¯è§ä½é¡ºåºï¼ä¿å®è¡¥å«
         i += 1
     return out
 
 
-# ---------------------------------------------------------------- 汇编
+# ---------------------------------------------------------------- æ±ç¼
 def assemble(src_lines):
     global AUTO_NOP_COUNT, CURRENT_BASE
     CURRENT_BASE = 0
-    src_lines = expand_reps(src_lines)   # 展开 .rep/.endr（行级预处理）
+    src_lines = expand_reps(src_lines)   # å±å¼ .rep/.endrï¼è¡çº§é¢å¤çï¼
     items, symbols = parse_lines(src_lines)
     if not items:
-        raise AsmError('程序为空')
-    # 死区自动 NOP：前向分支目标落在 [W+1, W+2]（bytmov 0/-1 不可编码）时在目标
-    # label 前插 NOP 拉开。固定点迭代：插 NOP 只会增大前向距离，必然收敛。
-    while True:
-        layout, word_packed, label_word = run_layout(items)
-        added = _insert_deadzone_nops(items, layout, label_word)
-        if not added:
-            break
-        AUTO_NOP_COUNT += added
+        raise AsmError('ç¨åºä¸ºç©º')
+    # æ­»åºèªå¨ NOPï¼åååæ¯ç®æ è½å¨ [W+1, W+2]ï¼bytmov 0/-1 ä¸å¯ç¼ç ï¼æ¶å¨ç®æ 
+    # label åæ NOP æå¼ãåºå®ç¹è¿­ä»£ï¼æ NOP åªä¼å¢å¤§ååè·ç¦»ï¼å¿ç¶æ¶æã
+    layout, word_packed, label_word = run_layout(items)   # bytmov=0 合法，无需死区 NOP
 
-    # 数据区（.data）：收集字节 + datalabel 地址（0xA000 + 偏移）
-    # 跨 256 字节页保护：.puts 长文本用 LIND 循环读（地址 = {hi, lo}，lo 自增回绕时 hi 不进位），
-    # 文本必须整体落在单一 256 页内。若某文本跨页，在文本前插填充把它推到下一页起始（页对齐）。
+    # æ°æ®åºï¼.dataï¼ï¼æ¶éå­è + datalabel å°åï¼0xA000 + åç§»ï¼
+    # è·¨ 256 å­èé¡µä¿æ¤ï¼.puts é¿ææ¬ç¨ LIND å¾ªç¯è¯»ï¼å°å = {hi, lo}ï¼lo èªå¢åç»æ¶ hi ä¸è¿ä½ï¼ï¼
+    # ææ¬å¿é¡»æ´ä½è½å¨åä¸ 256 é¡µåãè¥æææ¬è·¨é¡µï¼å¨ææ¬åæå¡«åæå®æ¨å°ä¸ä¸é¡µèµ·å§ï¼é¡µå¯¹é½ï¼ã
     data_bytes = []
     datalabel = {}
     pending_label = None
     for it in items:
         if it['kind'] == 'datadata':
-            # 跨页检查：当前页内剩余 < 文本长 → 填充到页对齐
+            # è·¨é¡µæ£æ¥ï¼å½åé¡µåå©ä½ < ææ¬é¿ â å¡«åå°é¡µå¯¹é½
             if (len(data_bytes) % 256) + len(it['bytes']) > 256:
                 pad = 256 - (len(data_bytes) % 256)
                 data_bytes.extend([0] * pad)
@@ -913,12 +908,12 @@ def assemble(src_lines):
         elif it['kind'] == 'datalabel':
             pending_label = it['name']
     if len(data_bytes) > 4096:
-        raise AsmError(f'数据区超 4096 字节: {len(data_bytes)}')
-    symbols.update(datalabel)   # 数据标签可被 parse_int 表达式引用（(msg>>8)/(msg&0xFF)）
+        raise AsmError(f'æ°æ®åºè¶ 4096 å­è: {len(data_bytes)}')
+    symbols.update(datalabel)   # æ°æ®æ ç­¾å¯è¢« parse_int è¡¨è¾¾å¼å¼ç¨ï¼(msg>>8)/(msg&0xFF)ï¼
 
     def resolve_t(tok):
         t = tok.strip()
-        # label±N（数据/符号标签偏移）
+        # labelÂ±Nï¼æ°æ®/ç¬¦å·æ ç­¾åç§»ï¼
         m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*([+-])\s*(\d+)$', t)
         if m:
             base = m.group(1)
@@ -932,14 +927,14 @@ def assemble(src_lines):
         if is_label(t):
             if t in label_word:
                 return label_word[t]
-            raise AsmError(f'未定义标签: {t}')
+            raise AsmError(f'æªå®ä¹æ ç­¾: {t}')
         return parse_int(t, symbols)
 
     words = {}
     srcs = {}
     first_slots = set()
     max_word = 0
-    # 数据字节 → hex 后半（词 DATA_ROM_START+j，低 8 位字节）
+    # æ°æ®å­è â hex ååï¼è¯ DATA_ROM_START+jï¼ä½ 8 ä½å­èï¼
     for j, b in enumerate(data_bytes):
         words[DATA_ROM_START + j] = b & 0xFF
         max_word = max(max_word, DATA_ROM_START + j)
@@ -985,8 +980,7 @@ def assemble(src_lines):
             srcs.setdefault(word, []).append(it['src'])
         max_word = max(max_word, word)
         i += 1
-
-    # 绝对目标必须落在词首（label 目标已在固定点里保证）
+    # ç»å¯¹ç®æ å¿é¡»è½å¨è¯é¦ï¼label ç®æ å·²å¨åºå®ç¹éä¿è¯ï¼
     for idx, it in enumerate(items):
         if it['kind'] == 'ins' and it['fmt'] in ('jump', 'branch'):
             tok = it['ops'][0] if it['fmt'] == 'jump' else it['ops'][2]
@@ -994,14 +988,14 @@ def assemble(src_lines):
             if not is_label(t):
                 v = resolve_t(t)
                 if v not in first_slots:
-                    raise AsmError(f'{it["mnem"]} 目标 0x{v:03X} 不是词首指令'
-                                   f'（label 目标会自动对齐；绝对目标请核对 listing）')
+                    raise AsmError(f'{it["mnem"]} ç®æ  0x{v:03X} ä¸æ¯è¯é¦æä»¤'
+                                   f'ï¼label ç®æ ä¼èªå¨å¯¹é½ï¼ç»å¯¹ç®æ è¯·æ ¸å¯¹ listingï¼')
     return words, srcs, max_word
 
 
-# ---------------------------------------------------------------- 输出
+# ---------------------------------------------------------------- è¾åº
 def write_hex(words, srcs, max_word, fh):
-    """程序 hex（0-4095 词，32bit 词，byte0=高位 opcode 在 [31:24]）。未用词填 0。"""
+    """ç¨åº hexï¼0-4095 è¯ï¼32bit è¯ï¼byte0=é«ä½ opcode å¨ [31:24]ï¼ãæªç¨è¯å¡« 0ã"""
     fh.write('@0000\n')
     for w in range(0, ROM_TOP + 1):
         if w in srcs:
@@ -1013,7 +1007,7 @@ def write_hex(words, srcs, max_word, fh):
 
 
 def write_data_hex(words, fh):
-    """数据 hex（0-4095 词，每词 8 位字节；ram_sec_init 载入到 0xA000 区）。"""
+    """æ°æ® hexï¼0-4095 è¯ï¼æ¯è¯ 8 ä½å­èï¼ram_sec_init è½½å¥å° 0xA000 åºï¼ã"""
     fh.write('@0000\n')
     for j in range(0, 4096):
         fh.write('%02X\n' % (words.get(DATA_ROM_START + j, 0x00000000) & 0xFF))
@@ -1022,21 +1016,21 @@ def write_data_hex(words, fh):
 def main():
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    ap = argparse.ArgumentParser(description='MCU 汇编器：.asm → ins_rom.hex（词寻址 + 自动压缩/打包）')
-    ap.add_argument('src', help='源 .asm 文件')
-    ap.add_argument('-o', '--output', help='输出 hex 路径（默认 project_self-try.srcs/ins_rom.hex）')
+    ap = argparse.ArgumentParser(description='MCU æ±ç¼å¨ï¼.asm â ins_rom.hexï¼è¯å¯»å + èªå¨åç¼©/æåï¼')
+    ap.add_argument('src', help='æº .asm æä»¶')
+    ap.add_argument('-o', '--output', help='è¾åº hex è·¯å¾ï¼é»è®¤ project_self-try.srcs/ins_rom.hexï¼')
     args = ap.parse_args()
 
     try:
         src_lines = Path(args.src).read_text(encoding='utf-8').splitlines()
     except OSError as e:
-        print(f'无法读取源文件: {e}')
+        print(f'æ æ³è¯»åæºæä»¶: {e}')
         sys.exit(1)
 
     try:
         words, srcs, max_word = assemble(src_lines)
     except AsmError as e:
-        print('汇编失败：')
+        print('æ±ç¼å¤±è´¥ï¼')
         print(e)
         sys.exit(1)
 
@@ -1048,22 +1042,22 @@ def main():
 
     with open(out_path, 'w', encoding='utf-8', newline='\n') as fh:
         write_hex(words, srcs, max_word, fh)
-    # 数据区单独输出 data.hex（词 8192-12287，ram_sec_init 载入到 0xA000）
+    # æ°æ®åºåç¬è¾åº data.hexï¼è¯ 8192-12287ï¼ram_sec_init è½½å¥å° 0xA000ï¼
     with open(data_path, 'w', encoding='utf-8', newline='\n') as fh:
         write_data_hex(words, fh)
 
-    print(f'程序范围: 0x000–0x{max_word:03X}（{max_word + 1} 词），ROM 已填满 0x000–0x1FFF -> {out_path}')
-    print(f'数据区: 输出 -> {data_path}')
+    print(f'ç¨åºèå´: 0x000â0x{max_word:03X}ï¼{max_word + 1} è¯ï¼ï¼ROM å·²å¡«æ»¡ 0x000â0x1FFF -> {out_path}')
+    print(f'æ°æ®åº: è¾åº -> {data_path}')
     if AUTO_NOP_COUNT or AUTO_FLIP_COUNT or AUTO_JPAD_COUNT:
-        print(f'自动修正: 补 NOP {AUTO_NOP_COUNT} 个（bytmov 死区），'
-              f'方向翻转 {AUTO_FLIP_COUNT} 处（L/R 前缀自动纠正），'
-              f'补 jpad {AUTO_JPAD_COUNT} 个（IRET W+2 垫层）')
-    print('---- listing（词地址 | 32bit 词 | 源）----')
+        print(f'èªå¨ä¿®æ­£: è¡¥ NOP {AUTO_NOP_COUNT} ä¸ªï¼bytmov æ­»åºï¼ï¼'
+              f'æ¹åç¿»è½¬ {AUTO_FLIP_COUNT} å¤ï¼L/R åç¼èªå¨çº æ­£ï¼ï¼'
+              f'è¡¥ jpad {AUTO_JPAD_COUNT} ä¸ªï¼IRET W+2 å«å±ï¼')
+    print('---- listingï¼è¯å°å | 32bit è¯ | æºï¼----')
     for w in range(0, max_word + 1):
         if w in srcs:
             print(f'0x{w:03X}: {words[w]:08X} | {" | ".join(s.strip() for s in srcs[w])}')
         else:
-            print(f'0x{w:03X}: {words.get(w, 0):08X} | (填充)')
+            print(f'0x{w:03X}: {words.get(w, 0):08X} | (å¡«å)')
 
 
 if __name__ == '__main__':

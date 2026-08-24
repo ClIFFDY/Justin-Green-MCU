@@ -21,7 +21,7 @@
 
 
 module ins_rom(
-    input wire clk, rst, flush1, flush_irq, stall,
+    input wire clk, rst, jmp_flush, irq_flush, stall, cstall,
     input wire [12:0] addr,
     output reg [31:0] inst_raw
     );
@@ -33,17 +33,17 @@ module ins_rom(
     initial 
         $readmemh("E:/Vivado_Projects/project_self-try/project_self-try.srcs/ins_rom.hex", mem);
 
-    localparam NOP = 6'b01_0100;
+    localparam NOP = 6'b00_0000;
 
     always @(posedge clk) begin
-        if (rst || flush1 || flush_irq) begin
+        if (rst || irq_flush || jmp_flush) begin
             inst_raw <= {NOP, 26'b0};
         end
-        else if (stall) begin
-            inst_raw <= inst_raw;     
+        else if (stall || cstall) begin
+            inst_raw <= inst_raw;
         end
         else begin
-            inst_raw <=  mem[addr];
+            inst_raw <= mem[addr];
         end
     end
 endmodule

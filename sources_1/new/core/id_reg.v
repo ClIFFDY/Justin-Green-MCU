@@ -21,7 +21,7 @@
 
 
 module id_reg(
-    input wire clk, we_in, flush1, stall,
+    input wire clk, we_in, stall,
     input wire [1:0] stage,
     input wire [5:0] opcode_in, 
     input wire [7:0] rd_in,
@@ -31,29 +31,33 @@ module id_reg(
     output reg [7:0] rd,
     output reg [15:0] ab_raw,
     output reg [7:0] imm8, bus_data,
-    output reg we, flush2
+    output reg we
     );
 
     always@(posedge clk) begin
-        if (stage == 2'b01 && !stall) begin
-            if (!flush1) begin
-                opcode <= opcode_in;
-                ab_raw <= ab_raw_in;
-                rd <= (we_in)? rd_in : 8'b0;
-                imm8 <= imm8_in;
-                bus_data <= bus_data_in;
-                we <= we_in;
-                flush2 <= 1'b0;
-            end
-            else begin
-                opcode <= opcode_in;
-                ab_raw <= 15'b0;
-                rd <= 8'b0;
-                imm8 <= 8'b0;
-                bus_data <= 8'b0;
-                we <= 1'b0;
-                flush2 <= 1'b1;
-            end
+        if (stage == 2'b01 && !stall && we_in) begin
+            opcode <= opcode_in;
+            ab_raw <= ab_raw_in;
+            rd <=  rd_in;
+            imm8 <= imm8_in;
+            bus_data <= bus_data_in;
+            we <= we_in;
+        end
+        else if (stage == 2'b01 && stall && we_in) begin
+            opcode <= opcode;
+            ab_raw <= ab_raw;
+            rd <= rd;
+            imm8 <= imm8;
+            bus_data <= bus_data;
+            we <= we;
+        end
+        else begin
+            opcode <= 6'd0;
+            rd <= 8'd0;
+            ab_raw <= 16'd0;
+            imm8 <= 8'd0;
+            bus_data <= 8'd0;
+            we <= 1'b0;
         end
     end
 endmodule

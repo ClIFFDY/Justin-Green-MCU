@@ -30,20 +30,22 @@ module single_cpu_top(
     output wire [3:0] bus_sig_out
     );
 
-    wire [1:0] stage;
+    wire [1:0] stage, bubble;
     wire [12:0] pc_addr, irq_addr;
-    wire [31:0] inst_raw, inst_raw_zip;
-    wire [5:0] op_temp, opcode;
+    wire [31:0] inst_raw_zip;
+    wire [25:0] inst_raw_cont1, inst_raw_cont2;
+    wire [5:0] opcode1, opcode2, opcode3, opcode_pc;
     wire [23:0] rd12, rd12_raw, rd12_data;
     wire [15:0] r12_data, ab_raw;
     wire [7:0] rd_temp, rd, rd_mov, baseline;
     wire [7:0] rd_data, imm8_temp, imm8;
-    wire [15:0] bytmov;
+    wire [15:0] bytmov_pc;
     wire [12:0] ra_fo, ra_ba;
     wire [7:0] result;
-    wire [1:0] jmpflg, j_flag, irq_en;
-    wire we_temp1, we_temp2, we;
-    wire frz, flush1, flush2, iret, irq_flush, cstall;
+    wire [1:0] jmpflg, j_flag;
+    wire we_temp1, we_temp2, we, irq_en, unz_irq_en;
+    wire frz, iret, cstall, cstalled;
+    wire jmp_flush, irq_flush;
 
     wire [7:0] bus_data_temp;
 
@@ -61,62 +63,78 @@ module single_cpu_top(
         .frz(frz),
         .stall_bus(stall_bus),
         .cstall(cstall),
+        .cstalled(cstalled),
         .irq_flag(irq_flush),
         .stage(stage),
         .j_flag(j_flag),
-        .op_raw(op_temp),
-        .bytmov(bytmov),
+        .op_raw(opcode_pc),
+        .bytmov(bytmov_pc),
+        .jmp_flush(jmp_flush),
         .ra_in(ra_ba),
         .irq_addr(irq_addr),
         //
         .pc_addr(pc_addr),
         .ra(ra_fo),
-        .jmpflg(jmpflg)
+        .jmpflg(jmpflg),
+        .bubble(bubble)
         );
 
     ins_rom u_ins_rom(
         .clk(clk),
         .rst(rst),
         .addr(pc_addr),
-        .flush1(flush1),
-        .flush_irq(irq_flush),
+        .jmp_flush(jmp_flush),
+        .irq_flush(irq_flush),
         .stall(stall_bus),
+        .cstall(cstall),
         //
         .inst_raw(inst_raw_zip)
         );
 
-    pre_decoder u_pre_decoder (
+    unzipper u_unzipper(
         .clk(clk),
         .rst(rst),
-        .flush1(flush1),
-        .flush_irq(irq_flush),
+        .jmp_flush(jmp_flush),
+        .irq_flush(irq_flush),
         .stall(stall_bus),
         .stage(stage),
         .inst_raw_in(inst_raw_zip),
         //
-        .inst_raw(inst_raw),
+        .inst_raw_cont(inst_raw_cont1),
+        .opcode(opcode1),
         .cstall(cstall),
-        .irq_en(irq_en[0]),
-        .addr_dr12(rd12_raw)
+        .cstalled(cstalled),   
+        .addr_dr12(rd12_raw),
+        .irq_en(unz_irq_en)
     );
 
     rpu u_rpu (
         .clk(clk),
         .rst(rst),
+        .jmp_flush(jmp_flush),
+        .stall(stall_bus),
+        .stage(stage),
+        .irq_flush(irq_flush),
         .addr_r12_raw(rd12_raw),
         .addr_r12_mov(rd12),
         .baseline(baseline),
+        .inst_raw_cont_in(inst_raw_cont1),
+        .opcode_in(opcode1),
+        .inst_raw_cont(inst_raw_cont2),
+        .opcode(opcode2),
+        .bytmov_to_pc(bytmov_pc),
+        .opcode_to_pc(opcode_pc),
         //
+        .bus_data_out(bus_data_base),
         .bus_addr_in(bus_addr_out),
-        .bus_data_in(bus_data_out),
-        .bus_sig_in(bus_sig_out),
-        .bus_data_out(bus_data_base)
+        .bus_sig_in(bus_sig_out)
     );
 
     decoder u_decoder(
         .rst(rst),
         .irq_flush(irq_flush),
-        .inst_raw(inst_raw),
+        .opcode(opcode2),
+        .inst_raw_cont(inst_raw_cont2),
         .result_last_in(result),
         .rd_last1(rd_temp),
         .rd_last2(rd),
@@ -126,15 +144,13 @@ module single_cpu_top(
         .j_flag(j_flag),
         //
         .r12_data(r12_data),
-        .opcode(op_temp),
         .rd_out(rd_mov),
         .imm8(imm8_temp),
-        .bytmov(bytmov),
         .frz(frz),
         .we(we_temp1),
-        .flush1(flush1),
+        .jmp_flush(jmp_flush),
         .iret(iret),
-        .irq_en(irq_en[1]),
+        .irq_en(irq_en),
         //
         .bus_addr_out(bus_addr_out),
         .bus_data_out(bus_data_out),
@@ -146,18 +162,16 @@ module single_cpu_top(
         .stall(stall_bus),
         .stage(stage),
         .we_in(we_temp1),
-        .flush1(flush1),
-        .opcode_in(op_temp),
+        .opcode_in(opcode2),
         .rd_in(rd_mov),
         .imm8_in(imm8_temp),
         .ab_raw_in(r12_data),
         //
-        .opcode(opcode),
+        .opcode(opcode3),
         .ab_raw(ab_raw),
         .rd(rd_temp),
         .imm8(imm8),
         .we(we_temp2),
-        .flush2(flush2),
         //
         .bus_data_in(bus_data_in),
         .bus_data(bus_data_temp)
@@ -167,7 +181,7 @@ module single_cpu_top(
         .ab_raw(ab_raw),
         .bus_data(bus_data_temp),
         .imm8(imm8),
-        .opcode(opcode),
+        .opcode(opcode3),
         //
         .result(result)
         );
@@ -177,7 +191,6 @@ module single_cpu_top(
         .stall(stall_bus),
         .we_in(we_temp2),
         .stage(stage),
-        .flush2(flush2),
         .rst(rst),
         .result_in(result),
         .rd_in(rd_temp),
@@ -211,8 +224,10 @@ module single_cpu_top(
         .rst(rst),
         .irq_bus_in(irq_bus),
         .pc_addr_in(pc_addr),
-        .irq_en(irq_en),
+        .irq_en(irq_en & unz_irq_en),
         .stall(stall_bus),
+        .cstalled(cstalled),
+        .bubble(bubble),
         //
         .irq_addr(irq_addr),
         .irq_flush(irq_flush),

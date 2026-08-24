@@ -45,7 +45,8 @@ module dma(
     RAM_2 = 4'b1001,
     RAM_3 = 4'b1010,
     BANK_SEL = 4'b1011,
-    RAM_EXT = 4'b1100;
+    RAM_EXT = 4'b1100,
+    BASEL = 4'b1101;
 
     localparam [2:0]
     IDLE = 3'b000,
