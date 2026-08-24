@@ -1,13 +1,13 @@
   
 ## *This is Justin_Green_MCU*   
           
-<img width="1462" height="870" alt="image" src="https://github.com/user-attachments/assets/5ca9dc5a-d279-47bf-9231-38366dcdc934" />  
+<img width="1662" height="1178" alt="image" src="https://github.com/user-attachments/assets/6666a6a2-c636-4532-8aee-61104647fcb9" />
 
-*v3.3.x FPGA device map*  
+*v3.4.x FPGA device map*  
 
 <img width="2135" height="1272" alt="image" src="https://github.com/user-attachments/assets/ca86bafc-2ad9-47ff-83d0-d39bc1072fe2" />  
    
-*v3.3.x implemented schematic (CPU unfolded)*
+*v3.4.x implemented schematic (CPU unfolded)*
 
 > >
 >    𝐃𝐎 𝐘𝐎𝐔 𝐋𝐈𝐊𝐄 𝐆𝐑𝐄𝐄𝐍𝐄𝐑𝐈𝐄𝐒 —— 你喜欢看绿油油的𝐒𝐜𝐡𝐞𝐦𝐚𝐭𝐢𝐜吗
@@ -30,7 +30,7 @@
   
 - 自拟 6_bit_opcode ISA，共 (32 + 1伪 + 19自动压缩) 条指令；指令设计参考RISC-V整数指令集，基础指令32位，压缩指令16位，指令汇编器端自动压缩，硬件自动解码；支持控制、ALU、访存、IRET、HALT不可逆停机；详见说明文档-指令集说明
   
-- 4 级流水线 (IF / ID <Unzip + Shift + ID> / EX / WB) 架构；两级前送 + 旁路消除 RAW 冒险，跳转冲刷/中断精确化冲刷
+- 4 级流水线 (IF / ID <Unzip + Shift + ID> / EX / WB) 架构；两级前送 + 旁路消除 RAW 冒险；跳转/中断冲刷，流水线空窗保护
   
 - (32KB) 32位ROM，（256B）8位快速寄存器，（512B）16位返回栈专用寄存器；RPU可编程快速寄存器任务映射；硬件返回栈深 255，寄存器组映射栈指针，满栈/空栈保护 (JAL/JALR)
   
