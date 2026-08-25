@@ -67,9 +67,49 @@
 
 - 搭载抢占式RTOS内核（v2.3起，v2.2为协作式RTOS），支持任务调用栈分区核基于硬件中断的抢占调度，类Shell操作界面
 
-<img width="779" height="690" alt="52dde083ee5517a04f0d582f8a24f920" src="https://github.com/user-attachments/assets/c3c0a6c4-f83c-4afb-9532-f930326aa439" />  
+<img width="1691" height="662" alt="image" src="https://github.com/user-attachments/assets/cdad04f8-7fa2-4b35-8aab-1d21855e589c" />
 
-*v3.3.x version MCU running RTOS system with UART in/output*
+<img width="1701" height="532" alt="image" src="https://github.com/user-attachments/assets/567d3805-c8e1-4cb2-b91e-c06600d71ef1" />
+   
+*v3.4.x version MCU running RTOS system with UART in/output*
+
+### 核心性能：
+
+- 测试环境：软核：Justin_Green_MCU（v3.4.x）；测试平台：Xilinx™ Zynq 7010；主频（外部晶振）：50MHz；系统：抢占式RTOS；模式：CPU独占（屏蔽外部中断源）
+
+- 基准测试程序：由于Justin_Green_MCU采用自拟8位架构，且仅支持自拟整数指令集，故无法适配主流GCC和基准测试程序。
+  故采用8位MCU核心特化的类Dhrystone混合负载结构（函数调用、访存、混合运算、分支）基准程序（AIGC）
+
+| Dhrystone 要素 | 本基准实现 |    
+|:---------------:|:-----------:|    
+| 函数调用（Proc_6/Func_2） | `dh_func`：`(a<<1)+(b>>1)-(a&0x0F)+b+1` |    
+| 记录访问（Record_Type） | `DH_REC0` 读改写（LBU→ADDI→SB） |  
+| 字符串操作 | 字符字段 `DH_REC1` 写入 |    
+| 数组访问（Arr_1/Arr_2） | `DH_ARR0` 读改写 |    
+| if/switch 分支 | `RBLTU` 等长路径分支 |  
+| 混合整数运算 | 移位 / 与 / 异或 / 加 / 减 |  
+
+|  循环  |  指令内容  |  MIPS 计算方法  | 
+|:---------:|:------------:|:---:| 
+| 内层 | |起始和结束指令读计时器cnt作为时间基准 |
+| 01-03 | 记录 RMW：LBU → ADDI → SB       DH_REC0 += 1 | **K ≈ 72.8M 条**：32 条/迭代 × 255 × 255 × 35 |
+| 04-05 | 字符字段写                       DH_REC1 = 'A'  | 分子 **N = K×50>>16 = 0xD90A**（"50" = 50MHz 参考时钟归一化）|
+| 06-08 | 数组 RMW：LBU → ADD → SB         DH_ARR0 += 记录值 | **MIPS = N / (elapsed >> 16) = 50 × IPC** |
+| 09-12 | 函数调用 dh_func（10 条）        结果 → DH_GLOB  | 除法：16 位重复减（商 < 256），结果十进制显示 |
+| 13-16 | 混合 ALU：SLL / AND / XOR / ADD  |
+| 17-22 | 条件分支（两路径等长，22 条/迭代 → 确定性 K） | 
+| 23-24 | 内层计数（分支等长，实际22条 + dh_func = 32条/迭代） |  
+| 中外层 | 内层 255 × 中层 255 × 外层 **35** |
+    
+- 测试结果
+
+| 指标 | 数值 |
+|:------:|:-------:|  
+| 工作频率实测 IPC（混合负载） | ≈ 0.68  |  
+| 理论架构极限 MIPS（50MHz） | ≈ **50**  |  
+| 工作频率实测 MIPS（50MHz） | ≈ **34**  |    
+| 理论频率极限 MIPS（66.67MHz） | ≈ **45**  |  
+  
   
 ### 备注：
   
