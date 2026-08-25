@@ -17,7 +17,7 @@
 2400EE00   // .puts " BOOT: GPIO    "
 040606FF   // .puts " BOOT: GPIO    "
 60000760   // .puts " BOOT: GPIO    "
-2400F600   // RJAL  anim_bar
+2400FC00   // RJAL  anim_bar
 74009005   // SB    r0, CUR_TASK
 74009000   // SB    r0, TICK_LO
 74009001   // SB    r0, TICK_HI
@@ -29,7 +29,7 @@
 2400E200   // .puts " BOOT: KERNEL  "
 040606FF   // .puts " BOOT: KERNEL  "
 60000760   // .puts " BOOT: KERNEL  "
-2400EA00   // RJAL  anim_bar
+2400F000   // RJAL  anim_bar
 74009108   // SB    r0, RX_WR
 74009109   // SB    r0, RX_RD
 74009118   // SB    r0, CURSOR
@@ -45,7 +45,7 @@
 2400D200   // .puts " BOOT: BUFFER  "
 040606FF   // .puts " BOOT: BUFFER  "
 60000760   // .puts " BOOT: BUFFER  "
-2400DA00   // RJAL  anim_bar
+2400E000   // RJAL  anim_bar
 7400900A   // SB    r0, TCB0_J
 7400900B   // SB    r0, TCB0_R7
 7400900C   // SB    r0, TCB0_R8
@@ -80,7 +80,7 @@
 2400AF00   // .puts " BOOT: STACK   "
 040606FF   // .puts " BOOT: STACK   "
 60000760   // .puts " BOOT: STACK   "
-2400B700   // RJAL  anim_bar
+2400BD00   // RJAL  anim_bar
 04010003   // ADDI  r1, r0, 3
 74016008   // SB    r1, 0x6008
 74006009   // SB    r0, 0x6009
@@ -97,7 +97,7 @@
 24009E00   // .puts " BOOT: IRQPRIO "
 040606FF   // .puts " BOOT: IRQPRIO "
 60000760   // .puts " BOOT: IRQPRIO "
-2400A600   // RJAL  anim_bar
+2400AC00   // RJAL  anim_bar
 04010002   // ADDI  r1, r0, 0x02
 74015001   // SB    r1, 0x5001            # timer 高
 04010048   // ADDI  r1, r0, 0x48
@@ -126,7 +126,7 @@
 24008100   // .puts " BOOT: VECTOR  "
 040606FF   // .puts " BOOT: VECTOR  "
 60000760   // .puts " BOOT: VECTOR  "
-24008900   // RJAL  anim_bar
+24008F00   // RJAL  anim_bar
 0401000F   // ADDI  r1, r0, 0x0F
 74013000   // SB    r1, TIMER_CNT0
 04010027   // ADDI  r1, r0, 0x27
@@ -143,13 +143,13 @@
 24007000   // .puts " BOOT: READY   "
 040606FF   // .puts " BOOT: READY   "
 60000760   // .puts " BOOT: READY   "
-24007800   // RJAL  anim_bar
+24007E00   // RJAL  anim_bar
 74006000   // SB    r0, 0x6000
 2404AB00   // RJAL  menu_main           # 主菜单
 2404D900   // RJAL  print_prompt
 01000100   // NOP | NOP
 00000000   // NOP
-24055A00   // RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
+24060500   // RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
 70019108   // LBU   r1, RX_WR
 70029109   // LBU   r2, RX_RD
 64000412   // RBNE  r1, r2, __sh_have
@@ -206,7 +206,7 @@
 58003900   // LBEQ  r0, r0, shell_loop
 0407000A   // ADDI  r7, r0, '\n'
 24002F00   // RJAL  putc
-24006100   // RJAL  shell_parse
+24006700   // RJAL  shell_parse
 74009118   // SB    r0, CURSOR
 24049B00   // RJAL  print_prompt
 58003F00   // LBEQ  r0, r0, shell_loop
@@ -258,6 +258,12 @@
 0408FF00   // ADDI  r8, r255, 0
 60000480   // LBNE  r8, r0, putc_wait
 74072000   // SB    r7, UART
+04080020   // ADDI  r8, r0, 32          # 外层 32（打字机可见）
+040900FF   // ADDI  r9, r0, 0xFF        # 内层 255
+040909FF   // ADDI  r9, r9, 0xFF
+60000490   // LBNE  r9, r0, __ty_i
+040808FF   // ADDI  r8, r8, 0xFF
+60000780   // LBNE  r8, r0, __ty_o
 4C000000   // JALR
 74009108   // SB    r0, RX_WR
 74009109   // SB    r0, RX_RD
@@ -288,17 +294,17 @@
 20001A00   // RJAL  fast_putc
 4C000000   // JALR
 0407000D   // ADDI  r7, r0, '\r'
-20002400   // LJAL  putc
+20002A00   // LJAL  putc
 0407000A   // ADDI  r7, r0, '\n'
-20002600   // LJAL  putc
+20002C00   // LJAL  putc
 4C000000   // JALR
 04080009   // ADDI  r8, r0, 9
 6C000187   // RBLTU r8, r7, __phx_af     # 前向
 04070730   // ADDI  r7, r7, '0'
-20002B00   // LJAL  putc
+20003100   // LJAL  putc
 4C000000   // JALR
 04070737   // ADDI  r7, r7, 55            # 'A'-10 = 55
-20002E00   // LJAL  putc
+20003400   // LJAL  putc
 4C000000   // JALR
 04090700   // ADDI  r9, r7, 0             # r9 暂存输入（调度器保 r7-r11）
 40070904   // SRLI  r7, r9, 4
@@ -310,35 +316,40 @@
 60000170   // RBNE  r7, r0, __sp_have
 4C000000   // JALR                        # 空行 → 直接返回
 04080001   // ADDI  r8, r0, 1
-64002578   // RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
+64002A78   // RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
 70079110   // LBU   r7, LINE_BUF0
 7001911C   // LBU   r1, MENU
-5C000C10   // RBEQ  r1, r0, __sp_main       # MENU=0 → 主菜单
+5C001110   // RBEQ  r1, r0, __sp_main       # MENU=0 → 主菜单
 04080001   // ADDI  r8, r0, 1
-5C002C18   // RBEQ  r1, r8, game_menu_dispatch  # MENU=1 → 游戏子菜单
+5C003118   // RBEQ  r1, r8, game_menu_dispatch  # MENU=1 → 游戏子菜单
 04080002   // ADDI  r8, r0, 2
-5C000318   // RBEQ  r1, r8, __sp_credits    # MENU=2 → CREDITS（只认 0）
+5C000818   // RBEQ  r1, r8, __sp_credits    # MENU=2 → CREDITS（只认 0）
+04080031   // ADDI  r8, r0, '1'
+64000178   // RBNE  r7, r8, __sp_st0
+2404BF00   // RJAL  mips_bench           # 跑 MIPS 基准（打印结果）→ 回 status
+24045300   // RJAL  cmd_status
+4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
 64001C78   // RBNE  r7, r8, __sp_unknown
 7400911C   // SB    r0, MENU
-2403FB00   // RJAL  menu_main
+2403F000   // RJAL  menu_main
 4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
 64001778   // RBNE  r7, r8, __sp_unknown
 7400911C   // SB    r0, MENU
-2403F600   // RJAL  menu_main
+2403EB00   // RJAL  menu_main
 4C000000   // JALR
 04080031   // ADDI  r8, r0, '1'
 64000278   // RBNE  r7, r8, __sp_m2
 04010002   // ADDI  r1, r0, 2
 7401911C   // SB    r1, MENU                 # MENU=2 → CREDITS 子菜单
-24042600   // RJAL  cmd_credits
+24041B00   // RJAL  cmd_credits
 4C000000   // JALR
 04080032   // ADDI  r8, r0, '2'
 64000278   // RBNE  r7, r8, __sp_m3
 04010003   // ADDI  r1, r0, 3
 7401911C   // SB    r1, MENU                 # MENU=3 → STATUS 子菜单
-24044800   // RJAL  cmd_status
+24043D00   // RJAL  cmd_status
 4C000000   // JALR
 04080033   // ADDI  r8, r0, '3'
 64000278   // RBNE  r7, r8, __sp_m0
@@ -348,17 +359,17 @@
 4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
 64000078   // RBNE  r7, r8, __sp_unknown
-2403E000   // RJAL  menu_main
+2403D500   // RJAL  menu_main
 4C000000   // JALR
 0407003F   // ADDI  r7, r0, '?'
-20006300   // LJAL  putc
-20004400   // LJAL  put_crlf
+20006E00   // LJAL  putc
+20004900   // LJAL  put_crlf
 7001911C   // LBU   r1, MENU
 5C000110   // RBEQ  r1, r0, __sp_unk_main   # MENU=0 → 主菜单
 04080001   // ADDI  r8, r0, 1
 5C000118   // RBEQ  r1, r8, __sp_unk_gm     # MENU=1 → 游戏子菜单
 4C000000   // JALR                          # MENU=2/3（CREDITS/STATUS）→ 只打印 ? 停留
-2403D600   // RJAL  menu_main
+2403CB00   // RJAL  menu_main
 4C000000   // JALR
 24001600   // RJAL  game_menu
 4C000000   // JALR
@@ -372,56 +383,56 @@
 4C000000   // JALR
 04080032   // ADDI  r8, r0, '2'
 64000078   // RBNE  r7, r8, __gmd_0
-240E8800   // RJAL  minesweeper_start      # 扫雷
+240E7D00   // RJAL  minesweeper_start      # 扫雷
 4C000000   // JALR
 04080030   // ADDI  r8, r0, '0'
 64000178   // RBNE  r7, r8, __gmd_unknown
 7400911C   // SB    r0, MENU
-2403C300   // RJAL  menu_main
+2403B800   // RJAL  menu_main
 4C000000   // JALR
 0407003F   // ADDI  r7, r0, '?'
-20008000   // LJAL  putc
+20008B00   // LJAL  putc
 24000100   // RJAL  game_menu
 4C000000   // JALR
-2403BD00   // RJAL  menu_main
+2403B200   // RJAL  menu_main
 4C000000   // JALR
 040100A0   // .puts "--- GAME MENU ---"
 04020069   // .puts "--- GAME MENU ---"
 04060011   // .puts "--- GAME MENU ---"
 7C070102   // .puts "--- GAME MENU ---"
 04020201   // .puts "--- GAME MENU ---"
-20008A00   // .puts "--- GAME MENU ---"
+20009500   // .puts "--- GAME MENU ---"
 040606FF   // .puts "--- GAME MENU ---"
 60000760   // .puts "--- GAME MENU ---"
-20006D00   // RJAL  put_crlf
+20007200   // RJAL  put_crlf
 040100A0   // .puts " 1. TETRIS"
 0402007A   // .puts " 1. TETRIS"
 0406000A   // .puts " 1. TETRIS"
 7C070102   // .puts " 1. TETRIS"
 04020201   // .puts " 1. TETRIS"
-20009300   // .puts " 1. TETRIS"
+20009E00   // .puts " 1. TETRIS"
 040606FF   // .puts " 1. TETRIS"
 60000760   // .puts " 1. TETRIS"
-20007600   // RJAL  put_crlf
+20007B00   // RJAL  put_crlf
 040100A0   // .puts " 2. MINESWEEP"
 04020084   // .puts " 2. MINESWEEP"
 0406000D   // .puts " 2. MINESWEEP"
 7C070102   // .puts " 2. MINESWEEP"
 04020201   // .puts " 2. MINESWEEP"
-20009C00   // .puts " 2. MINESWEEP"
+2000A700   // .puts " 2. MINESWEEP"
 040606FF   // .puts " 2. MINESWEEP"
 60000760   // .puts " 2. MINESWEEP"
-20007F00   // RJAL  put_crlf
+20008400   // RJAL  put_crlf
 040100A0   // .puts " 0. MAIN MENU"
 04020091   // .puts " 0. MAIN MENU"
 0406000D   // .puts " 0. MAIN MENU"
 7C070102   // .puts " 0. MAIN MENU"
 04020201   // .puts " 0. MAIN MENU"
-2000A500   // .puts " 0. MAIN MENU"
+2000B000   // .puts " 0. MAIN MENU"
 040606FF   // .puts " 0. MAIN MENU"
 60000760   // .puts " 0. MAIN MENU"
-20008800   // RJAL  put_crlf
-2000A500   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+20008D00   // RJAL  put_crlf
+2000AA00   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 4C000000   // JALR
 04010001   // ADDI  r1, r0, 1
 74019486   // SB    r1, GAME_ACTIVE       # 调度器检测：只更新 TICK 不切任务
@@ -445,34 +456,23 @@
 74009483   // SB    r0, G_ACC_HI
 74009484   // SB    r0, G_OVER
 74009485   // SB    r0, PAUSED
-24080000   // RJAL  spawn
-2409D400   // RJAL  render
-24077D00   // RJAL  input_handle
+2407F500   // RJAL  spawn
+2409C900   // RJAL  render
+24077200   // RJAL  input_handle
 70019484   // LBU   r1, G_OVER
 64000410   // RBNE  r1, r0, game_over     # 按 0 设 G_OVER → 立即退出（暂停中也能退）
 70019485   // LBU   r1, PAUSED
 60000710   // RBNE  r1, r0, game_loop     # 暂停 → 不下落
-240A5C00   // RJAL  drop_check
+240A5200   // RJAL  drop_check
 70019484   // LBU   r1, G_OVER
 60000110   // RBNE  r1, r0, game_over
 58000B00   // LBEQ  r0, r0, game_loop
+2409B100   // RJAL  wait_dma            # 修复：等最后一帧 DMA 发完再切菜单（否则菜单字节与帧交错=爆炸）
 74009486   // SB    r0, GAME_ACTIVE
 04010001   // ADDI  r1, r0, 1
 7401911C   // SB    r1, MENU
-20004D00   // RJAL  game_menu
+20004E00   // RJAL  game_menu
 4C000000   // JALR
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
 00000000
 00000000
 00000000
@@ -769,7 +769,7 @@
 00000000
 74003005   // SB    r0, TIMER_ACK        # ack timer（电平锁存，必清）
 700F9486   // LBU   r15, GAME_ACTIVE
-640054F0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
+64004EF0   // RBNE  r15, r0, __sg_game   # GAME 模式 → 只更新 TICK，不切任务（用 r15：游戏核心用 r12/r13，勿碰）
 700D5000   // LBU   r13, SLOT0_LO
 700E5001   // LBU   r14, SLOT0_HI
 700F9005   // LBU   r15, CUR_TASK
@@ -805,13 +805,7 @@
 7409901D   // SB    r9, TCB2_R9
 740A901E   // SB    r10, TCB2_R10
 740B901F   // SB    r11, TCB2_R11
-700C9000   // LBU   r12, TICK_LO
-040C0C01   // ADDI  r12, r12, 1
-740C9000   // SB    r12, TICK_LO
-640001C0   // RBNE  r12, r0, __nowrap     # 前向
-700C9001   // LBU   r12, TICK_HI
-040C0C01   // ADDI  r12, r12, 1
-740C9001   // SB    r12, TICK_HI
+24003200   // RJAL  uptime_tick
 040F0F01   // ADDI  r15, r15, 1
 040C0003   // ADDI  r12, r0, 3
 640000FC   // RBNE  r15, r12, __nw2       # 前向
@@ -859,43 +853,49 @@
 740C9487   // SB    r12, GAME_S1
 740D9488   // SB    r13, GAME_S2
 740E9489   // SB    r14, GAME_S3
-700C9000   // LBU   r12, TICK_LO
-040C0C01   // ADDI  r12, r12, 1
-740C9000   // SB    r12, TICK_LO
-640001C0   // RBNE  r12, r0, __sg_done
-700C9001   // LBU   r12, TICK_HI
-040C0C01   // ADDI  r12, r12, 1
-740C9001   // SB    r12, TICK_HI
+24000200   // RJAL  uptime_tick           # TICK++ + UPTIME 秒计数（用 r12，已存 GAME_S1）
 700C9487   // LBU   r12, GAME_S1
 700D9488   // LBU   r13, GAME_S2
 700E9489   // LBU   r14, GAME_S3
 54000000   // IRET
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
+700C9000   // LBU   r12, TICK_LO
+040C0C01   // ADDI  r12, r12, 1
+740C9000   // SB    r12, TICK_LO
+640001C0   // RBNE  r12, r0, __ut_nowrap
+700C9001   // LBU   r12, TICK_HI
+040C0C01   // ADDI  r12, r12, 1
+740C9001   // SB    r12, TICK_HI
+700C9132   // LBU   r12, UPTIME_TMP_LO
+040C0C01   // ADDI  r12, r12, 1
+740C9132   // SB    r12, UPTIME_TMP_LO
+640001C0   // RBNE  r12, r0, __ut_check
+700C9133   // LBU   r12, UPTIME_TMP_HI
+040C0C01   // ADDI  r12, r12, 1
+740C9133   // SB    r12, UPTIME_TMP_HI
+700C9133   // LBU   r12, UPTIME_TMP_HI
+040C0CED   // ADDI  r12, r12, 0xED        # HI - 0x13
+640012C0   // RBNE  r12, r0, __ut_done
+700C9132   // LBU   r12, UPTIME_TMP_LO
+040C0C78   // ADDI  r12, r12, 0x78        # LO - 0x88
+64000FC0   // RBNE  r12, r0, __ut_done
+74009132   // SB    r0, UPTIME_TMP_LO
+74009133   // SB    r0, UPTIME_TMP_HI
+700C9134   // LBU   r12, UPTIME_S0
+040C0C01   // ADDI  r12, r12, 1
+740C9134   // SB    r12, UPTIME_S0
+640009C0   // RBNE  r12, r0, __ut_done
+700C9135   // LBU   r12, UPTIME_S1
+040C0C01   // ADDI  r12, r12, 1
+740C9135   // SB    r12, UPTIME_S1
+640005C0   // RBNE  r12, r0, __ut_done
+700C9136   // LBU   r12, UPTIME_S2
+040C0C01   // ADDI  r12, r12, 1
+740C9136   // SB    r12, UPTIME_S2
+640001C0   // RBNE  r12, r0, __ut_done
+700C9137   // LBU   r12, UPTIME_S3
+040C0C01   // ADDI  r12, r12, 1
+740C9137   // SB    r12, UPTIME_S3
+4C000000   // JALR
 00000000
 00000000
 00000000
@@ -1351,7 +1351,7 @@
 20044800   // .puts "--- MAIN MENU ---"
 040606FF   // .puts "--- MAIN MENU ---"
 60000760   // .puts "--- MAIN MENU ---"
-20042B00   // RJAL  put_crlf
+20042500   // RJAL  put_crlf
 040100A0   // .puts " 1. CREDITS    CREDITS"
 040200CA   // .puts " 1. CREDITS    CREDITS"
 04060016   // .puts " 1. CREDITS    CREDITS"
@@ -1360,7 +1360,7 @@
 20045100   // .puts " 1. CREDITS    CREDITS"
 040606FF   // .puts " 1. CREDITS    CREDITS"
 60000760   // .puts " 1. CREDITS    CREDITS"
-20043400   // RJAL  put_crlf
+20042E00   // RJAL  put_crlf
 040100A0   // .puts " 2. STATUS     STATUS"
 040200E0   // .puts " 2. STATUS     STATUS"
 04060015   // .puts " 2. STATUS     STATUS"
@@ -1369,7 +1369,7 @@
 20045A00   // .puts " 2. STATUS     STATUS"
 040606FF   // .puts " 2. STATUS     STATUS"
 60000760   // .puts " 2. STATUS     STATUS"
-20043D00   // RJAL  put_crlf
+20043700   // RJAL  put_crlf
 040100A1   // .puts " 3. GAME       TETRIS/MINE"
 04020000   // .puts " 3. GAME       TETRIS/MINE"
 0406001A   // .puts " 3. GAME       TETRIS/MINE"
@@ -1378,7 +1378,7 @@
 20046300   // .puts " 3. GAME       TETRIS/MINE"
 040606FF   // .puts " 3. GAME       TETRIS/MINE"
 60000760   // .puts " 3. GAME       TETRIS/MINE"
-20044600   // RJAL  put_crlf
+20044000   // RJAL  put_crlf
 040100A1   // .puts " 0. MENU       SHOW MENU"
 0402001A   // .puts " 0. MENU       SHOW MENU"
 04060018   // .puts " 0. MENU       SHOW MENU"
@@ -1387,8 +1387,8 @@
 20046C00   // .puts " 0. MENU       SHOW MENU"
 040606FF   // .puts " 0. MENU       SHOW MENU"
 60000760   // .puts " 0. MENU       SHOW MENU"
-20044F00   // RJAL  put_crlf
-20046C00   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+20044900   // RJAL  put_crlf
+20046600   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 4C000000   // JALR
 0407003E   // .puts "> "
 60000200   // .puts "> "
@@ -1405,7 +1405,7 @@
 20047E00   // .puts "--- CREDITS ---"
 040606FF   // .puts "--- CREDITS ---"
 60000760   // .puts "--- CREDITS ---"
-20046100   // RJAL  put_crlf
+20045B00   // RJAL  put_crlf
 040100A1   // .puts " System: RTOS"
 04020041   // .puts " System: RTOS"
 0406000D   // .puts " System: RTOS"
@@ -1414,7 +1414,7 @@
 20048700   // .puts " System: RTOS"
 040606FF   // .puts " System: RTOS"
 60000760   // .puts " System: RTOS"
-20046A00   // RJAL  put_crlf
+20046400   // RJAL  put_crlf
 040100A1   // .puts " Author: Justin (hardware) & Agent (software)"
 0402004E   // .puts " Author: Justin (hardware) & Agent (software)"
 0406002D   // .puts " Author: Justin (hardware) & Agent (software)"
@@ -1423,7 +1423,7 @@
 20049000   // .puts " Author: Justin (hardware) & Agent (software)"
 040606FF   // .puts " Author: Justin (hardware) & Agent (software)"
 60000760   // .puts " Author: Justin (hardware) & Agent (software)"
-20047300   // RJAL  put_crlf
+20046D00   // RJAL  put_crlf
 040100A1   // .puts " HW: Justin Green MCU (Zynq 7010)"
 0402007B   // .puts " HW: Justin Green MCU (Zynq 7010)"
 04060021   // .puts " HW: Justin Green MCU (Zynq 7010)"
@@ -1432,8 +1432,8 @@
 20049900   // .puts " HW: Justin Green MCU (Zynq 7010)"
 040606FF   // .puts " HW: Justin Green MCU (Zynq 7010)"
 60000760   // .puts " HW: Justin Green MCU (Zynq 7010)"
-20047C00   // RJAL  put_crlf
-20049900   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+20047600   // RJAL  put_crlf
+20049300   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 04010002   // ADDI  r1, r0, 2
 7401911C   // SB    r1, MENU             # MENU=2 → CREDITS 子菜单
 4C000000   // JALR
@@ -1453,74 +1453,245 @@
 2004AE00   // .puts " CPU: 50 MHz\r\n"
 040606FF   // .puts " CPU: 50 MHz\r\n"
 60000760   // .puts " CPU: 50 MHz\r\n"
-040100A1   // .puts " TASKS: 3\r\n"
-040200BA   // .puts " TASKS: 3\r\n"
-0406000B   // .puts " TASKS: 3\r\n"
-7C070102   // .puts " TASKS: 3\r\n"
-04020201   // .puts " TASKS: 3\r\n"
-2004B600   // .puts " TASKS: 3\r\n"
-040606FF   // .puts " TASKS: 3\r\n"
-60000760   // .puts " TASKS: 3\r\n"
-04070020   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004BB00   // .puts " RAM: "
-04070052   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004BE00   // .puts " RAM: "
-04070041   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004C100   // .puts " RAM: "
-0407004D   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004C400   // .puts " RAM: "
-0407003A   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004C700   // .puts " RAM: "
-04070020   // .puts " RAM: "
-60000200   // .puts " RAM: "
-2004CA00   // .puts " RAM: "
-04070001   // ADDI  r7, r0, 1             # fill = 1（RAM_USED 296B/16KB ≈ 2%，20 段里 1 段）
-04080014   // ADDI  r8, r0, 20            # width = 20
-24001200   // RJAL  print_bar
-040100A1   // .puts " 2% (296B/16KB)\r\n"
-040200C5   // .puts " 2% (296B/16KB)\r\n"
-04060011   // .puts " 2% (296B/16KB)\r\n"
-7C070102   // .puts " 2% (296B/16KB)\r\n"
-04020201   // .puts " 2% (296B/16KB)\r\n"
-2004D300   // .puts " 2% (296B/16KB)\r\n"
-040606FF   // .puts " 2% (296B/16KB)\r\n"
-60000760   // .puts " 2% (296B/16KB)\r\n"
+040100A1   // .puts " UPTIME: "
+040200BA   // .puts " UPTIME: "
+04060009   // .puts " UPTIME: "
+7C070102   // .puts " UPTIME: "
+04020201   // .puts " UPTIME: "
+2004B600   // .puts " UPTIME: "
+040606FF   // .puts " UPTIME: "
+60000760   // .puts " UPTIME: "
+70019134   // LBU   r1, UPTIME_S0
+70029135   // LBU   r2, UPTIME_S1
+04030000   // ADDI  r3, r0, 0            # 分钟
+64000020   // RBNE  r2, r0, __cs_dv2
+0404003C   // ADDI  r4, r0, 60
+6C000314   // RBLTU r1, r4, __cs_dvd
+0404003C   // ADDI  r4, r0, 60
+44050104   // SLTU  r5, r1, r4           # borrow = (秒lo < 60)
+134C1395   // SUB   r1, r1, r4 | SUB   r2, r2, r5
+04030301   // ADDI  r3, r3, 1
+58000A00   // RBEQ  r0, r0, __cs_div
+04110100   // ADDI  r17, r1, 0           # 存余秒（r17 高区跨 putc）
+04010300   // ADDI  r1, r3, 0            # 分钟 → r1
+24001B00   // RJAL  print_dec
+0407006D   // ADDI  r7, r0, 'm'
+2004C800   // LJAL  putc
+04070020   // ADDI  r7, r0, ' '
+2004CA00   // LJAL  putc
+04011100   // ADDI  r1, r17, 0           # 余秒 → r1
+24001500   // RJAL  print_dec
+04070073   // ADDI  r7, r0, 's'
+2004CE00   // LJAL  putc
+2004A900   // RJAL  put_crlf
+040100A1   // .puts " 1. MIPS BENCH\r\n"
+040200C3   // .puts " 1. MIPS BENCH\r\n"
+04060010   // .puts " 1. MIPS BENCH\r\n"
+7C070102   // .puts " 1. MIPS BENCH\r\n"
+04020201   // .puts " 1. MIPS BENCH\r\n"
+2004D500   // .puts " 1. MIPS BENCH\r\n"
+040606FF   // .puts " 1. MIPS BENCH\r\n"
+60000760   // .puts " 1. MIPS BENCH\r\n"
 040100A1   // .puts " 0. BACK TO MENU\r\n"
-040200D6   // .puts " 0. BACK TO MENU\r\n"
+040200D3   // .puts " 0. BACK TO MENU\r\n"
 04060012   // .puts " 0. BACK TO MENU\r\n"
 7C070102   // .puts " 0. BACK TO MENU\r\n"
 04020201   // .puts " 0. BACK TO MENU\r\n"
-2004DB00   // .puts " 0. BACK TO MENU\r\n"
+2004DD00   // .puts " 0. BACK TO MENU\r\n"
 040606FF   // .puts " 0. BACK TO MENU\r\n"
 60000760   // .puts " 0. BACK TO MENU\r\n"
-2004DA00   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+2004D600   // RJAL  flush_rx             # 打印完成 → 丢弃积压按键
 04010003   // ADDI  r1, r0, 3
 7401911C   // SB    r1, MENU             # MENU=3 → STATUS 子菜单
+4C000000   // JALR
+04060000   // ADDI  r6, r0, 0            # 已打印标志
+04050000   // ADDI  r5, r0, 0            # 百位
+04040064   // ADDI  r4, r0, 100
+6C000114   // RBLTU r1, r4, __pd_ht
+0401019C   // ADDI  r1, r1, 0x9C        # -100
+04050501   // ADDI  r5, r5, 1
+58000700   // RBEQ  r0, r0, __pd_h
+60000150   // RBNE  r5, r0, __pd_hpr
+5C000200   // RBEQ  r0, r0, __pd_ten
+04060001   // ADDI  r6, r0, 1
+04070030   // ADDI  r7, r0, '0'
+08070705   // ADD   r7, r7, r5
+2004F000   // LJAL  putc
+04050000   // ADDI  r5, r0, 0            # 十位
+0404000A   // ADDI  r4, r0, 10
+6C000114   // RBLTU r1, r4, __pd_tt
+040101F6   // ADDI  r1, r1, 0xF6        # -10
+04050501   // ADDI  r5, r5, 1
+58000700   // RBEQ  r0, r0, __pd_t
+64000060   // RBNE  r6, r0, __pd_tpr
+60000150   // RBNE  r5, r0, __pd_tpr
+5C000200   // RBEQ  r0, r0, __pd_one
+04060001   // ADDI  r6, r0, 1
+04070030   // ADDI  r7, r0, '0'
+08070705   // ADD   r7, r7, r5
+2004FD00   // LJAL  putc
+04070030   // ADDI  r7, r0, '0'
+08070701   // ADD   r7, r7, r1
+20050000   // LJAL  putc
+4C000000   // JALR
+04090600   // ADDI  r9, r6, 0
+3C090901   // SLLI  r9, r9, 1
+040B0A00   // ADDI  r11, r10, 0
+400B0B01   // SRLI  r11, r11, 1
+0809090B   // ADD   r9, r9, r11
+280B060F   // ANDI  r11, r6, 0x0F
+1009090B   // SUB   r9, r9, r11
+0809090A   // ADD   r9, r9, r10
+04090901   // ADDI  r9, r9, 1
+4C000000   // JALR
+74006008   // SB    r0, 0x6008           # timer
+74006009   // SB    r0, 0x6009           # dma
+7400600A   // SB    r0, 0x600A           # rx
+7400600B   // SB    r0, 0x600B           # i2c
+7400600C   // SB    r0, 0x600C           # gpio0
+7400600D   // SB    r0, 0x600D           # gpio1
+040100FF   // ADDI  r1, r0, 0xFF
+74013000   // SB    r1, TIMER_CNT0
+74013001   // SB    r1, TIMER_CNT1
+74013002   // SB    r1, TIMER_CNT2
+74013003   // SB    r1, TIMER_CNT3
+70113000   // LBU   r17, TIMER_CNT0
+70123001   // LBU   r18, TIMER_CNT1
+70133002   // LBU   r19, TIMER_CNT2
+70143003   // LBU   r20, TIMER_CNT3
+74009590   // SB    r0, DH_REC0
+74009591   // SB    r0, DH_REC1
+74009592   // SB    r0, DH_ARR0
+74009596   // SB    r0, DH_GLOB
+04010023   // ADDI  r1, r0, 35          # 外层 35
+04040005   // ADDI  r4, r0, 5            # 打点计数
+040200FF   // ADDI  r2, r0, 0xFF        # 中层 255
+040300FF   // ADDI  r3, r0, 0xFF        # 内层 255
+70089590   // LBU   r8, DH_REC0
+04080801   // ADDI  r8, r8, 1
+74089590   // SB    r8, DH_REC0
+04080041   // ADDI  r8, r0, 0x41        # 'A'
+74089591   // SB    r8, DH_REC1
+70099592   // LBU   r9, DH_ARR0
+08090908   // ADD   r9, r9, r8
+74099592   // SB    r9, DH_ARR0
+70069596   // LBU   r6, DH_GLOB
+040A0900   // ADDI  r10, r9, 0
+20002E00   // RJAL  dh_func             # r9 = 结果
+74099596   // SB    r9, DH_GLOB
+3C080901   // SLLI  r8, r9, 1
+280A083F   // ANDI  r10, r8, 0x3F
+1C08080A   // XOR   r8, r8, r10
+04080805   // ADDI  r8, r8, 5
+040A0080   // ADDI  r10, r0, 0x80
+6C00009A   // RBLTU r9, r10, __dh_b1
+04080801   // ADDI  r8, r8, 1           # path A
+5C000000   // RBEQ  r0, r0, __dh_join
+04080802   // ADDI  r8, r8, 2           # path B
+00000000   // NOP
+040303FF   // ADDI  r3, r3, 0xFF
+60001A30   // LBNE  r3, r0, __dh_i
+040202FF   // ADDI  r2, r2, 0xFF
+60001D20   // LBNE  r2, r0, __dh_m
+040404FF   // ADDI  r4, r4, 0xFF
+64000140   // RBNE  r4, r0, __dh_dot
+04040005   // ADDI  r4, r0, 5
+0407002E   // ADDI  r7, r0, '.'
+20053400   // LJAL  fast_putc
+040101FF   // ADDI  r1, r1, 0xFF
+60002510   // LBNE  r1, r0, __dh_o
+70063000   // LBU   r6, TIMER_CNT0
+70073001   // LBU   r7, TIMER_CNT1
+70083002   // LBU   r8, TIMER_CNT2
+70093003   // LBU   r9, TIMER_CNT3
+040A0000   // ADDI  r10, r0, 0           # borrow_in = 0
+440B0611   // SLTU  r11, r6, r17         # b1 = (E0 < S0)
+10060611   // SUB   r6, r6, r17          # t = E0 - S0
+440C060A   // SLTU  r12, r6, r10         # b2 = (t < borrow_in)
+1006060A   // SUB   r6, r6, r10          # r = t - borrow_in
+180A0B0C   // OR    r10, r11, r12        # borrow_out
+440B0712   // SLTU  r11, r7, r18         # b1 = (E1 < S1)
+10070712   // SUB   r7, r7, r18
+440C070A   // SLTU  r12, r7, r10
+1007070A   // SUB   r7, r7, r10
+180A0B0C   // OR    r10, r11, r12
+440B0813   // SLTU  r11, r8, r19         # b1 = (E2 < S2)
+10080813   // SUB   r8, r8, r19
+440C080A   // SLTU  r12, r8, r10
+1008080A   // SUB   r8, r8, r10
+180A0B0C   // OR    r10, r11, r12
+440B0914   // SLTU  r11, r9, r20         # b1 = (E3 < S3)
+10090914   // SUB   r9, r9, r20
+440C090A   // SLTU  r12, r9, r10
+1009090A   // SUB   r9, r9, r10
+0401000A   // ADDI  r1, r0, 0x0A
+040200D9   // ADDI  r2, r0, 0xD9
+04050800   // ADDI  r5, r8, 0            # D_lo = elapsed[2]
+04060900   // ADDI  r6, r9, 0            # D_hi = elapsed[3]
+04140000   // ADDI  r20, r0, 0
+64000050   // RBNE  r5, r0, __div_start
+60000160   // RBNE  r6, r0, __div_start
+5C000700   // LBEQ  r0, r0, __div_done
+04140000   // ADDI  r20, r0, 0
+6C000526   // RBLTU r2, r6, __div_done   # N_hi < D_hi → done
+60000126   // RBNE  r2, r6, __div_sub    # N_hi != D_hi（且 >）→ 减
+6C000315   // RBLTU r1, r5, __div_done   # N_hi==D_hi 且 N_lo<D_lo → done
+44040105   // SLTU  r4, r1, r5           # borrow = (N_lo < D_lo)  减法前判断
+134D1396   // SUB   r1, r1, r5           # N_lo -= D_lo | SUB   r2, r2, r6           # N_hi -= D_hi
+10020204   // SUB   r2, r2, r4           # N_hi -= borrow
+04141401   // ADDI  r20, r20, 1
+58000A00   // LBEQ  r0, r0, __div_l
+0401000F   // __div_done:    ADDI  r1, r0, 0x0F
+74013000   // SB    r1, TIMER_CNT0
+04010027   // ADDI  r1, r0, 0x27
+74013001   // SB    r1, TIMER_CNT1
+74003002   // SB    r0, TIMER_CNT2
+74003003   // SB    r0, TIMER_CNT3
+04010001   // ADDI  r1, r0, 1
+74013004   // SB    r1, TIMER_MODE
+04010003   // ADDI  r1, r0, 3
+74016008   // SB    r1, 0x6008
+04010002   // ADDI  r1, r0, 2
+7401600A   // SB    r1, 0x600A
+04011400   // ADDI  r1, r20, 0          # 拷贝 MIPS
+04120000   // ADDI  r18, r0, 0           # tens
+0405000A   // ADDI  r5, r0, 10
+6C000115   // RBLTU r1, r5, __tens_d
+040101F6   // ADDI  r1, r1, 0xF6       # -10
+04121201   // ADDI  r18, r18, 1
+58000700   // LBEQ  r0, r0, __tens
+04070030   // ADDI  r7, r0, '0'
+08070712   // ADD   r7, r7, r18
+20058200   // LJAL  putc
+04070030   // ADDI  r7, r0, '0'
+08070701   // ADD   r7, r7, r1
+20058500   // LJAL  putc
+0407000D   // .puts "\r\n"
+60000200   // .puts "\r\n"
+20058800   // .puts "\r\n"
+0407000A   // .puts "\r\n"
+60000200   // .puts "\r\n"
+20058B00   // .puts "\r\n"
 4C000000   // JALR
 04110000   // ADDI  r17, r0, 0            # cnt = 0
 04120700   // ADDI  r18, r7, 0            # fill
 04130800   // ADDI  r19, r8, 0            # width
 0407005B   // ADDI  r7, r0, '['
-2004E600   // RJAL  putc
+20059100   // RJAL  putc
 04011100   // ADDI  r1, r17, 0
 04021200   // ADDI  r2, r18, 0
 6C000112   // RBLTU r1, r2, pb_hash       # cnt < fill → '#'
 0407002E   // ADDI  r7, r0, '.'
-2004EB00   // RJAL  putc
+20059600   // RJAL  putc
 5C000000   // RBEQ  r0, r0, pb_next
 04070023   // ADDI  r7, r0, '#'
-2004EE00   // RJAL  putc
+20059900   // RJAL  putc
 04111101   // ADDI  r17, r17, 1           # cnt++
 04011100   // ADDI  r1, r17, 0
 04021300   // ADDI  r2, r19, 0
 68000E12   // LBLTU r1, r2, pb_loop       # cnt < width → 继续
 0407005D   // ADDI  r7, r0, ']'
-2004F400   // RJAL  putc
+20059F00   // RJAL  putc
 4C000000   // JALR
 70019000   // LBU   r1, TICK_LO
 7002911B   // LBU   r2, LAST_TICK
@@ -1550,177 +1721,6 @@
 74084000   // SB    r8, GPIO
 74089044   // SB    r8, LED_STATE
 4C000000   // JALR
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
-00000000
 00000000
 00000000
 00000000
@@ -2748,7 +2748,7 @@
 04010001   // ADDI  r1, r0, 1
 4C000000   // JALR
 04060080   // ADDI  r6, r0, 0x80
-6C001863   // RBLTU r6, r3, __ce_free
+6C001A63   // RBLTU r6, r3, __ce_blocked
 04060014   // ADDI  r6, r0, 20
 68000136   // RBLTU r3, r6, __ce_rowok
 5C001700   // RBEQ  r0, r0, __ce_blocked
@@ -2988,34 +2988,35 @@
 70039436   // LBU   r3, P_ROW4
 70049437   // LBU   r4, P_COL4
 2000C000   // RJAL  set_cell
+20003E00   // RJAL  fput_crlf             # 棋盘前先换行（每帧空一行）
 04070040   // ADDI  r7, r0, '@'
-20004B00   // RJAL  fputc
+20004C00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20004D00   // RJAL  fputc
+20004E00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20004F00   // RJAL  fputc
+20005000   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005100   // RJAL  fputc
+20005200   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005300   // RJAL  fputc
+20005400   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005500   // RJAL  fputc
+20005600   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005700   // RJAL  fputc
+20005800   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005900   // RJAL  fputc
+20005A00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005B00   // RJAL  fputc
+20005C00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005D00   // RJAL  fputc
+20005E00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20005F00   // RJAL  fputc
+20006000   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20006100   // RJAL  fputc
-20005600   // RJAL  fput_crlf
+20006200   // RJAL  fputc
+20005700   // RJAL  fput_crlf
 04110000   // ADDI  r17, r0, 0            # r17 = 行
 04070040   // ADDI  r7, r0, '@'
-20006500   // RJAL  fputc
+20006600   // RJAL  fputc
 04031100   // ADDI  r3, r17, 0
 3C020301   // SLLI  r2, r3, 1
 04010094   // ADDI  r1, r0, 0x94
@@ -3032,66 +3033,66 @@
 077007B8   // ADDI  r1, r6, 0 | ADDI  r2, r7, 0
 24003300   // RJAL  print_cells
 04070040   // ADDI  r7, r0, '@'
-20007600   // RJAL  fputc
-20006B00   // RJAL  fput_crlf
+20007700   // RJAL  fputc
+20006C00   // RJAL  fput_crlf
 04111101   // ADDI  r17, r17, 1
 04011100   // ADDI  r1, r17, 0
 04020014   // ADDI  r2, r0, 20
 68001A12   // RBLTU r1, r2, __r_loop
 04070040   // ADDI  r7, r0, '@'
-20007D00   // RJAL  fputc
+20007E00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20007F00   // RJAL  fputc
+20008000   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008100   // RJAL  fputc
+20008200   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008300   // RJAL  fputc
+20008400   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008500   // RJAL  fputc
+20008600   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008700   // RJAL  fputc
+20008800   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008900   // RJAL  fputc
+20008A00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008B00   // RJAL  fputc
+20008C00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008D00   // RJAL  fputc
+20008E00   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20008F00   // RJAL  fputc
+20009000   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20009100   // RJAL  fputc
+20009200   // RJAL  fputc
 04070040   // ADDI  r7, r0, '@'
-20009300   // RJAL  fputc
-20008800   // RJAL  fput_crlf
+20009400   // RJAL  fputc
+20008900   // RJAL  fput_crlf
 04070053   // ADDI  r7, r0, 'S'
-20009600   // RJAL  fputc
+20009700   // RJAL  fputc
 04070043   // ADDI  r7, r0, 'C'
-20009800   // RJAL  fputc
+20009900   // RJAL  fputc
 0407004F   // ADDI  r7, r0, 'O'
-20009A00   // RJAL  fputc
+20009B00   // RJAL  fputc
 04070052   // ADDI  r7, r0, 'R'
-20009C00   // RJAL  fputc
+20009D00   // RJAL  fputc
 04070045   // ADDI  r7, r0, 'E'
-20009E00   // RJAL  fputc
+20009F00   // RJAL  fputc
 0407003A   // ADDI  r7, r0, ':'
-2000A000   // RJAL  fputc
+2000A100   // RJAL  fputc
 04070020   // ADDI  r7, r0, ' '
-2000A200   // RJAL  fputc
+2000A300   // RJAL  fputc
 70079480   // LBU   r7, G_SCORE
-20009300   // RJAL  fprint_hex
-20009900   // RJAL  fput_crlf
+20009400   // RJAL  fprint_hex
+20009A00   // RJAL  fput_crlf
 04010055   // ADDI  r1, r0, 0x55
 7401948D   // SB    r1, 0x948D
-20008100   // RJAL  dma_frame_send
+20008200   // RJAL  dma_frame_send
 4C000000   // JALR
 04060008   // ADDI  r6, r0, 8
 28030101   // ANDI  r3, r1, 1
 64000130   // RBNE  r3, r0, __pc_hash
 0407002E   // ADDI  r7, r0, '.'
-2000AE00   // RJAL  fputc
+2000AF00   // RJAL  fputc
 5C000000   // RBEQ  r0, r0, __pc_next
 04070023   // ADDI  r7, r0, '#'
-2000B100   // RJAL  fputc
+2000B200   // RJAL  fputc
 40010101   // SRLI  r1, r1, 1
 040606FF   // ADDI  r6, r6, 0xFF
 60000C60   // RBNE  r6, r0, __pc_loop
@@ -3099,10 +3100,10 @@
 28030201   // ANDI  r3, r2, 1
 64000130   // RBNE  r3, r0, __pc_hhash
 0407002E   // ADDI  r7, r0, '.'
-2000B900   // RJAL  fputc
+2000BA00   // RJAL  fputc
 5C000000   // RBEQ  r0, r0, __pc_hnext
 04070023   // ADDI  r7, r0, '#'
-2000BC00   // RJAL  fputc
+2000BD00   // RJAL  fputc
 40020201   // SRLI  r2, r2, 1
 040606FF   // ADDI  r6, r6, 0xFF
 60000C60   // RBNE  r6, r0, __pc_hi
@@ -3128,10 +3129,9 @@
 6C000216   // RBLTU r1, r6, __dc_done
 74009482   // SB    r0, G_ACC_LO
 74009483   // SB    r0, G_ACC_HI
-20012700   // RJAL  drop_piece
-2000A700   // RJAL  render
+20012800   // RJAL  drop_piece
+2000A800   // RJAL  render
 4C000000   // JALR
-00000000
 00000000
 00000000
 00000000
@@ -4211,12 +4211,12 @@
 74009486   // SB    r0, GAME_ACTIVE
 04010001   // ADDI  r1, r0, 1
 7401911C   // SB    r1, MENU
-200EF500   // RJAL  game_menu
+200EEA00   // RJAL  game_menu
 4C000000   // JALR
 74009486   // SB    r0, GAME_ACTIVE
 04010001   // ADDI  r1, r0, 1
 7401911C   // SB    r1, MENU
-200EFA00   // RJAL  game_menu
+200EEF00   // RJAL  game_menu
 4C000000   // JALR
 70019108   // LBU   r1, RX_WR
 70029109   // LBU   r2, RX_RD
