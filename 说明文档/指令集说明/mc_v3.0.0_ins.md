@@ -1,6 +1,6 @@
 # MCU 指令集与外设用法说明（v3.0 —— LIND/SIND 指令扩展 + 核心架构重构）
 
-> 配套版本：MCU v3.0（2026-08-19，ISA 扩展 + 核心架构重构版）。**新增 2 条寄存器间接访存指令 LIND/SIND**（指令总数 32→34），并做 WNS 时序优化架构重构：reg_f 异步读→同步读（读后写转发 + stall 冻结）、流水线 if_reg→pre_decoder、ram_top 读握手重做（写不 stall / done 读相位翻转 + 空闲清零）。**指令编码、外设、中断语义与 v2.3.1 相同**（LIND/SIND 为新增，其余指令 opcode/布局不变）。
+> 配套版本：MCU v3.0（2026-08-19，ISA 扩展 + 核心架构重构版）。**新增 2 条寄存器间接访存指令 LIND/SIND**（指令总数 31→33），并做 WNS 时序优化架构重构：reg_f 异步读→同步读（读后写转发 + stall 冻结）、流水线 if_reg→pre_decoder、ram_top 读握手重做（写不 stall / done 读相位翻转 + 空闲清零）。**指令编码、外设、中断语义与 v2.3.1 相同**（LIND/SIND 为新增，其余指令 opcode/布局不变）。
 > 中断/RTOS 语义（irq 读路径、IRQ_W else-if 写在前、regs[254]=j 调用栈分区、抢占调度器、菜单式 shell）沿用 v2.3/v2.3.1；俄罗斯方块 v2 是单任务演示程序（用 LIND/SIND，不用 RTOS）。
 > 设计演进、时序与调试记录见 `版本开发日志/single_mcu_design_v3.0.md`（架构重构 + LIND/SIND + 俄罗斯方块）。
 > 编码来源：`decoder.v` / `pc.v` / `reg_f.v` / `pre_decoder.v` / `ins_rom.v` / `irq_controller.v` / `single_cpu_top.v` / `single_mcu_top.v` / 各外设 `.v` / `tools/asm.py`。
@@ -67,7 +67,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 |      | **LIND** | **0x1F** | **0x7C** | 否 | rd, r1, r2（各 8 位寄存器号） | **寄存器间接读**：rd = 读 `[regs[r1]:regs[r2]]` |
 |      | **SIND** | **0x20** | **0x80** | 否 | rs, r1, r2（各 8 位寄存器号） | **寄存器间接写**：写 `[regs[r1]:regs[r2]]` = rs |
 
-共 **34 条真实指令** + 1 条伪指令。**v3.0 新增 LIND/SIND（寄存器间接访存），其余 32 条与 v2.3.1 完全一致**。
+共 **33 条真实指令** + 1 条伪指令。**v3.0 新增 LIND/SIND（寄存器间接访存），其余 31 条与 v2.3.1 完全一致**。
 
 
 > **寄存器间接寻址（v3.0 新增，LIND/SIND）**：地址 = `regs[r1] 的内容 << 8 | regs[r2] 的内容`（16 位）。r1/r2 是**寄存器号**（byte2/byte3），其内容拼成访存地址；与 LBU/SB 走同一总线（RAM 或外设）。寄存器字段 8 位（0–255），任意寄存器可编（含 r254/r255），地址寄存器 r1/r2 可任选。LIND/SIND 恒原长 1 词（不压缩）。

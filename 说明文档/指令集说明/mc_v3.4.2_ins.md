@@ -1,14 +1,14 @@
-# MCU 指令集与外设用法说明（v3.3.1 —— 纯软件层：扫雷 / GAME 子菜单 / 开机动画 / 打字机 / 垫层移除；ISA 编码无改动）
+# MCU 指令集与外设用法说明（v3.4.2 —— OLED 主界面交互 / UART 115200 / STATUS 多页 / 游戏按键调整 / UPTIME 小时:分钟；ISA 编码无改动）
 
-> 配套版本：MCU **v3.3.1**（2026-08-22，纯软件层更新）。**ISA 编码与 v3.0/v3.1.0/v3.2.0/v3.3.0 完全相同（指令总数 33），指令表/opcode/压缩布局均不变**；本文件随版本重命名一份（v3.0 起归档规范）。**v3.3.1 变化在软件层**（RTL/ISA/外设/地址空间全部不变，同 v3.3.0）：
-> ① 新增 **8x8 扫雷**（LIND/SIND 棋盘 + 复用帧 DMA）；② 主菜单 3 → **GAME 子菜单**（俄罗斯方块/扫雷）；③ **打字机效果**（putc 逐字 ~5ms）；④ **开机动画**（7 阶段加载条，解锁中断前）；⑤ **IRET 垫层移除**（微测确认 irq_controller 存 W+1，垫层冗余，程序瘦 19%）；⑥ **flush_rx**（打印期间忽略输入）；⑦ 汇编器 **.puts 跨 256 页对齐修复**。
-> v3.3.0（2026-08-22 真版）由两段构成：① I2C 只输出外设（i2c_out.v/应答/ACK 报错/16 深 FIFO/SCL 双相 40%/DMA busy2/6 槽中断）；② RPU 寄存器映射（rpu.v/baseline 窗口，所有 rd/rs/分支/LIND/SIND = `raw + ((raw<253)?baseline:0)`；0xD000 写读；任务0 base0/1=0x16/2=0x26 + 调度器 3×SBI 切；汇编器 `.base`/`rK.base`；栈指针 j=r253 修正）。
-> v3.2.0（2026-08-21）外设功能扩展：DMA（0x7000）、外设双端口、IRQ 向量表可写+一次性 lock、UART RX/TX 双 FIFO、俄罗斯方块渲染帧 DMA。
-> v3.1.0（2026-08-20）外设架构重构：ins_rom 8192 词 / PC 13 位、bus_controller 统一仲裁+可配中断优先级、ram_ext 4 bank 选片、数据区 0xA000。
-> v3.0（2026-08-19）核心架构重构 + ISA 扩展：新增 LIND/SIND（32→34），WNS 优化。
-> **v3.3.1 软件层细节**：① 扫雷 8x8（连续 3 数字=横纵坐标+操作；布雷 LCG/洪水展开/踩雷标雷/胜负）；② GAME 子菜单（shell_parse 按 MENU 分派，game_exit 回子菜单）；③ putc 打字机 5ms/字符（`ADDI r9,r0,250` 调速）；④ 开机动画（fast_putc 快速发送 + anim_bar 逐 # 加载条，7 阶段大写英文，解锁中断前）；⑤ **__jpad 垫层全移除**（asm.py 关 auto_jpad + 删手写，程序 2327→1979 词）；⑥ flush_rx（打印后清 RX）；⑦ asm.py 数据区跨 256 页自动填充对齐。
-> 设计演进、时序与调试记录见 `版本开发日志/single_mcu_design_v3.3.1.md`（软件层更新）。
-> 编码来源：`decoder.v` / `pc.v` / `reg_f.v` / `pre_decoder.v` / `rpu.v` / `ins_rom.v` / `irq_controller.v` / `single_cpu_top.v` / `single_mcu_top.v` / `bus_controller.v` / `dma.v` / `i2c_out.v` / `uart_top.v` / `ram_sec_init.v` / `ram_ext_top.v` / 各外设 `.v` / `tools/asm.py`。
+> 配套版本：MCU **v3.4.2**（2026-08-27，软件/固件版）。**ISA 编码与 v3.0/v3.1.0/v3.2.0/v3.3.0/v3.3.1/v3.4.0/v3.4.1 完全相同（指令总数 33），指令表/opcode/压缩布局均不变**；本文件随版本重命名一份（v3.0 起归档规范）。**v3.4.2 变化在软件层 + 少量 RTL**：
+> ① **UART 115200**：`.equ UART 0x2000→0x2400`（uart_top 波特率由地址 [11:10]=01 选 115200）+ DMA_DES→0x7324（帧同步）；删除 boot BOK/M 调试输出。
+> ② **OLED 主界面交互**：主菜单按 `0` 关屏（0xAE）/关屏期间门控只响应 `0`（0xAF + 重画）；扫雷光标初始 (1,1) + 标志 `>内容<`；俄罗斯方块 `7`→`2` 软落；分数 10 进制（fprint_dec）。
+> ③ **STATUS 多页**：`4/6` 翻页（STATUS_PAGE 0-3），页1-3 GPIO 状态（角色表 GPIO_CONF boot 写入，UART pin 显示 115200 / I2C 400K）；删重复 BACK。
+> ④ **UPTIME 小时:分钟（HhMm）**：总秒 ÷3600 → 时、余 ÷60 → 分；每秒防御刷新（恢复 timer prio + 重画 + `oled_flush_seg` 单设列连续流式）。
+> ⑤ **RTL**：`irq_controller.v` `irq_vex` 13→16 位（消 Vivado 位宽警告，功能不变）；`single_mcu_top.v`/`single_cpu_top.v`/`pc.v` stall 端口重构。**ISA 不变**。
+> 历史版本：v3.4.1（2026-08-25 俄罗斯方块修复 / MIPS 基准 / status 界面）；v3.4.0（2026-08-22 RTL 时序优化 / 66.67MHz；2026-08-24 续：irq resume bubble 补偿 + RX 中断使能）；v3.3.1（扫雷/游戏子菜单/打字机/开机动画/flush_rx）；v3.3.0（I2C + RPU 寄存器映射）；v3.2.0（DMA）；v3.1.0（外设架构重构）；v3.0（LIND/SIND + WNS）。
+> 设计演进、时序与调试记录见 `版本开发日志/single_mcu_design_v3.4.2.md`。
+> 编码来源：`decoder.v` / `pc.v` / `reg_f.v` / `unzipper.v` / `rpu.v` / `ins_rom.v` / `irq_controller.v` / `single_cpu_top.v` / `single_mcu_top.v` / `bus_controller.v` / `dma.v` / `i2c_out.v` / `uart_top.v` / `timer.v` / `ram_sec_init.v` / `ram_ext_top.v` / 各外设 `.v` / `tools/asm.py`。
 
 ---
 
@@ -17,7 +17,7 @@
 ### 1.1 编码规则（词寻址 + flag 压缩）
 
 - **词寻址**：PC 13 位【词地址】0x000–0x1FFF（8192 词 × 32bit BRAM），32bit 定长取指。
-- **流水线**：`ins_rom(1级) → if_reg(1级) → decoder`；**指令在词 W 执行时 pc_addr = W+2**（取指延迟 2 拍）。
+- **流水线**：`ins_rom → unzipper(级1) → rpu(级2) → decoder(组合)`；**指令在词 W 执行时 pc_addr = W+3**（取指延迟 3 级，v3.4.0 rpu 时序中继）。
 - **词内字节序**：`byte0` 在**高位**（bits[31:24]）。`byte0 = opcode[5:0]<<2 | flag[1:0]`：
 
 | flag | 含义 | 形式 |
@@ -36,8 +36,8 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 | 类别 | 助记符 | opcode | byte0(00) | 压缩 | 布局（原长，byte0 之后） | 功能 |
 |------|--------|--------|-----------|------|--------------------------|------|
-| 控制 | HALT | 0x00 | 0x00 | flag=01 | — | 停机（frz 停 PC） |
-|      | NOP | 0x14 | 0x50 | flag=01 | — | 空操作 |
+| 控制 | NOP | 0x00 | 0x00 | flag=01 | — | 空操作 |
+|      | HALT | 0x14 | 0x50 | flag=01 | — | 停机（frz 停 PC） |
 |      | IRET | 0x15 | 0x54 | flag=01 | — | 中断返回：恢复断点 |
 | 跳转 | LJAL | 0x08 | 0x20 | 否 | `bytmov16`（byte1:2） | 向后跳，压栈保存返回地址 |
 |      | RJAL | 0x09 | 0x24 | 否 | `bytmov16`（byte1:2） | 向前跳，压栈保存返回地址 |
@@ -72,7 +72,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 共 **33 条真实指令** + 1 条伪指令。
 
-> **寄存器间接寻址（LIND/SIND）**：地址 = `regs[r1] 的内容 << 8 | regs[r2] 的内容`（16 位）。r1/r2 是寄存器号（byte2/byte3），其内容拼成访存地址；与 LBU/SB 走同一总线。LIND/SIND 恒原长 1 词（不压缩）。**v3.5.0 下 r1/r2 也走 baseline 映射**（见 §1.5）。
+> **寄存器间接寻址（LIND/SIND）**：地址 = `regs[r1] 的内容 << 8 | regs[r2] 的内容`（16 位）。r1/r2 是寄存器号（byte2/byte3），其内容拼成访存地址；与 LBU/SB 走同一总线。LIND/SIND 恒原长 1 词（不压缩）。**v3.3.0 下 r1/r2 也走 baseline 映射**（见 §1.5）。
 > **伪指令 MOV**：`MOV rd, rs` = 复制（rd ← rs）。RTL 不设 MOV opcode，汇编器翻译为 `ADDI rd, rs, 0`。
 > **分支寄存器 4 位**：6 条条件分支的 r1/r2 只编码低 4 位（可用 r0–r15）。汇编器对超出 0x0F 的寄存器报错。
 > **压缩字段上限**：ALU 压缩要求 `rd≤3、r1/r2≤7`（I 型 `imm≤7`），超限自动退回原长——对汇编器透明。
@@ -88,13 +88,13 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 ### 1.4 跳转偏移 bytmov（16 位【词单位】，基准 W+2）
 
-- **R 前缀（向前）**：`bytmov = target − (W+2)`；**L 前缀（向后）**：`bytmov = (W+2) − target`。
+- **R 前缀（向前）**：`bytmov = target − (W+3)`；**L 前缀（向后）**：`bytmov = (W+3) − target`。（v3.4.0 取指延迟 3 级，基准 W+3）
 - **覆盖极限**：bytmov 16 位 → 每跳/分支最多 ±0xFFFF 词，覆盖 0x000–0x1FFF 全空间。
 - **汇编器自动修复**：bytmov 死区自动补 NOP（AUTO_NOP）、L/R 方向自动翻转（AUTO_FLIP）、jpad 自动垫层（AUTO_JPAD）。
 
-### 1.5 寄存器映射（v3.5.0 新增，baseline 窗口）
+### 1.5 寄存器映射（v3.3.0 新增，baseline 窗口）
 
-> **这是 v3.5.0 与之前版本最大的语义差异**。指令编码不变，但**寄存器操作数所指的物理寄存器**由 RPU 统一平移。
+> **这是 v3.3.0 与之前版本最大的语义差异**。指令编码不变，但**寄存器操作数所指的物理寄存器**由 RPU 统一平移。
 
 **核心公式**：所有寄存器操作数（ALU rd/rs1/rs2、分支 r1/r2、LIND/SIND r1/r2、写回 rd）映射为：
 
@@ -109,7 +109,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 | 项 | 约定 |
 |----|------|
-| r0 | 恒为 0。写守卫 `rd≠0` 只保护物理 regs[0]；**base>0 时程序必须保持 r0 恒 0（绝不写 r0）** |
+| r0 | 恒为 0。**⚠️ v3.3.0 窗口下"相对 r0"= regs[base]**，写守卫 `rd≠0` 只保护物理 regs[0]；**base>0 时程序必须保持 r0 恒 0（绝不写 r0）** |
 | r1–r252 | 窗口相对：物理 = raw+baseline（按当前任务窗口平移） |
 | **r253** | **调用栈指针 j**（全局豁免，恒绝对）；LJAL/RJAL 压栈、JALR 弹栈，reg_f 内 `rad[regs[253]]` |
 | **r254** | **i2c_busy**（每次覆写 `{7'b0,i2c_busy}`，恒绝对；软件写会被硬件覆写） |
@@ -119,7 +119,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 > **RPU 窗口布局**：每个任务独立 base，物理空间互不重叠。任务0=0x00（恒等，shell/游戏沿用高 r17-r21）、任务1=0x16、任务2=0x26；调度器切任务时 `SBI <base>,0xD000` 切换。新的任务可 base=0x36 起，直接用 r0-r7 压缩位+条件跳转，不再与既有任务抢物理寄存器。
 
-### 1.6 汇编器 `.base` / `rX.base`（v3.5.0 新增）
+### 1.6 汇编器 `.base` / `rX.base`（v3.3.0 新增）
 
 - **`.base N`**：声明当前代码块的寄存器窗口基准（范围 0–0xF0）。仅供汇编器换算 `rK.base`。
 - **`rK`**（相对/窗口）：原样编码 raw=K（硬件自动 +baseline）。
@@ -130,7 +130,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 
 ## 2. 外设与地址空间
 
-> 地址空间 v3.5.0 变化（相对 v3.3.0 基线）：**0xD000 区间由"未分配黑洞"变为 baseline 系统寄存器**。其余外设地址不变。
+> 地址空间 v3.3.0 变化（相对 v3.2.0 基线）：**0xD000 区间由"未分配黑洞"变为 baseline 系统寄存器**。其余外设地址不变。
 
 ### 2.1 地址空间总表
 
@@ -148,7 +148,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 | 0x8000–0xAFFF | ram_top（3×ram_sec） | 读 RAM → rd | 写 RAM |
 | 0xB000–0xBFFF | ram_ext 选片 | 黑洞（返回 0） | SB one-hot 选 bank |
 | 0xC000–0xCFFF | ram_ext 数据 | 读当前选中 bank → rd | 写当前选中 bank |
-| **0xD000–0xDFFF** | **RPU baseline（v3.5.0）** | **LBU 读当前 baseline** | **SB/SBI 写 baseline（设窗口基址）** |
+| **0xD000–0xDFFF** | **RPU baseline（v3.3.0）** | **LBU 读当前 baseline** | **SB/SBI 写 baseline（设窗口基址）** |
 | 0xE000–0xFFFF | 未分配 | 黑洞 | 黑洞 |
 
 > 总线访问均为 2 拍（RAM 第 1 拍置 stall；外设无 stall）。LIND/SIND 与 LBU/SB 走同一总线。
@@ -213,12 +213,13 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 - **软中断 IRQ_W（0x5000）写路径**：连续 2 条 SB 改写栈顶返回地址；读路径：`LBU` 读被抢占任务断点（slot0=0x5000 低/0x5001 高）。
 
 > **中断语义（v2.2 延续）**：① 授权门控 irq_en==11；② 被中断指令写回不丢；③ IRET W+2 + `__jpad` 垫层；④ 抢占断点 pc-1。
+> **2026-08-24 resume 修正（v3.4.0 继续）**：`resume = pcIn - ((cstalled)?1:2) + bubble`（pc.v 在跳转/IRQ/IRET 后置 `bubble=2`、逐拍递减）。分支/跳转后的 **refill NOP bubble** 窗口内 IRQ 触发时，`pcIn-2+bubble` 稳定落回**跳转目标**，避免落目标前 2 词（修复 '2' 洪泛）。稳态 bubble=0，公式不变。
 
 ---
 
-## 3. v3.5.0 软件侧约定（RTOS 内核，RPU 窗口）
+## 3. v3.3.0 软件侧约定（RTOS 内核，RPU 窗口）
 
-指令集文档范围之外、写程序必须遵守的 v3.5.0 约定（细节见设计日志）：
+指令集文档范围之外、写程序必须遵守的 v3.3.0 约定（细节见设计日志）：
 
 | 项 | 约定 |
 |----|------|

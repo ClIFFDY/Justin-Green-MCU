@@ -61,7 +61,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 | 访存 | LBU | 0x1C | 0x70 | 否 | rd, 16 位地址（byte2:3） | 读 → rd（RAM 或外设） |
 |      | SB | 0x1D | 0x74 | 否 | rs, 16 位地址（byte2:3） | rs 写入（RAM 或外设） |
 
-共 **31 条真实指令** + 1 条伪指令。指令语义与 v1.4 相同；**byte0 数值全部重排**（opcode 定义变了），旧 hex 不能直接复用，需用 v2.0 asm.py 重新汇编。
+共 **30 条真实指令** + 1 条伪指令。指令语义与 v1.4 相同；**byte0 数值全部重排**（opcode 定义变了），旧 hex 不能直接复用，需用 v2.0 asm.py 重新汇编。
 
 > **伪指令 MOV**：`MOV rd, rs` = 复制（rd ← rs）。RTL **不设 MOV opcode**，汇编器把它翻译为 `ADDI rd, rs, 0`（语义等价、自动继承 ADDI 压缩：rd≤3 且 rs≤7 时压成 16bit，否则原长 4 字节）。opcode 0x1E 未分配。
 

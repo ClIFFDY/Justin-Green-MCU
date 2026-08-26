@@ -62,7 +62,7 @@ opcode[5:0] 见下表（byte0 列为 `flag=00` 时的值；原长指令均占 1 
 |      | SB | 0x1D | 0x74 | 否 | rs, 16 位地址（byte2:3） | rs 写入（RAM 或外设） |
 |      | SBI | 0x1E | 0x78 | 否 | imm8（byte1）, 16 位地址（byte2:3） | **立即数**写入（RAM 或外设） |
 
-共 **32 条真实指令** + 1 条伪指令（v2.0 31 条 + 新增 SBI）。指令语义与 v2.0 相同，仅新增 SBI；byte0/opcode 编码沿用 v2.0。
+共 **31 条真实指令** + 1 条伪指令（v2.0 30 条 + 新增 SBI）。指令语义与 v2.0 相同，仅新增 SBI；byte0/opcode 编码沿用 v2.0。
 
 > **伪指令 MOV**：`MOV rd, rs` = 复制（rd ← rs）。RTL **不设 MOV opcode**，汇编器把它翻译为 `ADDI rd, rs, 0`（语义等价、自动继承 ADDI 压缩：rd≤3 且 rs≤7 时压成 16bit，否则原长 4 字节）。
 > **SBI（v2.1 新增）**：`SBI imm8, addr16` —— byte1=立即数（inst_raw[23:16]）、byte2:3=16 位地址，与 SB 布局一致、仅**数据源改为立即数**（SB 数据源是寄存器）。可用于 RAM/外设写立即数，省去先 `ADDI rd,r0,imm` 再 `SB rd,addr` 两步。
