@@ -28,7 +28,7 @@
   
 - 基于自拟RISC指令集的8位架构（8位ALU+8位快速寄存器）；工作频率50MHz，极限频率66.67MHz；工作频率下理论最大算力50MIPS
   
-- 自拟 6_bit_opcode ISA，共 (32 + 1伪 + 19自动压缩) 条指令；指令设计参考RISC-V整数指令集，基础指令32位，压缩指令16位，指令汇编器端自动压缩，硬件自动解码；支持控制、ALU、访存、IRET、HALT不可逆停机；详见说明文档-指令集说明
+- 自拟 6_bit_opcode ISA，共 (33 + 1伪 + 19自动压缩) 条指令；指令设计参考RISC-V整数指令集，基础指令32位，压缩指令16位，指令汇编器端自动压缩，硬件自动解码；支持控制、ALU、访存、IRET、HALT不可逆停机；详见说明文档-指令集说明
   
 - 4 级流水线 (IF / ID <Unzip + Shift + ID> / EX / WB) 架构；两级前送 + 旁路消除 RAW 冒险；跳转/中断冲刷，流水线空窗保护
   
@@ -51,7 +51,7 @@
   
 - UART：工作频率115200Hz；收发双缓冲，Busy信号映射到快速寄存器；支持中断、轮询双模式
   
-- 单输出I2C：可编程配置频率模式100KHz、400KHz、1MHz；可编程应答检测；发送缓冲，Busy信号映射到快速寄存器；支持报错中断、轮询（针对OLED屏幕调试中）
+- 单输出I2C：开漏式；可编程配置频率模式100KHz、400KHz、1MHz；可编程应答检测；发送缓冲，Busy信号映射到快速寄存器；支持报错中断、轮询；已支持OLED驱动
 
 - RAM：共28KB（12KB直连 + 16KB分片拓展）；直连寄存器单片独立地址映射，STORE耗时1时钟沿，LOAD耗时2时钟沿；分片寄存器访问前需下达片选指令，片选后访问耗时同上
   
@@ -71,7 +71,12 @@
 
 <img width="1701" height="532" alt="image" src="https://github.com/user-attachments/assets/567d3805-c8e1-4cb2-b91e-c06600d71ef1" />
    
-*v3.4.x version MCU running RTOS system with UART in/output*
+*v3.4.x version MCU running RTOS system with UART in/output*  
+
+<img width="1801" height="882" alt="image" src="https://github.com/user-attachments/assets/f0c0604f-4c5f-463d-a508-73b193cdbe98" />  
+
+*v3.4.x version MCU running RTOS system with Bluetooth_UART input & I2C_OLED / UART output (25fps)*   
+
 
 ### 核心性能：
 
