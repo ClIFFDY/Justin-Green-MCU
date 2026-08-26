@@ -111,7 +111,7 @@ module dma(
                 if (ini_addr[15:12] == UART) begin
                     if (rx_irq && ld_ptr != wr_ptr) begin
                         data_buf[ld_ptr - 4'd1] <= bus_data_in;
-                        ld_ptr <= ld_ptr + 1;
+                        ld_ptr <= ld_ptr + 1'd1;
                         cnt_due <= 16'b0;
                         stage <= LD;
                     end
@@ -126,13 +126,13 @@ module dma(
                         stage <= IDLE;
                         dma_irq <= 1'b1;
                     end
-                    else cnt_due <= cnt_due + 1;
+                    else cnt_due <= cnt_due + 1'd1;
                 end
                 else if (cnt_ld > 16'd0 && ld_ptr != wr_ptr) begin
                     data_buf[ld_ptr - 4'd1] <= bus_data_in;
-                    ld_ptr <= ld_ptr + 1;
-                    cnt_ld <= cnt_ld - 1;
-                    ini_addr <= ini_addr + 1;
+                    ld_ptr <= ld_ptr + 1'd1;
+                    cnt_ld <= cnt_ld - 1'd1;
+                    ini_addr <= ini_addr + 1'd1;
                     stage <= HSH;
                 end
                 else stage <= WR;
@@ -140,8 +140,8 @@ module dma(
             WR: begin
                 if (des_addr[15:12] == UART || des_addr[15:12] == I2C) begin
                     if (!busy && cnt_wr > 16'd0 && wr_ptr != ld_ptr - 4'd1) begin
-                        wr_ptr <= wr_ptr + 1;
-                        cnt_wr <= cnt_wr - 1;
+                        wr_ptr <= wr_ptr + 1'd1;
+                        cnt_wr <= cnt_wr - 1'd1;
                         stage <= WR;
                     end
                     else if (cnt_wr == 16'd0) begin
@@ -151,9 +151,9 @@ module dma(
                     else if (wr_ptr == ld_ptr - 4'd1) stage <= HSH;   
                 end
                 else if (cnt_wr > 16'd0 && wr_ptr != ld_ptr - 4'd1) begin
-                    wr_ptr <= wr_ptr + 1;
-                    cnt_wr <= cnt_wr - 1;
-                    des_addr <= des_addr + 1;
+                    wr_ptr <= wr_ptr + 1'd1;
+                    cnt_wr <= cnt_wr - 1'd1;
+                    des_addr <= des_addr + 1'd1;
                     stage <= WR;
                 end
                 else if (wr_ptr != ld_ptr - 4'd1) stage <= HSH;     

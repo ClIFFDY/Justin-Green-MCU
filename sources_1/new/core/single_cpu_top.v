@@ -22,7 +22,7 @@
 
 module single_cpu_top(
     input wire clk,
-    input wire rst, stall_bus, tx_busy, i2c_busy,
+    input wire rst, stall, tx_busy, i2c_busy,
     input wire [7:0] bus_data_in, 
     input wire [8:0] irq_bus,
     output wire [15:0] bus_addr_out,
@@ -61,7 +61,7 @@ module single_cpu_top(
         .clk(clk),
         .rst(rst),
         .frz(frz),
-        .stall_bus(stall_bus),
+        .stall(stall),
         .cstall(cstall),
         .cstalled(cstalled),
         .irq_flag(irq_flush),
@@ -85,7 +85,7 @@ module single_cpu_top(
         .addr(pc_addr),
         .jmp_flush(jmp_flush),
         .irq_flush(irq_flush),
-        .stall(stall_bus),
+        .stall(stall),
         .cstall(cstall),
         //
         .inst_raw(inst_raw_zip)
@@ -96,7 +96,7 @@ module single_cpu_top(
         .rst(rst),
         .jmp_flush(jmp_flush),
         .irq_flush(irq_flush),
-        .stall(stall_bus),
+        .stall(stall),
         .stage(stage),
         .inst_raw_in(inst_raw_zip),
         //
@@ -112,7 +112,7 @@ module single_cpu_top(
         .clk(clk),
         .rst(rst),
         .jmp_flush(jmp_flush),
-        .stall(stall_bus),
+        .stall(stall),
         .stage(stage),
         .irq_flush(irq_flush),
         .addr_r12_raw(rd12_raw),
@@ -159,7 +159,7 @@ module single_cpu_top(
 
     id_reg u_id_reg(
         .clk(clk),
-        .stall(stall_bus),
+        .stall(stall),
         .stage(stage),
         .we_in(we_temp1),
         .opcode_in(opcode2),
@@ -188,7 +188,7 @@ module single_cpu_top(
 
     wr_reg u_wr_reg(
         .clk(clk),
-        .stall(stall_bus),
+        .stall(stall),
         .we_in(we_temp2),
         .stage(stage),
         .rst(rst),
@@ -203,7 +203,7 @@ module single_cpu_top(
     reg_f u_reg_f(
         .clk(clk), 
         .rst(rst),
-        .stall(stall_bus),
+        .stall(stall),
         .we(we), 
         .tx_busy(tx_busy),
         .i2c_busy(i2c_busy),
@@ -225,7 +225,7 @@ module single_cpu_top(
         .irq_bus_in(irq_bus),
         .pc_addr_in(pc_addr),
         .irq_en(irq_en & unz_irq_en),
-        .stall(stall_bus),
+        .stall(stall),
         .cstalled(cstalled),
         .bubble(bubble),
         //

@@ -22,16 +22,16 @@
 
 module bus_controller(
     input wire clk, rst,
-    input wire timer_irq, rx_irq, dma_irq, i2c_err_irq, stall_bus_1, stall_bus_2,
+    input wire timer_irq, rx_irq, dma_irq, i2c_err_irq, stall_1, stall_2,
     input wire [1:0] gpio_irq,
     input wire [15:0] bus_addr_f_in, bus_addr_dma_in,
     input wire [3:0] bus_sig_f_in,
     input wire [7:0] bus_data_in_cpu,
     input wire [7:0] bus_data_ram1, bus_data_ram2, bus_data_uart, bus_data_gpio, bus_data_dma,
-    input wire [7:0] bus_data_irq, bus_data_base,
+    input wire [7:0] bus_data_irq, bus_data_base, bus_data_timer,
     output reg [7:0] bus_data_b, bus_data_to_dma,
     output reg [8:0] irq_bus,
-    output reg stall_bus
+    output reg stall
     );
 
     localparam [3:0]
@@ -60,6 +60,7 @@ module bus_controller(
         RAM_1, RAM_2, RAM_3: bus_data_b = bus_data_ram1;
         RAM_EXT: bus_data_b = bus_data_ram2;
         UART: bus_data_b = bus_data_uart;
+        TIMER: bus_data_b = bus_data_timer;
         GPIO: bus_data_b = bus_data_gpio;
         IRQ: bus_data_b = bus_data_irq;
         DMA: bus_data_b = bus_data_dma;
@@ -72,7 +73,7 @@ module bus_controller(
         UART: bus_data_to_dma = bus_data_uart;
         default: bus_data_to_dma = 8'b0;
         endcase
-        stall_bus = (stall_bus_1 | stall_bus_2);
+        stall = (stall_1 | stall_2);
     end
 
     always @(*) begin

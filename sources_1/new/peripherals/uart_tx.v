@@ -25,13 +25,10 @@ module uart_tx(
     input wire rst,
     input wire tx_en,
     input wire [7:0] tx_data,
+    input wire [13:0] mcnt,
     output reg tx,
     output reg busy
     );
-
-    localparam BPS = 115200;
-    localparam CLK = 50_000_000;
-    localparam MCNT = CLK/BPS;
 
     reg [15:0] clk_cnt;
     reg [3:0] bit_cnt;
@@ -54,7 +51,7 @@ module uart_tx(
                 tx <= 1'b0;
             end
             else if (busy) begin
-                if(clk_cnt < MCNT - 1) begin
+                if(clk_cnt < mcnt - 1'b1) begin
                     clk_cnt <= clk_cnt + 1;
                 end
                 else begin

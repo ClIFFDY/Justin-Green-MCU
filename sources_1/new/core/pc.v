@@ -21,7 +21,7 @@
 
 
 module pc(
-    input wire clk, rst, frz, stall_bus, cstall, cstalled, irq_flag, jmp_flush,
+    input wire clk, rst, frz, stall, cstall, cstalled, irq_flag, jmp_flush,
     input wire [1:0] stage,
     input wire [1:0] j_flag,
     input wire [5:0] op_raw,
@@ -56,7 +56,7 @@ module pc(
             jmpflg <= 2'b0;
             bubble <= 2'b0;
         end
-        else if (stage == EXE && !stall_bus) begin
+        else if (stage == EXE && !stall) begin
             jmpflg <= 2'b0;
             bubble <= (bubble != 2'd0) ? bubble - 2'd1 : 2'd0;
             if (irq_flag) begin

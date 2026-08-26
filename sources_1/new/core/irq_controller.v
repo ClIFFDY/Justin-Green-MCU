@@ -55,19 +55,19 @@ module irq_controller(
     reg [1:0] stage;
     reg [3:0] j;
 
-    reg [12:0] irq_vex [0:15];
+    reg [15:0] irq_vex [0:15];
     reg [12:0] pc_addr [0:7];
     reg [2:0] prio;
     integer i;
 
     initial begin
-        irq_vex[I2C]     = 13'd1168;
-        irq_vex[DMA]     = 13'd1136;
-        irq_vex[UART_RX] = 13'd1104;
-        irq_vex[TIMER]   = 13'd1088;
-        irq_vex[GPIO1]   = 13'd1056;
-        irq_vex[GPIO2]   = 13'd1024;
-        for (i = 6; i < 16; i = i + 1) irq_vex[i] = 8'd0;
+        irq_vex[I2C]     = 16'd1168;
+        irq_vex[DMA]     = 16'd1136;
+        irq_vex[UART_RX] = 16'd1104;
+        irq_vex[TIMER]   = 16'd1088;
+        irq_vex[GPIO1]   = 16'd1056;
+        irq_vex[GPIO2]   = 16'd1024;
+        for (i = 6; i < 16; i = i + 1) irq_vex[i] = 16'd0;
         for (i = 0; i < 8; i = i + 1) pc_addr[i] = 12'b0;
     end
 
@@ -80,7 +80,7 @@ module irq_controller(
         else begin
             if (bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
                 if (bus_addr_in[1:0] == 2'd1) begin 
-                    irq_vex[bus_addr_in[4:2]][12:8] = bus_data_in;
+                    irq_vex[bus_addr_in[4:2]][15:8] = bus_data_in;
                 end
                 else if (bus_addr_in[1:0] == 2'd2) begin 
                     irq_vex[bus_addr_in[4:2]][7:0] = bus_data_in;
@@ -140,7 +140,7 @@ module irq_controller(
             irq_addr = 13'b0;
             if (!bus_sig_in && bus_addr_in[15:12] == IRQ_W) begin
                 if (!bus_addr_in[0]) bus_data_out = pc_addr[bus_addr_in[4:1]][7:0];
-                else bus_data_out = pc_addr[bus_addr_in[4:1]][11:8];
+                else bus_data_out = pc_addr[bus_addr_in[4:1]][12:8];
             end
             case (stage)
             IDLE: begin
@@ -159,7 +159,7 @@ module irq_controller(
                 else begin
                     if (irq_bus_in != 13'b0 && irq_en == 1'b1 && !stall
                         && irq_bus_in[8:6] > prio && j <= 4'd15) begin
-                        irq_addr = irq_vex[irq_bus_in[5:3] + irq_bus_in[2:0] - 1];
+                        irq_addr = irq_vex[irq_bus_in[5:3] + irq_bus_in[2:0] - 1][12:0];
                         irq_flush = 1'b1;
                     end
                 end

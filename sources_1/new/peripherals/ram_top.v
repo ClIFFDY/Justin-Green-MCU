@@ -29,7 +29,7 @@ module ram_top(
     input wire [15:0] bus_addr_dma,
     input wire [7:0] bus_data_dma,
     input wire [3:0] bus_sig_dma,
-    output wire stall_bus
+    output wire stall
     );
 
     wire dma_oc = (bus_addr_dma[15:12] == 4'b1000 || bus_addr_dma[15:12] == 4'b1001
@@ -43,7 +43,7 @@ module ram_top(
     wire [7:0] sec_out [0:2];
     wire access = (bus_addr_final[15:12] == 4'b1000 || bus_addr_final[15:12] == 4'b1001 
                   || bus_addr_final[15:12] == 4'b1010)? 1'b1 : 1'b0;
-    assign stall_bus = access && !done && !bus_sig_final[0] && !dma_oc;
+    assign stall = access && !done && !bus_sig_final[0] && !dma_oc;
 
     always @(posedge clk) begin
         done <= 1'b0;

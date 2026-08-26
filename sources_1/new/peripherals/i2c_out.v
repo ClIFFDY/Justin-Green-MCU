@@ -30,7 +30,8 @@ module i2c_out(
     input wire [3:0] bus_sig_dma,
 
     output reg i2c_err_irq,
-    inout wire sda,
+    output wire sda_oe,  
+    input wire sda_in,    
     output wire scl, busy
     );
 
@@ -47,7 +48,7 @@ module i2c_out(
     reg sda_mode, scl_reg, sda_reg;
     reg phase_h; 
 
-    localparam 
+    localparam
         CLK = 50_000_000,
         LOW_FREQ = 100_000,
         HIGH_FREQ = 400_000,
@@ -60,29 +61,36 @@ module i2c_out(
         ACK2 = 3'd3,
         START = 3'd4,
         STOP = 3'd5,
-        BACK = 3'd6;
+        STOP2 = 3'd6,
+        BACK = 3'd7;
 
-        reg [8:0] cnt_l, cnt_h, cnt;
+        reg [24:0] cnt_l, cnt_h, cnt;
         reg [7:0] data_buf [0:15];
         reg [7:0] send_buf;
 
     assign scl = scl_reg;
-    assign sda = (sda_mode) ? sda_reg : 1'bz;
-    assign busy = (wr_ptr != rd_ptr + 1'b1) ? 1'b1 : 1'b0;
+    assign sda_oe = sda_mode && !sda_reg; 
+    assign busy = ((wr_ptr != rd_ptr + 1'b1) || (stage != IDLE)) ? 1'b1 : 1'b0;
 
     always @(*) begin
         if (rst) begin 
-            cnt_l = 9'd0; 
-            cnt_h = 9'd0; 
+            cnt_l = 25'd0; 
+            cnt_h = 25'd0; 
         end
         else begin
             case (frq_mode)
-            2'd0: begin cnt_l = CLK * 2 / (LOW_FREQ * 5);   cnt_h = CLK * 3 / (LOW_FREQ * 5);  end
-            2'd1: begin cnt_l = CLK * 2 / (HIGH_FREQ * 5);  cnt_h = CLK * 3 / (HIGH_FREQ * 5); end
-            2'd2: begin cnt_l = CLK * 2 / (ULTRA_FREQ * 5); cnt_h = CLK * 3 / (ULTRA_FREQ * 5); end
-            default begin
-                cnt_l = 9'd0;
-                cnt_h = 9'd0;
+            2'd0: begin 
+                cnt_l = CLK * 2 / (LOW_FREQ * 5);   cnt_h = CLK * 3 / (LOW_FREQ * 5); 
+            end
+            2'd1: begin 
+                cnt_l = CLK / HIGH_FREQ * 13 / 25;  cnt_h = CLK / HIGH_FREQ * 12 / 25; 
+            end
+            2'd2: begin 
+                cnt_l = CLK * 2 / (ULTRA_FREQ * 5); cnt_h = CLK * 3 / (ULTRA_FREQ * 5); 
+            end
+            default: begin 
+                cnt_l = 25'd0;
+                cnt_h = 25'd0;
             end
             endcase
         end
@@ -110,6 +118,7 @@ module i2c_out(
 
     always @(posedge clk) begin
         if (rst) begin
+            scl_reg <= 1'b1;
             i2c_err_irq <= 1'b0;
             start <= 1'b0;
             stop <= 1'b0;
@@ -168,45 +177,63 @@ module i2c_out(
                             end
                             else begin
                                 bit_cnt <= 4'd0;
-                                if (ack_mode == 1'b1) begin
-                                    stage <= ACK1; 
-                                end
-                                else if (stop) begin
-                                    stop <= 1'b0;
-                                    stage <= STOP;
-                                end
-                                else if (rd_ptr != wr_ptr - 1'b1) begin
-                                    send_buf <= data_buf[rd_ptr + 1'b1]; 
-                                    rd_ptr <= rd_ptr + 1'b1;
-                                    bit_cnt <= 4'd8;
-                                end
-                                else stage <= IDLE;
+                                stage <= ACK1;
                             end
                         end
                     end
                     ACK1: begin
-                        sda_mode <= 1'b0;
-                        stage <= ACK2;
+                        if (!phase_h) begin
+                            scl_reg <= 1'b0;
+                            sda_mode <= 1'b0;
+                            phase_h <= 1'b1;
+                        end
+                        else begin
+                            scl_reg <= 1'b1;
+                            phase_h <= 1'b0;
+                            stage <= ACK2;
+                        end
                     end
                     ACK2: begin
-                        if (sda == 1'b1) begin
+                        if (ack_mode == 1'b1 && sda_in == 1'b1) begin
                             i2c_err_irq <= 1'b1;
                             stage <= STOP;
                         end
+                        else if (rd_ptr != wr_ptr - 1'b1) begin
+                            send_buf <= data_buf[rd_ptr + 1'b1];
+                            rd_ptr <= rd_ptr + 1'b1;
+                            bit_cnt <= 4'd8;
+                            sda_mode <= 1'b1;
+                            scl_reg <= 1'b0;
+                            phase_h <= 1'b0;
+                            stage <= SEND;
+                        end
+                        else if (stop) begin
+                            stop <= 1'b0;
+                            stage <= STOP;
+                        end
                         else begin
-                            stage <= BACK;
+                            stage <= IDLE;
                         end
                     end
                     STOP: begin
+                        scl_reg <= 1'b0;
+                        sda_mode <= 1'b1;
+                        sda_reg <= 1'b0;
+                        phase_h <= 1'b0;
+                        stage <= STOP2;
+                    end
+                    STOP2: begin
                         scl_reg <= 1'b1;
                         sda_mode <= 1'b1;
                         sda_reg <= 1'b0;
+                        phase_h <= 1'b1;
                         stage <= BACK;
                     end
                     BACK: begin
                         scl_reg <= 1'b1;
                         sda_reg <= 1'b1;
                         sda_mode <= 1'b0;
+                        phase_h <= 1'b1;
                         stage <= IDLE;
                     end
                 endcase

@@ -8,7 +8,7 @@
 #   shell v3.0 菜单式界面（全英文）:
 #     · init 横幅(模块大写) + 主菜单(每项一行)
 #     · 命令: 主菜单 1.credits 2.status 3.game 0.menu
-#            game 子菜单: 4左 6右 5旋转 7快落 1暂停 0返回菜单
+#            game 子菜单: 4左 6右 5旋转 2向下快移一格 1暂停 0返回菜单
 #     · credits 无版本号（不随版本更新改）；status 带 RAM 用量 # 进度条(print_bar)
 #     · 单字符命令 + 空闲超时执行（串口无回车也能用）
 #     · tick 驱动: 1s=5000 tick(0.2ms/格), blink 每 0.25s(1250 tick)翻转
@@ -25,7 +25,7 @@
 # ============================================================
 
 # ---- 外设 ----
-.equ UART        0x2000
+.equ UART        0x2400   # 0x2000 区 [11:10]=01 → 115200 baud（0x2000 为 9600）
 .equ TIMER_CNT0  0x3000
 .equ TIMER_CNT1  0x3001
 .equ TIMER_CNT2  0x3002
@@ -118,6 +118,31 @@
 .equ LED_MODE    0x9124    # 0=翻转(手动) 1=闪烁(自动)
 .equ BLINK_ACC_LO 0x9125   # 闪烁累计(16bit, 1250=0.25s)
 .equ BLINK_ACC_HI 0x9126
+# ---- MIPS 基准临时区（0x9127-0x9137 空闲）----
+.equ MIPS_S0     0x9128    # start 时间 32bit（cnt0 LSB）
+.equ MIPS_S1     0x9129
+.equ MIPS_S2     0x912A
+.equ MIPS_S3     0x912B
+.equ MIPS_E0     0x912C    # end→elapsed 32bit
+.equ MIPS_E1     0x912D
+.equ MIPS_E2     0x912E
+.equ MIPS_E3     0x912F
+.equ MIPS_N0     0x9130    # 分子 K×50>>16 低字节
+.equ MIPS_N1     0x9131    # 分子高字节
+.equ UPTIME_TMP_LO 0x9132  # 秒内 tick 计数（5000 归秒）低
+.equ UPTIME_TMP_HI 0x9133  # 高
+.equ UPTIME_S0   0x9134    # 已运行秒 32bit（cnt0 LSB）
+.equ UPTIME_S1   0x9135
+.equ UPTIME_S2   0x9136
+.equ UPTIME_S3   0x9137
+# ---- Dhrystone 风格基准数据（0x9590-0x9596，避开扫雷 0x9500-0x9587）----
+.equ DH_REC0     0x9590    # 记录整数字段
+.equ DH_REC1     0x9591    # 记录字符字段
+.equ DH_ARR0     0x9592    # 数组[0]
+.equ DH_ARR1     0x9593
+.equ DH_ARR2     0x9594
+.equ DH_ARR3     0x9595
+.equ DH_GLOB     0x9596    # 全局 int
 # ============================================================
 # 复位 → boot（也是任务 0 shell 的首次执行）
 # ============================================================
@@ -172,15 +197,53 @@
 .equ FRAME_IDX_HI 0x948C # 帧写指针 16bit 高字节
 .equ DMA_INI    0x70C0   # 写 DMA ini 高字节（{addr[7:0]=0xC0, data=低字节}）→ 0xC000
 .equ DMA_CNT    0x7100   # 写 DMA cnt（data=帧长）
-.equ DMA_DES    0x7320   # 写 DMA des 高字节（{addr[7:0]=0x20, data=0}）→ 0x2000 UART
+.equ DMA_DES    0x7324   # 写 DMA des 高字节（{addr[7:0]=0x24, data=0}）→ 0x2400 UART(115200)
 .equ DMA_BANK   0x7400   # 写 DMA bank（data=0）
 .equ DMA_TRIG   0x7500   # 触发 DMA
 .equ DMA_CNT_HI 0x7600   # 读 DMA cnt 高字节（dma 用 bus_addr_in[11:8]==6 返回 cnt[15:8]）
 .equ DMA_CNT_LO 0x7700   # 读 DMA cnt 低字节（==7 返回 cnt[7:0]）
 
+# ---- OLED 主界面（v3.5.0，ram_top slice0 @0x8000 全新增区，与 seg1/data 零冲突）----
+.equ I2C_DATA  0x1000
+.equ I2C_CFG   0x1200
+.equ I2C_START 0x1400
+.equ I2C_STOP  0x1600
+.equ GPIO_PIN4 0x4009     # gpio4 = SCL (T16)
+.equ GPIO_PIN5 0x400B     # gpio5 = SDA (U17)
+.equ TX_BUF    0x8400     # I2C 批缓冲 16B
+.equ SAV1      0x8410     # 入口保护 r1-r6
+.equ SAV2      0x8411
+.equ SAV3      0x8412
+.equ SAV4      0x8413
+.equ SAV5      0x8414
+.equ SAV6      0x8415
+.equ TMP_A     0x8416     # flush 扫描 / mark 首次
+.equ TMP_B     0x8417     # flush_page page / invert col0
+.equ TMP_C     0x8418     # str 指针hi / invert col1
+.equ TMP_D     0x8419     # str 指针lo / fill 值
+.equ TMP_E     0x841A     # mark page
+.equ TMP_F     0x841B     # mark col0
+.equ TMP_G     0x841C     # mark col1
+.equ DIRTY     0x8420     # 脏页位图
+.equ DCOL_LO   0x8421     # 每页脏列 lo
+.equ DCOL_HI   0x8429     # 每页脏列 hi
+.equ CUR_X     0x8431
+.equ CUR_Y     0x8432
+.equ SEL       0x8433     # 菜单光标 0-2
+.equ LAST_SEL  0x8434     # 上次选中 (0xFF=未画)
+.equ OLED_INIT 0x8435
+.equ SCREEN_OFF 0x8436   # 1=OLED 关屏（关屏期间只响应 '0' 开屏, 其余键忽略）
+.equ STATUS_PAGE 0x8437  # STATUS 页: 0=总览 1=GPIO P0-2 2=GPIO P3-5 3=GPIO P6-7+波特率
+.equ LAST_UP_SEC 0x8438  # 上次绘制 UPTIME 的秒（每秒刷新检测）
+.equ UP_TMP_H    0x8439  # oled_uptime 暂存小时（跨 oled_dec16/oled_putc 保存）
+.equ UP_TMP_M    0x843A  # oled_uptime 暂存分钟
+.equ GPIO_CONF  0x8450   # 8 引脚角色表（boot 写入; 0=unuse 1=uart_rx 2=uart_tx 3=i2c_scl 4=i2c_sda 5=led_out 6=irq_in）
+
 .org 0x000
 reset:
     ADDI  r253, r0, 0        # j=0：任务0 调用栈基址
+    # ---- OLED 初始化（纯测试同款: 最前, 无 UART/GPIO 前置干扰; IRQ 未开安全）----
+    RJAL  oled_init
     # ---- GPIO：UART 引脚 + LED ----
     ADDI  r1, r0, MODE_RX
     SB    r1, GPIO_PIN0
@@ -191,16 +254,44 @@ reset:
     ADDI  r1, r0, 0x40
     SB    r1, GPIO
     SB    r1, LED_STATE
+    # ---- 引脚角色表（STATUS 显示用，boot 决定不读硬件）----
+    #   顺序 GPIO_CONF[0..7]：P0 uart_rx P1 uart_tx P2 unuse P3 unuse
+    #                            P4 i2c_scl P5 i2c_sda P6 led_out P7 unuse
+    ADDI  r1, r0, 0x84
+    ADDI  r2, r0, 0x50
+    ADDI  r3, r0, 1
+    SIND  r3, r1, r2          # P0 = uart_rx
+    ADDI  r3, r0, 2
+    ADDI  r2, r0, 0x51
+    SIND  r3, r1, r2          # P1 = uart_tx
+    ADDI  r3, r0, 0
+    ADDI  r2, r0, 0x52
+    SIND  r3, r1, r2          # P2 = unuse
+    ADDI  r2, r0, 0x53
+    SIND  r3, r1, r2          # P3 = unuse
+    ADDI  r3, r0, 3
+    ADDI  r2, r0, 0x54
+    SIND  r3, r1, r2          # P4 = i2c_scl
+    ADDI  r3, r0, 4
+    ADDI  r2, r0, 0x55
+    SIND  r3, r1, r2          # P5 = i2c_sda
+    ADDI  r3, r0, 5
+    ADDI  r2, r0, 0x56
+    SIND  r3, r1, r2          # P6 = led_out
+    ADDI  r3, r0, 0
+    ADDI  r2, r0, 0x57
+    SIND  r3, r1, r2          # P7 = unuse
+    SB    r0, STATUS_PAGE     # STATUS 页 0
+    SB    r0, LAST_UP_SEC
+    # 诊断: oled_init 完成 → 闪 2 下（若卡在 init 则 P15 常亮无闪烁）
+    ADDI  r7, r0, 2
+    RJAL  blink_led
     # ---- 开机动画：GPIO ----
-    .puts " BOOT: GPIO    "
-    RJAL  anim_bar
     # ---- 内核初值 ----
     SB    r0, CUR_TASK
     SB    r0, TICK_LO
     SB    r0, TICK_HI
     # ---- 开机动画：KERNEL ----
-    .puts " BOOT: KERNEL  "
-    RJAL  anim_bar
     # ---- 环形缓冲 + shell 状态初值 ----
     SB    r0, RX_WR
     SB    r0, RX_RD
@@ -210,9 +301,8 @@ reset:
     SB    r0, LAST_TICK
     # ---- 菜单/倒计时/闪烁 状态初值 ----
     SB    r0, MENU
+    SB    r0, SCREEN_OFF
     # ---- 开机动画：BUFFER ----
-    .puts " BOOT: BUFFER  "
-    RJAL  anim_bar
     # ---- 调用栈分区 + 共享子程序暂存组 ----
     SB    r0, TCB0_J
     SB    r0, TCB0_R7
@@ -241,8 +331,6 @@ reset:
     SB    r0, TCB2_R10
     SB    r0, TCB2_R11
     # ---- 开机动画：STACK ----
-    .puts " BOOT: STACK   "
-    RJAL  anim_bar
     # ---- 中断优先级（BUS_CON 0x6000：addr bit3=1 写 prio；bit3=0 解锁一次性 lock）----
     # timer=3 最高 rx=2 gpio0=1 gpio1=0 dma=0（关；复位默认 dma=5 最高必须关）
     ADDI  r1, r0, 3
@@ -255,8 +343,6 @@ reset:
     SB    r0, 0x600C
     SB    r0, 0x600D
     # ---- 开机动画：IRQ PRIO ----
-    .puts " BOOT: IRQPRIO "
-    RJAL  anim_bar
     # ---- 写向量表指针（IRQW 0x5xxx：[4:2]=槽位，[1:0]=1 高字节/2 低字节）----
     # 槽位: timer=0 uart=1 gpio0=2 gpio1=3 dma=4
     # 目标: timer→0x248(跳板→sched_body) uart→0x260 gpio0→0x208 gpio1→0x228 dma→0x208(防御IRET)
@@ -281,8 +367,6 @@ reset:
     ADDI  r1, r0, 0x08
     SB    r1, 0x5012            # dma 低 → 0x208
     # ---- 开机动画：VECTOR ----
-    .puts " BOOT: VECTOR  "
-    RJAL  anim_bar
     # ---- timer: 0x270F → 周期 10000 拍 = 0.2ms（5kHz 抢占）----
     ADDI  r1, r0, 0x0F
     SB    r1, TIMER_CNT0
@@ -293,20 +377,18 @@ reset:
     ADDI  r1, r0, 1
     SB    r1, TIMER_MODE
     # ---- 开机动画：READY ----
-    .puts " BOOT: READY   "
-    RJAL  anim_bar
     # ---- 解锁一次性 irq lock（写 BUS_CON bit3=0 即 0x6000-0x6007）→ 允许中断 ----
     SB    r0, 0x6000
     # ---- 进入任务 0（shell）----
 task0_entry:
     RJAL  menu_main           # 主菜单
-    RJAL  print_prompt
     # NOP 填充：shell_loop 距 task0_entry ≥3 词，resume(pcIn-2) 落进 shell_loop 而非启动代码
     NOP
     NOP
     NOP
 shell_loop:
     RJAL  tick_bookkeeping    # 每轮: 累加 IDLE_CNT + blink
+    RJAL  uptime_disp_check   # STATUS 页0: 每秒局部刷 UPTIME 行
     # ---- 等字符: WR != RD ? ----
     LBU   r1, RX_WR
     LBU   r2, RX_RD
@@ -380,12 +462,9 @@ __lf_skip:
     SB    r0, LAST_CR
     LBEQ  r0, r0, shell_loop
 __sh_exec:
-    # 执行: 换行 → 解析 → 重置 → 提示符（按 MENU）
-    ADDI  r7, r0, '\n'
-    RJAL  putc
+    # 执行: 解析 → 重置（UART 回显已删）
     RJAL  shell_parse
     SB    r0, CURSOR
-    RJAL  print_prompt
     LBEQ  r0, r0, shell_loop
 __sh_bs:
     # 退格(0x7F 或 0x08)?
@@ -395,7 +474,7 @@ __sh_bs:
 __sh_bs2:
     ADDI  r8, r0, 0x08
     RBNE  r7, r8, __sh_char
-    # 退格: 若 CURSOR>0，cursor--，echo "\x08 \x08"
+    # 退格: 若 CURSOR>0，cursor--（回显已删）
     LBU   r1, CURSOR
     RBNE  r1, r0, __bs_do
     SB    r0, LAST_CR
@@ -404,12 +483,6 @@ __bs_do:
     ADDI  r1, r1, 0xFF
     SB    r1, CURSOR
     SB    r0, LAST_CR
-    ADDI  r7, r0, 0x08
-    RJAL  putc
-    ADDI  r7, r0, ' '
-    RJAL  putc
-    ADDI  r7, r0, 0x08
-    RJAL  putc
     LBEQ  r0, r0, shell_loop
 __sh_char:
     # 普通字符: 若 CURSOR<8，调 shell_append 存行 + echo（append 在 0x2A0 区）
@@ -426,11 +499,28 @@ __ap_call:
 # 共享子程序（0x100 区，寄存器中立：只用 r7-r11，参数走 r7）
 # ============================================================
 .org 0x100
-putc:                           # 入参 r7=字符；轮询 tx_busy（r255）后发送（破坏 r7,r8,r9）
+putc:                           # 入参 r7=字符；IRQ 安全（紧循环期间屏蔽 timer 防 resume 崩）
+    SB    r0, 0x6008            # 屏蔽 timer IRQ（resume 缺陷规避, 见 irq_stress_test）
+    NOP
+    NOP
 putc_wait:
     ADDI  r8, r255, 0
     LBNE  r8, r0, putc_wait
     SB    r7, UART
+    # 打字机小延迟 ~0.37ms/字符（IRQ 已屏蔽, 紧循环安全）
+    ADDI  r8, r0, 32          # 外层 32（打字机可见）
+__ty_o:
+    ADDI  r9, r0, 0xFF        # 内层 255
+__ty_i:
+    ADDI  r9, r9, 0xFF
+    LBNE  r9, r0, __ty_i
+    ADDI  r8, r8, 0xFF
+    LBNE  r8, r0, __ty_o
+    ADDI  r10, r0, 3
+    SB    r10, 0x6008            # 恢复 timer IRQ（用 r10, 不碰 r1-r6）
+    NOP                          # pending IRQ 落在 NOP 上（非 JALR）
+    NOP
+    NOP
     JALR
 
 # flush_rx: 清空 UART RX 环形缓冲（丢弃打印期间积压的按键）→ 打印完成后才接受新输入
@@ -507,7 +597,7 @@ print_hex:                      # 入参 r7=字节 → 2 位 hex（破坏 r7,r8,
 # shell 解析（0x100 区，任务0 独用，返回栈走任务0 区域）
 #   按 MENU 状态分派：主菜单 / 倒计时子菜单 / LED 子菜单
 # ============================================================
-shell_parse:                    # 解析 LINE_BUF[0..CURSOR-1]（主菜单：1/2/3/0）
+shell_parse:                    # 解析单字符命令（通用按键: 8上 2下 5选中 0返回）
     LBU   r7, CURSOR
     RBNE  r7, r0, __sp_have
     JALR                        # 空行 → 直接返回
@@ -515,55 +605,179 @@ __sp_have:
     ADDI  r8, r0, 1
     RBNE  r7, r8, __sp_unknown  # 只接受单字符命令
     LBU   r7, LINE_BUF0
+    # ---- 屏幕关闭门控: 关屏期间只响应 '0'（开屏）, 其余键一律静默忽略 ----
+    LBU   r1, SCREEN_OFF
+    RBEQ  r1, r0, __sp_scr_on
+    ADDI  r8, r0, '0'
+    RBEQ  r7, r8, __sp_scr_wake
+    JALR                          # 非 '0' → 忽略
+__sp_scr_wake:
+    SB    r0, SCREEN_OFF
+    ADDI  r7, r0, 0xAF            # SSD1306 Display ON
+    RJAL  oled_cmd
+    RJAL  menu_main               # 重画主菜单
+    JALR
+__sp_scr_on:
     LBU   r1, MENU
     RBEQ  r1, r0, __sp_main       # MENU=0 → 主菜单
     ADDI  r8, r0, 1
-    RBEQ  r1, r8, game_menu_dispatch  # MENU=1 → 游戏子菜单
+    RBEQ  r1, r8, __sp_game       # MENU=1 → 游戏子菜单
     ADDI  r8, r0, 2
-    RBEQ  r1, r8, __sp_credits    # MENU=2 → CREDITS（只认 0）
-    # MENU=3 → STATUS（只认 0）
-__sp_status:
+    RBEQ  r1, r8, __sp_credits    # MENU=2 → CREDITS
+    RBEQ  r0, r0, __sp_status     # MENU=3 → STATUS
+
+# ---- 主菜单（MENU=0）：8上 2下 5选中 0重画 ----
+__sp_main:
+    ADDI  r8, r0, '8'
+    RBNE  r7, r8, __spm_2
+    LBU   r1, SEL
+    RBEQ  r1, r0, __spm_redraw   # SEL==0 不动
+    ADDI  r1, r1, 0xFF           # SEL-1
+    SB    r1, SEL
+    RBEQ  r0, r0, __spm_redraw
+__spm_2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __spm_5
+    LBU   r1, SEL
+    ADDI  r2, r0, 2
+    RBEQ  r1, r2, __spm_redraw   # SEL==2 不动
+    ADDI  r1, r1, 1              # SEL+1
+    SB    r1, SEL
+    RBEQ  r0, r0, __spm_redraw
+__spm_5:
+    ADDI  r8, r0, '5'
+    RBNE  r7, r8, __spm_0
+    LBU   r1, SEL
+    RBEQ  r1, r0, __spm_5cr
+    ADDI  r8, r0, 1
+    RBEQ  r1, r8, __spm_5st
+    # SEL=2 → GAME 子菜单
+    ADDI  r1, r0, 1
+    SB    r1, MENU
+    RJAL  game_menu
+    JALR
+__spm_5cr:
+    ADDI  r1, r0, 2
+    SB    r1, MENU
+    RJAL  cmd_credits
+    JALR
+__spm_5st:
+    ADDI  r1, r0, 3
+    SB    r1, MENU
+    RJAL  cmd_status
+    JALR
+__spm_0:
+    ADDI  r8, r0, '0'
+    RBNE  r7, r8, __sp_unknown
+    ADDI  r1, r0, 1
+    SB    r1, SCREEN_OFF           # 置关屏标志
+    ADDI  r7, r0, 0xAE             # SSD1306 Display OFF
+    RJAL  oled_cmd
+    JALR
+__spm_redraw:
+    RJAL  render_main
+    JALR
+
+# ---- 游戏子菜单（MENU=1）：8上 2下 5选中 0返回主菜单 ----
+__sp_game:
+    ADDI  r8, r0, '8'
+    RBNE  r7, r8, __spg_2
+    LBU   r1, SEL
+    RBEQ  r1, r0, __spg_redraw
+    ADDI  r1, r1, 0xFF
+    SB    r1, SEL
+    RBEQ  r0, r0, __spg_redraw
+__spg_2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __spg_5
+    LBU   r1, SEL
+    ADDI  r2, r0, 2
+    RBEQ  r1, r2, __spg_redraw
+    ADDI  r1, r1, 1
+    SB    r1, SEL
+    RBEQ  r0, r0, __spg_redraw
+__spg_5:
+    ADDI  r8, r0, '5'
+    RBNE  r7, r8, __spg_0
+    LBU   r1, SEL
+    RBEQ  r1, r0, __spg_5t
+    ADDI  r8, r0, 1
+    RBEQ  r1, r8, __spg_5m
+    # SEL=2 → 回主菜单
+    SB    r0, MENU
+    RJAL  menu_main
+    JALR
+__spg_5t:
+    ADDI  r7, r0, 'T'
+    RJAL  oled_game_screen
+    RJAL  game_start
+    JALR
+__spg_5m:
+    ADDI  r7, r0, 'M'
+    RJAL  oled_game_screen
+    RJAL  minesweeper_start
+    JALR
+__spg_0:
     ADDI  r8, r0, '0'
     RBNE  r7, r8, __sp_unknown
     SB    r0, MENU
     RJAL  menu_main
     JALR
+__spg_redraw:
+    RJAL  render_game
+    JALR
+
+# ---- CREDITS（MENU=2）：0 返回 ----
 __sp_credits:
     ADDI  r8, r0, '0'
     RBNE  r7, r8, __sp_unknown
     SB    r0, MENU
     RJAL  menu_main
     JALR
-__sp_main:
-    ADDI  r8, r0, '1'
-    RBNE  r7, r8, __sp_m2
-    ADDI  r1, r0, 2
-    SB    r1, MENU                 # MENU=2 → CREDITS 子菜单
-    RJAL  cmd_credits
-    JALR
-__sp_m2:
-    ADDI  r8, r0, '2'
-    RBNE  r7, r8, __sp_m3
+
+# ---- STATUS（MENU=3）：4/6 翻页 2=MIPS 0=返回 ----
+__sp_status:
+    ADDI  r8, r0, '4'
+    RBNE  r7, r8, __spst_6
+    LBU   r1, STATUS_PAGE
+    RBEQ  r1, r0, __spst_prev0
+    ADDI  r1, r1, 0xFF
+    SB    r1, STATUS_PAGE
+    RBEQ  r0, r0, __spst_redraw
+__spst_prev0:
     ADDI  r1, r0, 3
-    SB    r1, MENU                 # MENU=3 → STATUS 子菜单
+    SB    r1, STATUS_PAGE
+    RBEQ  r0, r0, __spst_redraw
+__spst_6:
+    ADDI  r8, r0, '6'
+    RBNE  r7, r8, __spst_2
+    LBU   r1, STATUS_PAGE
+    ADDI  r2, r0, 3
+    RBEQ  r1, r2, __spst_next3
+    ADDI  r1, r1, 1
+    SB    r1, STATUS_PAGE
+    RBEQ  r0, r0, __spst_redraw
+__spst_next3:
+    SB    r0, STATUS_PAGE
+    RBEQ  r0, r0, __spst_redraw
+__spst_2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __spst_0
+    RJAL  mips_bench
     RJAL  cmd_status
     JALR
-__sp_m3:
-    ADDI  r8, r0, '3'
-    RBNE  r7, r8, __sp_m0
-    ADDI  r1, r0, 1
-    SB    r1, MENU                 # MENU=1 → 游戏子菜单
-    RJAL  game_menu
-    JALR
-__sp_m0:
+__spst_0:
     ADDI  r8, r0, '0'
     RBNE  r7, r8, __sp_unknown
+    SB    r0, MENU
     RJAL  menu_main
     JALR
+__spst_redraw:
+    RJAL  cmd_status
+    JALR
+
+# ---- 未知键 ----
 __sp_unknown:
-    ADDI  r7, r0, '?'
-    LJAL  putc
-    LJAL  put_crlf
     LBU   r1, MENU
     RBEQ  r1, r0, __sp_unk_main   # MENU=0 → 主菜单
     ADDI  r8, r0, 1
@@ -576,48 +790,13 @@ __sp_unk_gm:
     RJAL  game_menu
     JALR
 
-# ---- game 子菜单分派（MENU==1）：1=俄罗斯方块 2=扫雷 0=回主菜单 ----
-game_menu_dispatch:
-    LBU   r1, MENU
-    ADDI  r8, r0, 1
-    RBNE  r1, r8, __gmd_main    # MENU != 1 → 主菜单逻辑
-    LBU   r7, LINE_BUF0
-    ADDI  r8, r0, '1'
-    RBNE  r7, r8, __gmd_2
-    RJAL  game_start             # 俄罗斯方块
-    JALR
-__gmd_2:
-    ADDI  r8, r0, '2'
-    RBNE  r7, r8, __gmd_0
-    RJAL  minesweeper_start      # 扫雷
-    JALR
-__gmd_0:
-    ADDI  r8, r0, '0'
-    RBNE  r7, r8, __gmd_unknown
-    SB    r0, MENU
-    RJAL  menu_main
-    JALR
-__gmd_unknown:
-    ADDI  r7, r0, '?'
-    LJAL  putc
-    RJAL  game_menu
-    JALR
-__gmd_main:
-    # MENU==0：回主菜单 shell_parse 正常路径
-    RJAL  menu_main
-    JALR
-
-# ---- game 子菜单显示 ----
-game_menu:
-    .puts "--- GAME MENU ---"
-    RJAL  put_crlf
-    .puts " 1. TETRIS"
-    RJAL  put_crlf
-    .puts " 2. MINESWEEP"
-    RJAL  put_crlf
-    .puts " 0. MAIN MENU"
-    RJAL  put_crlf
-    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+# ---- 游戏子菜单（光标式，'8''2' 移 '5' 选 '0' 回）----
+game_menu:                      # 进入: 光标归 0 + 强制全量
+    SBI  0, SEL
+    SBI  0xFF, LAST_SEL
+render_game:                    # 共享: OLED 绘制（UART 镜像已删）
+    RJAL  oled_draw_game
+    RJAL  flush_rx             # 丢弃积压按键
     JALR
 
 # ============================================================
@@ -665,6 +844,7 @@ game_loop:
     RBNE  r1, r0, game_over
     LBEQ  r0, r0, game_loop
 game_over:
+    RJAL  wait_dma            # 修复：等最后一帧 DMA 发完再切菜单（否则菜单字节与帧交错=爆炸）
 game_exit:                      # 退出 GAME 独占 → 回 game 子菜单
     SB    r0, GAME_ACTIVE
     ADDI  r1, r0, 1
@@ -747,21 +927,15 @@ __ih_0:                     # '0' → 返回主菜单（设 G_OVER，game_loop �
     JALR
 __ih_1:                     # '1' → 暂停/恢复
     ADDI  r8, r0, '1'
-    RBNE  r7, r8, __ih_7
+    RBNE  r7, r8, __ih_2
     LBU   r1, PAUSED
     XORI  r1, r1, 1
     SB    r1, PAUSED
     JALR
-__ih_7:                     # '7' → 快速下落（当前块落到底固化即停）
-    ADDI  r8, r0, '7'
+__ih_2:                     # '2' → 向下快速移动一格（软落；到底自动固化出新块）
+    ADDI  r8, r0, '2'
     RBNE  r7, r8, __ih_other
-    SB    r0, DROP_SOLID
-__hard_loop:
     RJAL  drop_piece
-    LBU   r1, DROP_SOLID
-    RBNE  r1, r0, __hd_done
-    LBEQ  r0, r0, __hard_loop
-__hd_done:
     RJAL  render
     JALR
 __ih_other:
@@ -1130,8 +1304,9 @@ __cc_blocked:
     JALR
 
 check_cell:                # r3=row r4=col -> r5=0 free / 1 blocked（LIND 读字段格）
+    # row>=128(含 0xFF=-1 顶上方) 一律 blocked（原误判 free → 方块可悬顶）
     ADDI  r6, r0, 0x80
-    RBLTU r6, r3, __ce_free
+    RBLTU r6, r3, __ce_blocked
     ADDI  r6, r0, 20
     RBLTU r3, r6, __ce_rowok
     RBEQ  r0, r0, __ce_blocked
@@ -1392,6 +1567,50 @@ __fhd_num:
     RJAL  fputc
     JALR
 
+# fprint_dec: 入参 r7=字节(0-255) → 10 进制显示（帧版；r10 备份原值）
+#   仿 print_dec：前导零不打印；破坏 r1/r4/r5/r6/r7/r10
+fprint_dec:
+    ADDI  r10, r7, 0            # 备份原值
+    ADDI  r1, r10, 0
+    ADDI  r6, r0, 0             # 已打印标志
+    ADDI  r5, r0, 0             # 百位
+__fpd_h:
+    ADDI  r4, r0, 100
+    RBLTU r1, r4, __fpd_ht
+    ADDI  r1, r1, 0x9C          # -100
+    ADDI  r5, r5, 1
+    RBEQ  r0, r0, __fpd_h
+__fpd_ht:
+    RBNE  r5, r0, __fpd_hpr
+    RBEQ  r0, r0, __fpd_ten
+__fpd_hpr:
+    ADDI  r6, r0, 1
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r5
+    RJAL  fputc
+__fpd_ten:
+    ADDI  r5, r0, 0             # 十位
+__fpd_t:
+    ADDI  r4, r0, 10
+    RBLTU r1, r4, __fpd_tt
+    ADDI  r1, r1, 0xF6          # -10
+    ADDI  r5, r5, 1
+    RBEQ  r0, r0, __fpd_t
+__fpd_tt:
+    RBNE  r6, r0, __fpd_tpr
+    RBNE  r5, r0, __fpd_tpr
+    RBEQ  r0, r0, __fpd_one
+__fpd_tpr:
+    ADDI  r6, r0, 1
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r5
+    RJAL  fputc
+__fpd_one:
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r1
+    RJAL  fputc
+    JALR
+
 wait_dma:                     # 等 DMA 完成（cnt==0；首帧 cnt=0 直接过）
     LBU   r1, DMA_CNT_HI
     RBNE  r1, r0, wait_dma
@@ -1437,6 +1656,7 @@ __clr_ren:
     LBU   r3, P_ROW4
     LBU   r4, P_COL4
     RJAL  set_cell
+    RJAL  fput_crlf             # 棋盘前先换行（每帧空一行）
     # 顶边框（帧缓冲）
     ADDI  r7, r0, '@'
     RJAL  fputc
@@ -1533,7 +1753,7 @@ __r_loop:
     ADDI  r7, r0, ' '
     RJAL  fputc
     LBU   r7, G_SCORE
-    RJAL  fprint_hex
+    RJAL  fprint_dec            # 分数 10 进制显示
     RJAL  fput_crlf
     # 诊断：render 完成标记
     ADDI  r1, r0, 0x55
@@ -1634,8 +1854,10 @@ ms_clr_view:
     SB    r0, MS_OPEN
     SB    r0, MS_FLG
     SB    r0, MS_INN
-    SB    r0, MS_COL
-    SB    r0, MS_ROW
+    # 光标初始在棋盘左上角格 (1,1)（0 在棋盘外）
+    ADDI  r1, r0, 1
+    SB    r1, MS_COL
+    SB    r1, MS_ROW
     SB    r0, MS_OP
     # ---- 布雷 10 颗（LCG 随机种子=TICK；重复雷重抽）----
     LBU   r5, TICK_LO
@@ -1711,40 +1933,70 @@ ms_after_cnt:
     # ---- 渲染棋盘 ----
     RJAL  ms_render
 ms_loop:
-    # 输入：连续 3 数字（col,row,op）；'0' 退出
+    # 输入: 8上 2下 4左 6右 5探 7旗 0退（通用方向键）
     RJAL  ms_getchar
     RBEQ  r7, r0, ms_loop       # 无字符 → 继续等
+    ADDI  r8, r0, '8'
+    RBNE  r7, r8, __msd_2
+    LBU   r1, MS_ROW
+    ADDI  r2, r0, 1
+    RBEQ  r1, r2, __msd_mv      # ROW==1 不动
+    ADDI  r1, r1, 0xFF
+    SB    r1, MS_ROW
+    RBEQ  r0, r0, __msd_mv
+__msd_2:
+    ADDI  r8, r0, '2'
+    RBNE  r7, r8, __msd_4
+    LBU   r1, MS_ROW
+    ADDI  r2, r0, 8
+    RBEQ  r1, r2, __msd_mv
+    ADDI  r1, r1, 1
+    SB    r1, MS_ROW
+    RBEQ  r0, r0, __msd_mv
+__msd_4:
+    ADDI  r8, r0, '4'
+    RBNE  r7, r8, __msd_6
+    LBU   r1, MS_COL
+    ADDI  r2, r0, 1
+    RBEQ  r1, r2, __msd_mv
+    ADDI  r1, r1, 0xFF
+    SB    r1, MS_COL
+    RBEQ  r0, r0, __msd_mv
+__msd_6:
+    ADDI  r8, r0, '6'
+    RBNE  r7, r8, __msd_5
+    LBU   r1, MS_COL
+    ADDI  r2, r0, 8
+    RBEQ  r1, r2, __msd_mv
+    ADDI  r1, r1, 1
+    SB    r1, MS_COL
+    RBEQ  r0, r0, __msd_mv
+__msd_5:
+    ADDI  r8, r0, '5'
+    RBNE  r7, r8, __msd_7
+    ADDI  r1, r0, 1
+    SB    r1, MS_OP              # op=1 探
+    RBEQ  r0, r0, __msd_do
+__msd_7:
+    ADDI  r8, r0, '7'
+    RBNE  r7, r8, __msd_0
+    ADDI  r1, r0, 2
+    SB    r1, MS_OP              # op=2 旗
+    RBEQ  r0, r0, __msd_do
+__msd_0:
     ADDI  r8, r0, '0'
-    RBEQ  r7, r8, __ms_done     # '0' → 退出
-    # 数字? '1'-'8'
-    ADDI  r8, r0, '1'
-    RBLTU r7, r8, ms_loop       # <'1' 忽略
-    ADDI  r8, r0, '9'
-    RBLTU r7, r8, __ms_digit    # <='8' 是数字
-    RBEQ  r0, r0, ms_loop
-__ms_digit:
-    SUBI  r7, r7, '0'           # 数字 1-8
-    LBU   r8, MS_INN
-    RBNE  r8, r0, __ms_d2
-    SB    r7, MS_COL            # 第1数：横坐标
-    ADDI  r8, r0, 1
-    SB    r8, MS_INN
-    RBEQ  r0, r0, ms_loop
-__ms_d2:
-    ADDI  r9, r0, 1
-    RBNE  r8, r9, __ms_d3
-    SB    r7, MS_ROW            # 第2数：纵坐标
-    ADDI  r8, r0, 2
-    SB    r8, MS_INN
-    RBEQ  r0, r0, ms_loop
-__ms_d3:
-    SB    r7, MS_OP             # 第3数：操作(1探 2旗)
-    SB    r0, MS_INN
-    # ---- 执行 ----
+    RBNE  r7, r8, ms_loop        # 其他键忽略
+    RBEQ  r0, r0, __ms_done      # 退出回 game 子菜单
+__msd_do:
+    # ---- 执行（探/旗）----
     RJAL  ms_do
     RJAL  ms_render
     LBU   r1, MS_OVER
     RBNE  r1, r0, __ms_gameover
+    RBEQ  r0, r0, ms_loop
+__msd_mv:
+    # 移动光标 → 重渲染（带光标高亮）
+    RJAL  ms_render
     RBEQ  r0, r0, ms_loop
 __ms_gameover:
     # 显示结果 + 退出回 game 子菜单
@@ -1986,16 +2238,29 @@ ms_render:
     SB    r0, FRAME_IDX_HI
     RJAL  wait_dma              # 等上一帧
     RJAL  fput_crlf             # 棋盘前先换行（帧首字符为 \r\n）
+    # 光标格 index = (MS_ROW-1)*8 + (MS_COL-1) → r11（fputc 不碰 r11）
+    LBU   r11, MS_ROW
+    ADDI  r11, r11, 0xFF
+    SLLI  r11, r11, 3
+    LBU   r5, MS_COL
+    ADDI  r5, r5, 0xFF
+    ADD   r11, r11, r5
     ADDI  r9, r0, 0             # row
 __msr_row:
     ADDI  r10, r0, 0            # col
 __msr_col:
-    # 画 "["
-    ADDI  r7, r0, '['
-    RJAL  fputc
     # index = row*8+col；读 VIEW
     SLLI  r3, r9, 3
     ADD   r3, r3, r10
+    # 光标格用 '>' 否则 '['（扫雷光标高亮: >内容< 更明显）
+    RBNE  r3, r11, __msr_norm
+    ADDI  r7, r0, '>'
+    RJAL  fputc
+    RBEQ  r0, r0, __msr_content
+__msr_norm:
+    ADDI  r7, r0, '['
+    RJAL  fputc
+__msr_content:
     ADDI  r1, r0, 0x95
     ADDI  r2, r3, 0x40
     LIND  r4, r1, r2            # VIEW[index]
@@ -2025,8 +2290,15 @@ __msr_blank:
     ADDI  r7, r0, ' '
     RJAL  fputc
 __msr_close:
+    # 光标格用 '<' 否则 ']'
+    RBNE  r3, r11, __msr_cl_norm
+    ADDI  r7, r0, '<'
+    RJAL  fputc
+    RBEQ  r0, r0, __msr_next
+__msr_cl_norm:
     ADDI  r7, r0, ']'
     RJAL  fputc
+__msr_next:
     ADDI  r10, r10, 1
     ADDI  r8, r0, 8
     RBLTU r10, r8, __msr_col
@@ -2173,7 +2445,6 @@ __ap_done:
     SB    r1, CURSOR
     SB    r0, LAST_CR
     SB    r0, IDLE_CNT           # 重置空闲累计（有新字符）
-    LJAL  putc                  # 后向（putc@0x100）: echo
     JALR
 
 # ============================================================
@@ -2272,15 +2543,8 @@ __sv_t2:
     SB    r10, TCB2_R10
     SB    r11, TCB2_R11
 __pick:
-    # ---- TICK 计数 ----
-    LBU   r12, TICK_LO
-    ADDI  r12, r12, 1
-    SB    r12, TICK_LO
-    RBNE  r12, r0, __nowrap     # 前向
-    LBU   r12, TICK_HI
-    ADDI  r12, r12, 1
-    SB    r12, TICK_HI
-__nowrap:
+    # ---- TICK 计数 + UPTIME 秒计数（uptime_tick 只用 r12）----
+    RJAL  uptime_tick
     # ---- CUR = (CUR+1) % 3 ----
     ADDI  r15, r15, 1
     ADDI  r12, r0, 3
@@ -2333,74 +2597,306 @@ __redirect:
     SB    r14, IRQW             # [7:0]
     IRET                       # → 新任务断点
 
-__sg_game:                     # GAME 模式：更新 TICK + 恢复 + IRET（不切任务）
+__sg_game:                     # GAME 模式：更新 TICK + UPTIME + 恢复 + IRET（不切任务）
     SB    r12, GAME_S1
     SB    r13, GAME_S2
     SB    r14, GAME_S3
-    LBU   r12, TICK_LO
-    ADDI  r12, r12, 1
-    SB    r12, TICK_LO
-    RBNE  r12, r0, __sg_done
-    LBU   r12, TICK_HI
-    ADDI  r12, r12, 1
-    SB    r12, TICK_HI
+    RJAL  uptime_tick           # TICK++ + UPTIME 秒计数（用 r12，已存 GAME_S1）
 __sg_done:
     LBU   r12, GAME_S1
     LBU   r13, GAME_S2
     LBU   r14, GAME_S3
     IRET
 
+# ---- uptime_tick：TICK++ + 每 5000 tick（1s）UPTIME_S++ ----
+#   只用 r12（__pick/__sg_game 均安全）；5000=0x1388 用 r12+0xED/+0x78 判零
+uptime_tick:
+    LBU   r12, TICK_LO
+    ADDI  r12, r12, 1
+    SB    r12, TICK_LO
+    RBNE  r12, r0, __ut_nowrap
+    LBU   r12, TICK_HI
+    ADDI  r12, r12, 1
+    SB    r12, TICK_HI
+__ut_nowrap:
+    LBU   r12, UPTIME_TMP_LO
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_TMP_LO
+    RBNE  r12, r0, __ut_check
+    LBU   r12, UPTIME_TMP_HI
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_TMP_HI
+__ut_check:
+    LBU   r12, UPTIME_TMP_HI
+    ADDI  r12, r12, 0xED        # HI - 0x13
+    RBNE  r12, r0, __ut_done
+    LBU   r12, UPTIME_TMP_LO
+    ADDI  r12, r12, 0x78        # LO - 0x88
+    RBNE  r12, r0, __ut_done
+    SB    r0, UPTIME_TMP_LO
+    SB    r0, UPTIME_TMP_HI
+    LBU   r12, UPTIME_S0
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_S0
+    RBNE  r12, r0, __ut_done
+    LBU   r12, UPTIME_S1
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_S1
+    RBNE  r12, r0, __ut_done
+    LBU   r12, UPTIME_S2
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_S2
+    RBNE  r12, r0, __ut_done
+    LBU   r12, UPTIME_S3
+    ADDI  r12, r12, 1
+    SB    r12, UPTIME_S3
+__ut_done:
+    JALR
+
 # ============================================================
 # 菜单/命令区（@0x540，任务0 独用；.puts 逐字符调 putc）
 # ============================================================
 .org 0x540
 
-# ---- init 横幅（模块大写）----
-menu_main:
-    .puts "--- MAIN MENU ---"
-    RJAL  put_crlf
-    .puts " 1. CREDITS    CREDITS"
-    RJAL  put_crlf
-    .puts " 2. STATUS     STATUS"
-    RJAL  put_crlf
-    .puts " 3. GAME       TETRIS/MINE"
-    RJAL  put_crlf
-    .puts " 0. MENU       SHOW MENU"
-    RJAL  put_crlf
-    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+# ---- 主菜单（光标式: 8上 2下 5选中 0返回；UART 镜像 + OLED 主界面）----
+menu_main:                      # 进入主菜单: 光标归 0 + 强制 OLED 全量
+    SBI  0, SEL
+    SBI  0xFF, LAST_SEL
+render_main:                    # 共享: OLED 绘制（UART 镜像已删, OLED 是唯一显示）
+    RJAL  oled_draw_main
+    RJAL  flush_rx             # 丢弃积压按键
     JALR
 
-print_prompt:
-    .puts "> "
-    JALR
 
 cmd_credits:
-    .puts "--- CREDITS ---"
-    RJAL  put_crlf
-    .puts " System: RTOS"
-    RJAL  put_crlf
-    .puts " Author: Justin (hardware) & Agent (software)"
-    RJAL  put_crlf
-    .puts " HW: Justin Green MCU (Zynq 7010)"
-    RJAL  put_crlf
-    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+    RJAL  oled_draw_credits
+    RJAL  flush_rx
     ADDI  r1, r0, 2
     SB    r1, MENU             # MENU=2 → CREDITS 子菜单
     JALR
 
 cmd_status:
-    .puts "--- STATUS ---\r\n"
-    .puts " CPU: 50 MHz\r\n"
-    .puts " TASKS: 3\r\n"
-    .puts " RAM: "
-    ADDI  r7, r0, 1             # fill = 1（RAM_USED 296B/16KB ≈ 2%，20 段里 1 段）
-    ADDI  r8, r0, 20            # width = 20
-    RJAL  print_bar
-    .puts " 2% (296B/16KB)\r\n"
-    .puts " 0. BACK TO MENU\r\n"
-    RJAL  flush_rx             # 打印完成 → 丢弃积压按键
+    RJAL  oled_draw_status
+    RJAL  flush_rx
     ADDI  r1, r0, 3
     SB    r1, MENU             # MENU=3 → STATUS 子菜单
+    JALR
+
+print_dec:
+    ADDI  r6, r0, 0            # 已打印标志
+    ADDI  r5, r0, 0            # 百位
+__pd_h:
+    ADDI  r4, r0, 100
+    RBLTU r1, r4, __pd_ht
+    ADDI  r1, r1, 0x9C        # -100
+    ADDI  r5, r5, 1
+    RBEQ  r0, r0, __pd_h
+__pd_ht:
+    RBNE  r5, r0, __pd_hpr
+    RBEQ  r0, r0, __pd_ten
+__pd_hpr:
+    ADDI  r6, r0, 1
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r5
+    LJAL  putc
+__pd_ten:
+    ADDI  r5, r0, 0            # 十位
+__pd_t:
+    ADDI  r4, r0, 10
+    RBLTU r1, r4, __pd_tt
+    ADDI  r1, r1, 0xF6        # -10
+    ADDI  r5, r5, 1
+    RBEQ  r0, r0, __pd_t
+__pd_tt:
+    RBNE  r6, r0, __pd_tpr
+    RBNE  r5, r0, __pd_tpr
+    RBEQ  r0, r0, __pd_one
+__pd_tpr:
+    ADDI  r6, r0, 1
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r5
+    LJAL  putc
+__pd_one:
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r1
+    LJAL  putc
+    JALR
+
+# ---- Dhrystone 风格辅助函数：混合算术（仿 Dhrystone Func_2/Func_3）----
+#   入参 r6=a, r10=b → r9 = (a<<1) + (b>>1) - (a&0x0F) + b + 1
+#   用 r9/r11，不碰 r1/r2/r3（循环计数）与 r7-r9（putc 组）
+dh_func:
+    ADDI  r9, r6, 0
+    SLLI  r9, r9, 1
+    ADDI  r11, r10, 0
+    SRLI  r11, r11, 1
+    ADD   r9, r9, r11
+    ANDI  r11, r6, 0x0F
+    SUB   r9, r9, r11
+    ADD   r9, r9, r10
+    ADDI  r9, r9, 1
+    JALR
+
+# ---- MIPS 基准：中断全关→Dhrystone风格循环(带'.'进度)→读timer两遍→算MIPS→显示 ----
+#   分子 N=K×50>>16 = 0xD90A（K≈72.8M 条，外层 35，Dhrystone 混合负载）。
+#   除法 16bit 重复减，q<256。测完恢复 timer 周期 + 中断。
+mips_bench:
+    # 1. 关所有中断（prio=0）
+    SB    r0, 0x6008           # timer
+    SB    r0, 0x6009           # dma
+    SB    r0, 0x600A           # rx
+    SB    r0, 0x600B           # i2c
+    SB    r0, 0x600C           # gpio0
+    SB    r0, 0x600D           # gpio1
+    # 2. timer 周期最大 0xFFFFFFFF（避免测试期间回绕）
+    ADDI  r1, r0, 0xFF
+    SB    r1, TIMER_CNT0
+    SB    r1, TIMER_CNT1
+    SB    r1, TIMER_CNT2
+    SB    r1, TIMER_CNT3
+    # 3. 读 start 时间（timer cnt0-3 → r17-r20；全寄存器，不做 RAM 回读）
+    LBU   r17, TIMER_CNT0
+    LBU   r18, TIMER_CNT1
+    LBU   r19, TIMER_CNT2
+    LBU   r20, TIMER_CNT3
+    # 4. Dhrystone 风格基准循环（仿 Dhrystone：函数调用/记录/数组/混合ALU/分支）
+    #    内层 22 条 + dh_func 10 条 = 32 条/迭代（两分支路径等长）
+    #    K = 32×255×255×外层35 ≈ 72.8M；分子 N=K×50>>16 = 0xD90A
+    #    计数 r1/r2/r3（分支限 r0-r15）；打点在循环间隙不破坏循环体
+    SB    r0, DH_REC0
+    SB    r0, DH_REC1
+    SB    r0, DH_ARR0
+    SB    r0, DH_GLOB
+    ADDI  r1, r0, 35          # 外层 35
+    ADDI  r4, r0, 5            # 打点计数
+__dh_o:
+    ADDI  r2, r0, 0xFF        # 中层 255
+__dh_m:
+    ADDI  r3, r0, 0xFF        # 内层 255
+__dh_i:
+    # --- 记录字段 RMW（仿 Dhrystone 记录访问）---
+    LBU   r8, DH_REC0
+    ADDI  r8, r8, 1
+    SB    r8, DH_REC0
+    # --- 字符字段写（仿字符串操作）---
+    ADDI  r8, r0, 0x41        # 'A'
+    SB    r8, DH_REC1
+    # --- 数组 RMW（仿数组访问）---
+    LBU   r9, DH_ARR0
+    ADD   r9, r9, r8
+    SB    r9, DH_ARR0
+    # --- 函数调用（混合算术，仿 Proc/Func）---
+    LBU   r6, DH_GLOB
+    ADDI  r10, r9, 0
+    RJAL  dh_func             # r9 = 结果
+    SB    r9, DH_GLOB
+    # --- 纯 ALU 混合（移位/与/异或/加）---
+    SLLI  r8, r9, 1
+    ANDI  r10, r8, 0x3F
+    XOR   r8, r8, r10
+    ADDI  r8, r8, 5
+    # --- 条件分支（等长路径）---
+    ADDI  r10, r0, 0x80
+    RBLTU r9, r10, __dh_b1
+    ADDI  r8, r8, 1           # path A
+    RBEQ  r0, r0, __dh_join
+__dh_b1:
+    ADDI  r8, r8, 2           # path B
+    NOP
+__dh_join:
+    ADDI  r3, r3, 0xFF
+    LBNE  r3, r0, __dh_i
+    ADDI  r2, r2, 0xFF
+    LBNE  r2, r0, __dh_m
+    # 打点：每 5 外层一个 '.'（fast_putc 不走打字机延迟，避免计入计时）
+    ADDI  r4, r4, 0xFF
+    RBNE  r4, r0, __dh_dot
+    ADDI  r4, r0, 5
+    ADDI  r7, r0, '.'
+    LJAL  fast_putc
+__dh_dot:
+    ADDI  r1, r1, 0xFF
+    LBNE  r1, r0, __dh_o
+    # 5. 读 end 时间（timer cnt0-3 → r6-r9；全寄存器）
+    LBU   r6, TIMER_CNT0
+    LBU   r7, TIMER_CNT1
+    LBU   r8, TIMER_CNT2
+    LBU   r9, TIMER_CNT3
+    # 6. elapsed = E - S（32bit，全寄存器；借位在减法前判断）
+    #    E=r6-r9, S=r17-r20, borrow=r10, b1=r11, b2=r12
+    ADDI  r10, r0, 0           # borrow_in = 0
+    SLTU  r11, r6, r17         # b1 = (E0 < S0)
+    SUB   r6, r6, r17          # t = E0 - S0
+    SLTU  r12, r6, r10         # b2 = (t < borrow_in)
+    SUB   r6, r6, r10          # r = t - borrow_in
+    OR    r10, r11, r12        # borrow_out
+    SLTU  r11, r7, r18         # b1 = (E1 < S1)
+    SUB   r7, r7, r18
+    SLTU  r12, r7, r10
+    SUB   r7, r7, r10
+    OR    r10, r11, r12
+    SLTU  r11, r8, r19         # b1 = (E2 < S2)
+    SUB   r8, r8, r19
+    SLTU  r12, r8, r10
+    SUB   r8, r8, r10
+    OR    r10, r11, r12
+    SLTU  r11, r9, r20         # b1 = (E3 < S3)
+    SUB   r9, r9, r20
+    SLTU  r12, r9, r10
+    SUB   r9, r9, r10
+    # elapsed 在 r6-r9
+    # 7. 除法：q = N/den（N=r1/r2, D=r5/r6=elapsed 高16位，循环内无 LBU）
+    #    分子 N=K×50>>16 = 0xD90A（OUTER=35, K≈72.8M 条 Dhrystone 混合）→ r1=lo, r2=hi
+    ADDI  r1, r0, 0x0A
+    ADDI  r2, r0, 0xD9
+    ADDI  r5, r8, 0            # D_lo = elapsed[2]
+    ADDI  r6, r9, 0            # D_hi = elapsed[3]
+    ADDI  r20, r0, 0
+    RBNE  r5, r0, __div_start
+    RBNE  r6, r0, __div_start
+    LBEQ  r0, r0, __div_done
+__div_start:
+    ADDI  r20, r0, 0
+__div_l:
+    RBLTU r2, r6, __div_done   # N_hi < D_hi → done
+    RBNE  r2, r6, __div_sub    # N_hi != D_hi（且 >）→ 减
+    RBLTU r1, r5, __div_done   # N_hi==D_hi 且 N_lo<D_lo → done
+__div_sub:
+    SLTU  r4, r1, r5           # borrow = (N_lo < D_lo)  减法前判断
+    SUB   r1, r1, r5           # N_lo -= D_lo
+    SUB   r2, r2, r6           # N_hi -= D_hi
+    SUB   r2, r2, r4           # N_hi -= borrow
+    ADDI  r20, r20, 1
+    LBEQ  r0, r0, __div_l
+__div_done:    ADDI  r1, r0, 0x0F
+    SB    r1, TIMER_CNT0
+    ADDI  r1, r0, 0x27
+    SB    r1, TIMER_CNT1
+    SB    r0, TIMER_CNT2
+    SB    r0, TIMER_CNT3
+    ADDI  r1, r0, 1
+    SB    r1, TIMER_MODE
+    ADDI  r1, r0, 3
+    SB    r1, 0x6008
+    ADDI  r1, r0, 2
+    SB    r1, 0x600A
+    # 10. 显示 MIPS（r20，十进制 2 位；分支寄存器限 r0-r15 → MIPS 放 r1）
+    ADDI  r1, r20, 0          # 拷贝 MIPS
+    ADDI  r18, r0, 0           # tens
+__tens:
+    ADDI  r5, r0, 10
+    RBLTU r1, r5, __tens_d
+    ADDI  r1, r1, 0xF6       # -10
+    ADDI  r18, r18, 1
+    LBEQ  r0, r0, __tens
+__tens_d:
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r18
+    LJAL  putc
+    ADDI  r7, r0, '0'
+    ADD   r7, r7, r1
+    LJAL  putc
+    .puts "\r\n"
     JALR
 
 # ---- 进度条: 打印 [####....]，入参 r7=填充段数 r8=总段数 ----
@@ -2468,3 +2964,2170 @@ __tb_done:
 # ---- 阻塞等 tick（wait_ticks）----
 #   阈值 WAIT_TH_LO/HI(16bit)，用 CD_LAST + CD_ACC(16bit) 累计 TICK_LO 差值。
 #   任务0 每 3 tick 才跑，须累加差值而非递减。返回时 CD_ACC 已 ≥ 阈值。
+
+# ============================================================
+# SSD1306 OLED 主界面驱动（v3.5.0，.org 0x1200，共享 r7-r11 保护 r1-r6）
+#   6x8 字库 + 帧缓冲 0x8000 + 脏列局部刷新 + 菜单渲染
+#   按键: 8上 2下 5选中 0返回（4/6 预留左右）
+# ============================================================
+.org 0x1200
+
+# ---- i2c_batch: 发 TX_BUF[0..r8-1](≤15B) → START → 轮询 r254 busy 走完 ----
+i2c_batch:
+    ADDI r9, r0, 0
+__ib_fill:
+    RBEQ r9, r8, __ib_go
+    ADDI r1, r0, 0x84
+    ADDI r2, r9, 0x00
+    LIND r7, r1, r2
+    ADDI r7, r7, 0          # LIND 读回稳定 1 拍
+    SB   r7, I2C_DATA
+    ADDI r9, r9, 1
+    LBEQ r0, r0, __ib_fill
+__ib_go:
+    SB   r0, I2C_START
+__ib_wait:
+    ADDI r7, r254, 0
+    LBNE r7, r0, __ib_wait
+    JALR
+
+# ---- oled_cmd: 发命令 r7 → [0x78,0x00,cmd] 直写 FIFO + START + STOP（oled_jkd 同款, 不用 LIND）----
+oled_cmd:
+    SBI  0x78, I2C_DATA
+    SBI  0x00, I2C_DATA
+    SB   r7, I2C_DATA
+    SB   r0, I2C_START
+    SB   r0, I2C_STOP
+__oc_wait:
+    ADDI r8, r254, 0
+    LBNE r8, r0, __oc_wait
+    JALR
+
+# ---- oled_mark: 标脏页 r7, 列范围 [r8,r9]（DCOL min/max + DIRTY）----
+oled_mark:
+    SB  r7, TMP_E
+    SB  r8, TMP_F
+    SB  r9, TMP_G
+    ADDI r1, r0, 0x84
+    ADDI r2, r7, 0x21
+    LIND r10, r1, r2
+    ADDI r11, r0, 0xFF
+    RBNE r10, r11, __mk_lo_have
+    ADDI r10, r8, 0
+    ADDI r11, r0, 1
+    SB   r11, TMP_A
+    RBEQ r0, r0, __mk_lo_st
+__mk_lo_have:
+    RBLTU r10, r8, __mk_lo_st
+    ADDI r10, r8, 0
+    ADDI r11, r0, 0
+    SB   r11, TMP_A
+__mk_lo_st:
+    SIND r10, r1, r2
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_E
+    ADDI r2, r2, 0x29
+    LIND r10, r1, r2
+    LBU  r11, TMP_A
+    RBNE r11, r0, __mk_hi_first
+    LBU  r9, TMP_G
+    ADDI r11, r10, 0
+    RBLTU r9, r11, __mk_hi_st
+    ADDI r10, r9, 0
+    RBEQ r0, r0, __mk_hi_st
+__mk_hi_first:
+    LBU  r9, TMP_G
+    ADDI r10, r9, 0
+__mk_hi_st:
+    SIND r10, r1, r2
+    LBU  r8, TMP_E
+    ADDI r1, r0, 0x84
+    ADDI r2, r0, 0x20
+    LIND r10, r1, r2
+    ADDI r11, r0, 1
+    SLL  r11, r11, r8
+    OR   r10, r10, r11
+    SB   r10, DIRTY
+    JALR
+
+# ---- oled_flush_page: 刷页 r7 → 设页 + 每批设列 + START/STOP（oled_jkd 验证过的页模式）----
+oled_flush_page:
+    SB   r7, TMP_B
+    LBU  r7, TMP_B
+    ADDI r7, r7, 0xB0
+    RJAL oled_cmd          # 设页 0xB0+page
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_B
+    ADDI r2, r2, 0x21
+    LIND r3, r1, r2         # r3 = LO (当前列)
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_B
+    ADDI r2, r2, 0x29
+    LIND r4, r1, r2         # r4 = HI
+    # FB 起始 = 0x8000 + page*128 + LO
+    LBU  r1, TMP_B
+    ADDI r2, r1, 0
+    SLLI r1, r1, 7
+    SRLI r2, r2, 1
+    ADDI r2, r2, 0x80
+    ADD  r1, r1, r3
+    ADDI r5, r1, 0
+    ADDI r1, r2, 0
+    ADDI r2, r5, 0          # r1:r2 = FB addr
+    ADDI r5, r4, 0
+    ADDI r5, r5, 1
+    SUB  r5, r5, r3         # r5 = 剩余字节
+__ofp_batch:
+    # 每批设列（一事务: 列高+列低, 避免 STOP 打断列锁存）
+    SBI  0x78, I2C_DATA
+    SBI  0x00, I2C_DATA
+    ADDI r7, r3, 0
+    SRLI r7, r7, 4
+    ADDI r7, r7, 0x10
+    SB   r7, I2C_DATA          # 列高
+    ADDI r7, r3, 0
+    ANDI r7, r7, 0x0F
+    SB   r7, I2C_DATA          # 列低
+    SB   r0, I2C_START
+    SB   r0, I2C_STOP
+__oc2_wait:
+    ADDI r7, r254, 0
+    LBNE r7, r0, __oc2_wait
+    # 数据 [0x78,0x40] + ≤13 字节（直写 FIFO）
+    SBI  0x78, I2C_DATA
+    SBI  0x40, I2C_DATA
+    ADDI r8, r0, 13
+__ofp_fill:
+    RBEQ r5, r0, __ofp_send
+    LIND r6, r1, r2
+    ADDI r6, r6, 0
+    SB   r6, I2C_DATA
+    ADDI r2, r2, 1
+    LBNE r2, r0, __ofp_a1
+    ADDI r1, r1, 1
+__ofp_a1:
+    ADDI r5, r5, 0xFF
+    ADDI r8, r8, 0xFF
+    LBNE r8, r0, __ofp_fill
+__ofp_send:
+    SB   r0, I2C_START
+    SB   r0, I2C_STOP
+__ofp_wait:
+    ADDI r7, r254, 0
+    LBNE r7, r0, __ofp_wait
+    ADDI r3, r3, 13          # 列 += 13
+    LBNE r5, r0, __ofp_batch
+    JALR
+
+# ---- oled_flush: 扫 DIRTY 刷全部脏页, 清 DIRTY + 范围 ----
+oled_flush:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    # ---- 逐脏页扫描刷新（页模式）----
+    SB   r0, TMP_A
+__of_loop:
+    LBU  r7, DIRTY
+    LBU  r8, TMP_A
+    SRL  r7, r7, r8
+    ANDI r7, r7, 1
+    RBNE r7, r0, __of_dirty
+    RBEQ r0, r0, __of_next
+__of_dirty:
+    LBU  r7, TMP_A
+    RJAL oled_flush_page
+__of_next:
+    LBU  r8, TMP_A
+    ADDI r8, r8, 1
+    SB   r8, TMP_A
+    ADDI r7, r0, 8
+    LBNE r8, r7, __of_loop
+    SB   r0, DIRTY
+    # 重置 DCOL 范围
+    ADDI r1, r0, 0x84
+    ADDI r2, r0, 0x21
+    ADDI r6, r0, 8
+__of_rst:
+    ADDI r7, r0, 0xFF
+    SIND r7, r1, r2
+    ADDI r3, r2, 8
+    SIND r0, r1, r3
+    ADDI r2, r2, 1
+    ADDI r6, r6, 0xFF
+    LBNE r6, r0, __of_rst
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_flush_h: 水平模式全屏刷新（切菜单用）: 完整重绘 FB 1024B ----
+# 0x20/0x00 切水平 + 0x21/0x22 全范围 + 流式上传 + 切回页模式。
+# 页模式每页独立设列的局部刷新在切屏时右侧可能残留，全屏横向流最稳（上板验证过水平模式）。
+oled_flush_h:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    # ---- 切水平模式 0x00 + 全范围 [0,127]x[0,7] ----
+    ADDI r7, r0, 0x20
+    RJAL oled_cmd
+    ADDI r7, r0, 0x00
+    RJAL oled_cmd
+    ADDI r7, r0, 0x21
+    RJAL oled_cmd
+    ADDI r7, r0, 0x00
+    RJAL oled_cmd
+    ADDI r7, r0, 0x7F
+    RJAL oled_cmd
+    ADDI r7, r0, 0x22
+    RJAL oled_cmd
+    ADDI r7, r0, 0x00
+    RJAL oled_cmd
+    ADDI r7, r0, 0x07
+    RJAL oled_cmd
+    # ---- 流式上传 FB[0..1023]，批 ≤8（照 oled_pure_test 板上验证的 8B 批次, FIFO 余量足）----
+    ADDI r1, r0, 0x80
+    ADDI r2, r0, 0x00
+__ofh_batch:
+    SBI  0x78, I2C_DATA
+    SBI  0x40, I2C_DATA
+    ADDI r8, r0, 8
+__ofh_fill:
+    ADDI r7, r0, 0x84
+    RBNE r1, r7, __ofh_cont     # FB hi != 0x84 → 还有数据
+    RBNE r2, r0, __ofh_cont     # hi==0x84 && lo!=0 → 还有数据
+    RBEQ r0, r0, __ofh_send     # 指针==0x8400 → 结束
+__ofh_cont:
+    LIND r6, r1, r2
+    ADDI r6, r6, 0
+    SB   r6, I2C_DATA
+    ADDI r2, r2, 1
+    LBNE r2, r0, __ofh_a1
+    ADDI r1, r1, 1
+__ofh_a1:
+    ADDI r8, r8, 0xFF
+    LBNE r8, r0, __ofh_fill
+__ofh_send:
+    SB   r0, I2C_START
+    SB   r0, I2C_STOP
+__ofh_wait:
+    ADDI r7, r254, 0
+    LBNE r7, r0, __ofh_wait
+    ADDI r7, r0, 0x84
+    RBNE r1, r7, __ofh_batch
+    RBNE r2, r0, __ofh_batch
+    # ---- 切回页模式（混合: 切菜单横屏全刷, 光标移动页模式局部刷）----
+    ADDI r7, r0, 0x20
+    RJAL oled_cmd
+    ADDI r7, r0, 0x02
+    RJAL oled_cmd
+    # ---- 清 DIRTY + DCOL（下次局部刷新从全新范围开始）----
+    SB   r0, DIRTY
+    ADDI r1, r0, 0x84
+    ADDI r2, r0, 0x21
+    ADDI r6, r0, 8
+__ofh_rst:
+    ADDI r7, r0, 0xFF
+    SIND r7, r1, r2
+    ADDI r3, r2, 8
+    SIND r0, r1, r3
+    ADDI r2, r2, 1
+    ADDI r6, r6, 0xFF
+    LBNE r6, r0, __ofh_rst
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_flush_seg: 页模式设页 + 单次设列 + 连续流式上传页 r7 脏列 [LO,HI] ----
+oled_flush_seg:
+    #   批间不重设列（靠 SSD1306 列自增，同 oled_flush_h 横屏流式验证过的工作方式）
+    #   规避：分批设列在真机批2+ 失效（秒数列不更新）+ 横屏窗口切换破坏显示（闪一下消失）
+    SB   r7, TMP_A
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_A
+    ADDI r2, r2, 0x21
+    LIND r3, r1, r2         # LO
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_A
+    ADDI r2, r2, 0x29
+    LIND r4, r1, r2         # HI
+    LBU  r7, TMP_A
+    ADDI r7, r7, 0xB0
+    RJAL oled_cmd           # 设页 0xB0+page
+    ADDI r7, r3, 0
+    SRLI r7, r7, 4
+    ADDI r7, r7, 0x10
+    RJAL oled_cmd           # 设起始列高
+    ADDI r7, r3, 0
+    ANDI r7, r7, 0x0F
+    RJAL oled_cmd           # 设起始列低
+    # FB 起始 = 0x8000 + page*128 + LO
+    LBU  r1, TMP_A
+    ADDI r2, r1, 0
+    SLLI r1, r1, 7
+    SRLI r2, r2, 1
+    ADDI r2, r2, 0x80
+    ADD  r1, r1, r3
+    ADDI r5, r1, 0
+    ADDI r1, r2, 0
+    ADDI r2, r5, 0
+    ADDI r5, r4, 0
+    ADDI r5, r5, 1
+    SUB  r5, r5, r3         # 字节数 = HI-LO+1
+__ofs_batch:
+    SBI  0x78, I2C_DATA
+    SBI  0x40, I2C_DATA
+    ADDI r8, r0, 13
+__ofs_fill:
+    RBEQ r5, r0, __ofs_send
+    LIND r6, r1, r2
+    ADDI r6, r6, 0
+    SB   r6, I2C_DATA
+    ADDI r2, r2, 1
+    LBNE r2, r0, __ofs_a1
+    ADDI r1, r1, 1
+__ofs_a1:
+    ADDI r5, r5, 0xFF
+    ADDI r8, r8, 0xFF
+    LBNE r8, r0, __ofs_fill
+__ofs_send:
+    SB   r0, I2C_START
+    SB   r0, I2C_STOP
+__ofs_wait:
+    ADDI r7, r254, 0
+    LBNE r7, r0, __ofs_wait
+    LBNE r5, r0, __ofs_batch
+    # 清 DIRTY + DCOL
+    SB   r0, DIRTY
+    ADDI r1, r0, 0x84
+    ADDI r2, r0, 0x21
+    ADDI r6, r0, 8
+__ofs_rst:
+    ADDI r7, r0, 0xFF
+    SIND r7, r1, r2
+    ADDI r3, r2, 8
+    SIND r0, r1, r3
+    ADDI r2, r2, 1
+    ADDI r6, r6, 0xFF
+    LBNE r6, r0, __ofs_rst
+    JALR
+
+# ---- oled_clear: 清 FB 全 0 + 全页脏 [0,127]（不 flush）----
+oled_clear:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    ADDI r1, r0, 0x80
+__oclr_hi:
+    ADDI r2, r0, 0x00
+__oclr_lo:
+    SIND r0, r1, r2
+    ADDI r2, r2, 1
+    LBNE r2, r0, __oclr_lo
+    ADDI r1, r1, 1
+    ADDI r7, r0, 0x84
+    LBNE r1, r7, __oclr_hi
+    SBI  0xFF, DIRTY
+    ADDI r1, r0, 0x84
+    ADDI r2, r0, 0x21
+    ADDI r6, r0, 8
+__oclr_rg:
+    SIND r0, r1, r2
+    ADDI r3, r2, 8
+    ADDI r7, r0, 0x7F
+    SIND r7, r1, r3
+    ADDI r2, r2, 1
+    ADDI r6, r6, 0xFF
+    LBNE r6, r0, __oclr_rg
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_putc: 字符 r7 渲染到光标（6px 格）+ 推进 + 标脏 ----
+# 字库地址 = FONT6X8 + (ch-0x20)*8（datalabel，含低字节进位）
+oled_putc:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    ADDI r8, r0, '\n'
+    RBNE r7, r8, __op_c2
+    LBU  r1, CUR_Y
+    ADDI r1, r1, 1
+    SB   r1, CUR_Y
+    ADDI r2, r0, 8
+    RBLTU r1, r2, __op_nl_ok
+    SBI  7, CUR_Y
+__op_nl_ok:
+    SB   r0, CUR_X
+    RBEQ r0, r0, __op_ret
+__op_c2:
+    ADDI r8, r0, '\r'
+    RBNE r7, r8, __op_render
+    SB   r0, CUR_X
+    RBEQ r0, r0, __op_ret
+__op_render:
+    # r3:r4 = FONT6X8 + (ch-0x20)*8
+    ADDI r8, r7, 0xE0       # ch-0x20
+    SLLI r4, r8, 3          # lo of (ch-0x20)*8
+    SRLI r3, r8, 5          # hi of (ch-0x20)*8
+    ADDI r9, r0, FONT6X8&0xFF
+    ADD  r4, r4, r9         # lo += FONT lo
+    RBLTU r4, r9, __op_fc   # 回绕 → 进位
+    RBEQ r0, r0, __op_fnc
+__op_fc:
+    ADDI r3, r3, 1
+__op_fnc:
+    ADDI r3, r3, FONT6X8>>8 # hi += FONT hi
+    ADDI r4, r4, 5           # 从 byte5 反向读（字库列反序存, 配合 0xA1）
+    ADDI r9, r0, 5
+    RBLTU r4, r9, __op_c5
+    RBEQ r0, r0, __op_nc5
+__op_c5:
+    ADDI r3, r3, 1
+__op_nc5:
+    # fb 地址 = 0x8000 + CUR_Y*128 + CUR_X*6
+    LBU  r1, CUR_Y
+    ADDI r2, r1, 0
+    SLLI r1, r1, 7
+    SRLI r2, r2, 1
+    ADDI r2, r2, 0x80
+    LBU  r8, CUR_X
+    ADDI r9, r8, 0
+    SLLI r8, r8, 1
+    SLLI r9, r9, 1
+    SLLI r9, r9, 1
+    ADD  r8, r8, r9         # X*6
+    ADD  r1, r1, r8
+    ADDI r5, r1, 0
+    ADDI r1, r2, 0
+    ADDI r2, r5, 0
+    ADDI r6, r0, 6
+__op_rl:
+    LIND r7, r3, r4
+    SIND r7, r1, r2
+    ADDI r4, r4, 0xFF        # font lo--（反读）
+    LBNE r4, r0, __op_r1
+    ADDI r3, r3, 0xFF        # 借位
+__op_r1:
+    ADDI r2, r2, 1          # FB lo++
+    LBNE r2, r0, __op_r2
+    ADDI r1, r1, 1          # 进位
+__op_r2:
+    ADDI r6, r6, 0xFF
+    LBNE r6, r0, __op_rl
+    # 标脏 page=CUR_Y, [X*6, X*6+5]
+    LBU  r7, CUR_Y
+    LBU  r8, CUR_X
+    ADDI r9, r8, 0
+    SLLI r8, r8, 1
+    SLLI r9, r9, 1
+    SLLI r9, r9, 1
+    ADD  r8, r8, r9
+    ADDI r9, r8, 5
+    RJAL oled_mark
+    # 光标推进
+    LBU  r1, CUR_X
+    ADDI r1, r1, 1
+    SB   r1, CUR_X
+    ADDI r2, r0, 21
+    RBLTU r1, r2, __op_adv
+    SB   r0, CUR_X
+    LBU  r1, CUR_Y
+    ADDI r1, r1, 1
+    SB   r1, CUR_Y
+    ADDI r2, r0, 8
+    RBLTU r1, r2, __op_adv
+    SBI  7, CUR_Y
+__op_adv:
+__op_ret:
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_str: 画 null 结尾字符串 at {r1:r2}, 光标 CUR_X/CUR_Y ----
+oled_str:
+    SB   r1, TMP_C
+    SB   r2, TMP_D
+__os_lp:
+    LBU  r1, TMP_C
+    LBU  r2, TMP_D
+    LIND r7, r1, r2
+    RBNE r7, r0, __os_draw
+    JALR
+__os_draw:
+    RJAL oled_putc
+    LBU  r1, TMP_D
+    ADDI r1, r1, 1
+    SB   r1, TMP_D
+    LBNE r1, r0, __os_lp
+    LBU  r1, TMP_C
+    ADDI r1, r1, 1
+    SB   r1, TMP_C
+    LBEQ r0, r0, __os_lp
+__os_ret:
+    JALR
+
+# ---- oled_invert_range: 页 r7, 列 [r8,r9] 异或 0xFF（高亮/去高亮）----
+oled_invert_range:
+    SB   r7, TMP_A
+    SB   r8, TMP_B
+    SB   r9, TMP_C
+    LBU  r1, TMP_A
+    ADDI r2, r1, 0
+    SLLI r1, r1, 7
+    SRLI r2, r2, 1
+    ADDI r2, r2, 0x80
+    LBU  r3, TMP_B
+    ADD  r1, r1, r3
+    ADDI r4, r1, 0
+    ADDI r1, r2, 0
+    ADDI r2, r4, 0
+    LBU  r5, TMP_C
+    LBU  r6, TMP_B
+__inv_lp:
+    LIND r4, r1, r2
+    XORI r4, r4, 0xFF
+    SIND r4, r1, r2
+    ADDI r2, r2, 1
+    LBNE r2, r0, __inv_a1
+    ADDI r1, r1, 1
+__inv_a1:
+    ADDI r6, r6, 1
+    ADDI r7, r5, 1
+    LBNE r6, r7, __inv_lp
+    LBU  r7, TMP_A
+    LBU  r8, TMP_B
+    LBU  r9, TMP_C
+    RJAL oled_mark
+    JALR
+
+# ---- oled_fill_range: 页 r7, 列 [r8,r9] 填 r10（实心条）----
+oled_fill_range:
+    SB   r7, TMP_A
+    SB   r8, TMP_B
+    SB   r9, TMP_C
+    SB   r10, TMP_D
+    LBU  r1, TMP_A
+    ADDI r2, r1, 0
+    SLLI r1, r1, 7
+    SRLI r2, r2, 1
+    ADDI r2, r2, 0x80
+    LBU  r3, TMP_B
+    ADD  r1, r1, r3
+    ADDI r4, r1, 0
+    ADDI r1, r2, 0
+    ADDI r2, r4, 0
+    LBU  r5, TMP_C
+    LBU  r6, TMP_B
+    LBU  r10, TMP_D
+__fr_lp:
+    SIND r10, r1, r2
+    ADDI r2, r2, 1
+    LBNE r2, r0, __fr_a1
+    ADDI r1, r1, 1
+__fr_a1:
+    ADDI r6, r6, 1
+    ADDI r7, r5, 1
+    LBNE r6, r7, __fr_lp
+    LBU  r7, TMP_A
+    LBU  r8, TMP_B
+    LBU  r9, TMP_C
+    RJAL oled_mark
+    JALR
+
+# ---- oled_toggle_item_main: 反色主菜单项 r7 (0-2), page 2+item, 列 [6,59] ----
+oled_toggle_item_main:       # r7 = item (0-2) → page 2+item, 列 [6, 按项宽]
+    ADDI r11, r7, 0
+    ADDI r8, r7, 2          # page = 2+item
+    ADDI r7, r8, 0
+    ADDI r8, r0, 6          # col0 = 6
+    RBEQ r11, r0, __tim_9
+    ADDI r9, r0, 1
+    RBEQ r11, r9, __tim_8
+    ADDI r9, r0, 41          # "3 GAME" 6字
+    RBEQ r0, r0, __tim_go
+__tim_9:
+    ADDI r9, r0, 59          # "1 CREDITS" 9字
+    RBEQ r0, r0, __tim_go
+__tim_8:
+    ADDI r9, r0, 53          # "2 STATUS" 8字
+__tim_go:
+    RJAL oled_invert_range
+    JALR
+
+# ---- oled_toggle_item_game: 游戏子菜单项 r7 (0-2), page 2+item, 列 [6, 按项宽] ----
+oled_toggle_item_game:
+    ADDI r11, r7, 0
+    ADDI r8, r7, 2
+    ADDI r7, r8, 0
+    ADDI r8, r0, 6
+    RBEQ r11, r0, __tig_8
+    ADDI r9, r0, 1
+    RBEQ r11, r9, __tig_11
+    ADDI r9, r0, 41          # "0 MAIN" 6字
+    RBEQ r0, r0, __tig_go
+__tig_8:
+    ADDI r9, r0, 53          # "1 TETRIS" 8字
+    RBEQ r0, r0, __tig_go
+__tig_11:
+    ADDI r9, r0, 71          # "2 MINESWEEP" 11字
+__tig_go:
+    RJAL oled_invert_range
+    JALR
+
+# ---- oled_irq_off/on: OLED 绘制期间屏蔽/恢复 timer IRQ（防调度器抢占破坏绘制）----
+oled_irq_off:
+    SB   r0, 0x6008
+    NOP                          # 写后稳定（pending timer irq 被 prio=0 挡下）
+    NOP
+    NOP
+    NOP
+    JALR
+oled_irq_on:
+    ADDI r10, r0, 3
+    SB   r10, 0x6008
+    NOP                          # 恢复 prio 后 pending IRQ 立即触发 → 落在 NOP 上（非 JALR/内存）
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    JALR
+
+# ---- oled_draw_main: 主菜单（SEL/LAST_SEL 驱动全量或高亮移动）----
+oled_draw_main:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    RJAL oled_irq_off
+    LBU  r7, SEL
+    LBU  r8, LAST_SEL
+    ADDI r9, r0, 0xFF
+    RBNE r8, r9, __odm_move
+    # 首次: 全量
+    RJAL oled_clear
+    SBI  0, CUR_X
+    SBI  0, CUR_Y
+    ADDI r1, r0, str_main_title>>8
+    ADDI r2, r0, str_main_title&0xFF
+    RJAL oled_str
+    ADDI r7, r0, 1
+    ADDI r8, r0, 0
+    ADDI r9, r0, 125
+    ADDI r10, r0, 0xFF
+    RJAL oled_fill_range
+    SBI  2, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_mi0>>8
+    ADDI r2, r0, str_mi0&0xFF
+    RJAL oled_str
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_mi1>>8
+    ADDI r2, r0, str_mi1&0xFF
+    RJAL oled_str
+    SBI  4, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_mi2>>8
+    ADDI r2, r0, str_mi2&0xFF
+    RJAL oled_str
+    ADDI r7, r0, 5
+    ADDI r8, r0, 0
+    ADDI r9, r0, 125
+    ADDI r10, r0, 0xFF
+    RJAL oled_fill_range
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_keys>>8
+    ADDI r2, r0, str_keys&0xFF
+    RJAL oled_str
+    LBU  r7, SEL
+    RJAL oled_toggle_item_main
+    LBU  r7, SEL
+    SB   r7, LAST_SEL
+    RJAL oled_flush_h       # 切菜单: 横屏全刷(修残留)
+    RBEQ r0, r0, __odm_ret
+__odm_move:
+    ADDI r7, r8, 0
+    RJAL oled_toggle_item_main
+    LBU  r7, SEL
+    RJAL oled_toggle_item_main
+    LBU  r7, SEL
+    SB   r7, LAST_SEL
+    RJAL oled_flush            # 光标移动: 页模式局部刷新
+__odm_ret:
+    RJAL oled_irq_on
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_draw_game: 游戏子菜单（同上，高亮范围 [6,71]）----
+oled_draw_game:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    RJAL oled_irq_off
+    LBU  r7, SEL
+    LBU  r8, LAST_SEL
+    ADDI r9, r0, 0xFF
+    RBNE r8, r9, __odg_move
+    RJAL oled_clear
+    SBI  0, CUR_X
+    SBI  0, CUR_Y
+    ADDI r1, r0, str_game_title>>8
+    ADDI r2, r0, str_game_title&0xFF
+    RJAL oled_str
+    ADDI r7, r0, 1
+    ADDI r8, r0, 0
+    ADDI r9, r0, 125
+    ADDI r10, r0, 0xFF
+    RJAL oled_fill_range
+    SBI  2, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gi0>>8
+    ADDI r2, r0, str_gi0&0xFF
+    RJAL oled_str
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gi1>>8
+    ADDI r2, r0, str_gi1&0xFF
+    RJAL oled_str
+    SBI  4, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gi2>>8
+    ADDI r2, r0, str_gi2&0xFF
+    RJAL oled_str
+    ADDI r7, r0, 5
+    ADDI r8, r0, 0
+    ADDI r9, r0, 125
+    ADDI r10, r0, 0xFF
+    RJAL oled_fill_range
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_keys>>8
+    ADDI r2, r0, str_keys&0xFF
+    RJAL oled_str
+    LBU  r7, SEL
+    RJAL oled_toggle_item_game
+    LBU  r7, SEL
+    SB   r7, LAST_SEL
+    RJAL oled_flush_h       # 切菜单: 横屏全刷(修残留)
+    RBEQ r0, r0, __odg_ret
+__odg_move:
+    ADDI r7, r8, 0
+    RJAL oled_toggle_item_game
+    LBU  r7, SEL
+    RJAL oled_toggle_item_game
+    LBU  r7, SEL
+    SB   r7, LAST_SEL
+    RJAL oled_flush            # 光标移动: 页模式局部刷新
+__odg_ret:
+    RJAL oled_irq_on
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_draw_credits: 静态屏 ----
+oled_draw_credits:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    RJAL oled_irq_off
+    RJAL oled_clear
+    SBI  0, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits0>>8
+    ADDI r2, r0, str_credits0&0xFF
+    RJAL oled_str
+    SBI  2, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits1>>8
+    ADDI r2, r0, str_credits1&0xFF
+    RJAL oled_str
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits2>>8
+    ADDI r2, r0, str_credits2&0xFF
+    RJAL oled_str
+    SBI  4, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits3>>8
+    ADDI r2, r0, str_credits3&0xFF
+    RJAL oled_str
+    SBI  5, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits4>>8
+    ADDI r2, r0, str_credits4&0xFF
+    RJAL oled_str
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_credits5>>8
+    ADDI r2, r0, str_credits5&0xFF
+    RJAL oled_str
+    RJAL oled_flush_h       # 静态屏: 横屏全刷(修残留)
+    RJAL oled_irq_on
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_draw_status: 静态屏（UPTIME 快照）----
+oled_draw_status:           # STATUS 多页: 0=总览(UPTIME) 1=GPIO P0-2 2=GPIO P3-5 3=GPIO P6-7+波特率
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    RJAL oled_irq_off
+    RJAL oled_clear
+    LBU  r7, STATUS_PAGE
+    ADDI r8, r0, 0
+    RBEQ r7, r8, __ods_pg0
+    ADDI r8, r0, 1
+    RBEQ r7, r8, __ods_pg1
+    ADDI r8, r0, 2
+    RBEQ r7, r8, __ods_pg2
+    RBEQ r0, r0, __ods_pg3
+__ods_pg0:
+    SBI  0, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_status0>>8
+    ADDI r2, r0, str_status0&0xFF
+    RJAL oled_str
+    SBI  1, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_status1>>8
+    ADDI r2, r0, str_status1&0xFF
+    RJAL oled_str
+    SBI  2, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_status2>>8
+    ADDI r2, r0, str_status2&0xFF
+    RJAL oled_str
+    RJAL oled_uptime          # "12m34s"
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_status3>>8
+    ADDI r2, r0, str_status3&0xFF
+    RJAL oled_str
+    SBI  6, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_status4>>8
+    ADDI r2, r0, str_status4&0xFF
+    RJAL oled_str
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_keys_back>>8
+    ADDI r2, r0, str_keys_back&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ods_flush
+__ods_pg1:
+    SBI  0, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gpio01>>8
+    ADDI r2, r0, str_gpio01&0xFF
+    RJAL oled_str
+    SBI  1, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 0
+    RJAL oled_gpio_pin        # P0 (Y1-2)
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 1
+    RJAL oled_gpio_pin        # P1 (Y3-4)
+    SBI  5, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 2
+    RJAL oled_gpio_pin        # P2 (Y5-6)
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_pg_hint>>8
+    ADDI r2, r0, str_pg_hint&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ods_flush
+__ods_pg2:
+    SBI  0, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gpio34>>8
+    ADDI r2, r0, str_gpio34&0xFF
+    RJAL oled_str
+    SBI  1, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 3
+    RJAL oled_gpio_pin        # P3 (Y1-2)
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 4
+    RJAL oled_gpio_pin        # P4 (Y3-4)
+    SBI  5, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 5
+    RJAL oled_gpio_pin        # P5 (Y5-6)
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_pg_hint>>8
+    ADDI r2, r0, str_pg_hint&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ods_flush
+__ods_pg3:
+    SBI  0, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_gpio67>>8
+    ADDI r2, r0, str_gpio67&0xFF
+    RJAL oled_str
+    SBI  1, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 6
+    RJAL oled_gpio_pin        # P6 (Y1-2)
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r7, r0, 7
+    RJAL oled_gpio_pin        # P7 (Y3-4)
+    SBI  7, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_pg_hint>>8
+    ADDI r2, r0, str_pg_hint&0xFF
+    RJAL oled_str
+__ods_flush:
+    RJAL oled_flush_h       # 静态屏: 横屏全刷(修残留)
+    RJAL oled_irq_on
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_dec16: 16bit 10 进制显示（r1=lo r2=hi，前导零抑制）----
+#   破坏 r1-r6 r7 r8 r10；oled_putc 保护 r1-r6
+oled_dec16:
+    ADDI r6, r0, 0            # 已打印标志
+    ADDI r5, r0, 4            # 位序: 4=万 3=千 2=百 1=十
+__od16_dig:
+    ADDI r8, r0, 4
+    RBEQ r5, r8, __od16_sel4
+    ADDI r8, r0, 3
+    RBEQ r5, r8, __od16_sel3
+    ADDI r8, r0, 2
+    RBEQ r5, r8, __od16_sel2
+    ADDI r3, r0, 0x0A        # 十位除数 10
+    ADDI r4, r0, 0
+    RBEQ r0, r0, __od16_ct
+__od16_sel4:
+    ADDI r3, r0, 0x10        # 万位除数 10000 lo
+    ADDI r4, r0, 0x27        # 10000 hi
+    RBEQ r0, r0, __od16_ct
+__od16_sel3:
+    ADDI r3, r0, 0xE8        # 千位除数 1000 lo
+    ADDI r4, r0, 0x03
+    RBEQ r0, r0, __od16_ct
+__od16_sel2:
+    ADDI r3, r0, 0x64        # 百位除数 100 lo
+    ADDI r4, r0, 0
+__od16_ct:
+    ADDI r10, r0, 0          # 本位数
+__od16_lp:
+    RBLTU r2, r4, __od16_nxt  # hi < dhi → 结束
+    RBNE  r2, r4, __od16_sub  # hi > dhi → 减
+    RBLTU r1, r3, __od16_nxt  # hi==dhi 且 lo<dlo → 结束
+__od16_sub:
+    RBLTU r1, r3, __od16_br
+    SUB   r1, r1, r3          # lo -= dlo
+    SUB   r2, r2, r4          # hi -= dhi
+    RBEQ  r0, r0, __od16_inc
+__od16_br:
+    SUB   r1, r1, r3          # lo -= dlo（8bit 回绕 = +256）
+    SUB   r2, r2, r4          # hi -= dhi
+    ADDI  r2, r2, 0xFF        # hi -= 1（借位）
+__od16_inc:
+    ADDI r10, r10, 1
+    RBEQ r0, r0, __od16_lp
+__od16_nxt:
+    RBNE r10, r0, __od16_pr
+    RBNE r6, r0, __od16_pr
+    RBEQ r0, r0, __od16_skip
+__od16_pr:
+    ADDI r6, r0, 1
+    ADDI r7, r0, '0'
+    ADD  r7, r7, r10
+    RJAL oled_putc
+__od16_skip:
+    ADDI r5, r5, 0xFF
+    LBNE r5, r0, __od16_dig
+    ADDI r7, r0, '0'         # 个位
+    ADD  r7, r7, r1
+    RJAL oled_putc
+    JALR
+
+# ---- oled_uptime: 画 "分m秒s" at 当前光标（UPTIME_S0:S1 秒 → /60）----
+#   破坏 r1-r6 r7 r8 r11
+oled_uptime:                    # 画 "HhMm"（小时:分钟）；秒舍弃（每 60s 才变化, 显示稳）
+    LBU  r1, UPTIME_S0
+    LBU  r2, UPTIME_S1
+    # ---- 小时 = 总秒 / 3600（16bit 除 0x0E10）----
+    ADDI r3, r0, 0            # 小时
+    ADDI r4, r0, 0x0E         # 3600 hi
+    ADDI r5, r0, 0x10         # 3600 lo
+__oup_h3600:
+    RBLTU r2, r4, __oup_h_done
+    RBNE  r2, r4, __oup_h_sub
+    RBLTU r1, r5, __oup_h_done
+__oup_h_sub:
+    RBLTU r1, r5, __oup_h_br
+    SUB   r1, r1, r5
+    SUB   r2, r2, r4
+    RBEQ  r0, r0, __oup_h_inc
+__oup_h_br:
+    SUB   r1, r1, r5          # 8bit 回绕 = +256
+    SUB   r2, r2, r4
+    ADDI  r2, r2, 0xFF        # 借位
+__oup_h_inc:
+    ADDI r3, r3, 1
+    RBEQ r0, r0, __oup_h3600
+__oup_h_done:
+    SB   r3, UP_TMP_H         # 存小时
+    # ---- 分钟 = (总秒 % 3600) / 60 ----
+    ADDI r6, r0, 0            # 分钟
+    ADDI r4, r0, 60
+__oup_m60:
+    RBNE r2, r0, __oup_m_sub  # hi!=0 → ≥256 ≥ 60
+    RBLTU r1, r4, __oup_m_done
+__oup_m_sub:
+    RBLTU r1, r4, __oup_m_br
+    SUB   r1, r1, r4
+    RBEQ  r0, r0, __oup_m_inc
+__oup_m_br:
+    SUB   r1, r1, r4
+    ADDI  r2, r2, 0xFF
+__oup_m_inc:
+    ADDI r6, r6, 1
+    RBEQ r0, r0, __oup_m60
+__oup_m_done:
+    SB   r6, UP_TMP_M         # 存分钟
+    # ---- 显示 "HhMm" ----
+    LBU  r1, UP_TMP_H
+    ADDI r2, r0, 0
+    RJAL oled_dec16
+    ADDI r7, r0, 'h'
+    RJAL oled_putc
+    LBU  r1, UP_TMP_M
+    ADDI r2, r0, 0
+    RJAL oled_dec16
+    ADDI r7, r0, 'm'
+    RJAL oled_putc
+    JALR
+
+# ---- oled_gpio_pin: 画 pin r7 的两行（名 + 波特率详情）at CUR_X/CUR_Y ----
+#   角色表 GPIO_CONF[pin]：0 unuse 1 uart_rx 2 uart_tx 3 i2c_scl 4 i2c_sda 5 led_out 6 irq_in
+#   破坏 r1-r6 r7 r8 r9
+oled_gpio_pin:
+    SB   r7, TMP_A
+    ADDI r7, r0, 'P'
+    RJAL oled_putc
+    LBU  r7, TMP_A
+    ADDI r7, r7, '0'
+    RJAL oled_putc
+    ADDI r7, r0, ' '
+    RJAL oled_putc
+    ADDI r1, r0, 0x84
+    LBU  r2, TMP_A
+    ADDI r2, r2, 0x50
+    LIND r8, r1, r2           # r8 = role
+    ADDI r9, r0, 1
+    RBEQ r8, r9, __ogp_rx
+    ADDI r9, r0, 2
+    RBEQ r8, r9, __ogp_tx
+    ADDI r9, r0, 3
+    RBEQ r8, r9, __ogp_scl
+    ADDI r9, r0, 4
+    RBEQ r8, r9, __ogp_sda
+    ADDI r9, r0, 5
+    RBEQ r8, r9, __ogp_led
+    ADDI r9, r0, 6
+    RBEQ r8, r9, __ogp_irq
+    ADDI r1, r0, str_unuse>>8
+    ADDI r2, r0, str_unuse&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_done
+__ogp_rx:
+    ADDI r1, r0, str_uart_rx>>8
+    ADDI r2, r0, str_uart_rx&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_bd
+__ogp_tx:
+    ADDI r1, r0, str_uart_tx>>8
+    ADDI r2, r0, str_uart_tx&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_bd
+__ogp_scl:
+    ADDI r1, r0, str_i2c_scl>>8
+    ADDI r2, r0, str_i2c_scl&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_bd_i
+__ogp_sda:
+    ADDI r1, r0, str_i2c_sda>>8
+    ADDI r2, r0, str_i2c_sda&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_bd_i
+__ogp_led:
+    ADDI r1, r0, str_led_out>>8
+    ADDI r2, r0, str_led_out&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_done
+__ogp_irq:
+    ADDI r1, r0, str_irq_in>>8
+    ADDI r2, r0, str_irq_in&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_done
+__ogp_bd:                     # UART 波特率 115200
+    ADDI r7, r0, '\n'
+    RJAL oled_putc
+    SBI  5, CUR_X
+    ADDI r1, r0, str_b115200>>8
+    ADDI r2, r0, str_b115200&0xFF
+    RJAL oled_str
+    RBEQ r0, r0, __ogp_done
+__ogp_bd_i:                   # I2C 波特率 400K
+    ADDI r7, r0, '\n'
+    RJAL oled_putc
+    SBI  5, CUR_X
+    ADDI r1, r0, str_b400k>>8
+    ADDI r2, r0, str_b400k&0xFF
+    RJAL oled_str
+__ogp_done:
+    JALR
+
+# ---- uptime_disp_check: STATUS 页0 每秒局部刷 UPTIME 行 ----
+#   条件: MENU==3 && STATUS_PAGE==0 && UPTIME_S0 变化
+#   清旧值区 X=9..16（8 空格）→ 重画值 → 页模式局部刷；破坏 r1 r2 r7
+uptime_disp_check:
+    LBU   r1, MENU
+    ADDI  r2, r0, 3
+    RBNE  r1, r2, __udc_skip
+    LBU   r1, STATUS_PAGE
+    RBNE  r1, r0, __udc_skip
+    # ---- 防御: 恢复 timer prio=3（刷新绘制期间若 resume 破坏导致 oled_irq_on 未完成
+    #       timer 被掩死 → UPTIME 冻结；此处每轮恢复, 下次秒变化即解冻重走, 正常速率）----
+    ADDI  r10, r0, 3
+    SB    r10, 0x6008
+    NOP
+    NOP
+    NOP
+    LBU   r1, UPTIME_S0
+    LBU   r2, LAST_UP_SEC
+    RBEQ  r1, r2, __udc_skip
+    SB    r1, LAST_UP_SEC
+    RJAL  oled_irq_off
+    # 清旧值区（8 空格，覆盖 "1092m59s" 上限）
+    SBI   2, CUR_Y
+    SBI   9, CUR_X
+    ADDI  r7, r0, ' '
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    RJAL  oled_putc
+    # 重画 "UPTIME: " 之后的值
+    SBI   2, CUR_Y
+    SBI   9, CUR_X
+    RJAL  oled_uptime
+    ADDI  r7, r0, 2
+    RJAL  oled_flush_seg       # 页模式单设列 + 连续流式（规避分批设列失效 + 横屏模式破坏）
+    RJAL  oled_irq_on
+__udc_skip:
+    JALR
+
+# ---- oled_game_screen: 游戏进行屏, r7='T'俄罗斯方块 / 'M'扫雷 ----
+oled_game_screen:
+    SB   r1, SAV1
+    SB   r2, SAV2
+    SB   r3, SAV3
+    SB   r4, SAV4
+    SB   r5, SAV5
+    SB   r6, SAV6
+    RJAL oled_irq_off
+    RJAL oled_clear
+    SBI  3, CUR_Y
+    SBI  1, CUR_X
+    ADDI r8, r0, 'T'
+    RBNE r7, r8, __ogs_m
+    ADDI r1, r0, str_game_tetris>>8
+    ADDI r2, r0, str_game_tetris&0xFF
+    RBEQ r0, r0, __ogs_draw
+__ogs_m:
+    ADDI r1, r0, str_game_mine>>8
+    ADDI r2, r0, str_game_mine&0xFF
+__ogs_draw:
+    RJAL oled_str
+    SBI  5, CUR_Y
+    SBI  1, CUR_X
+    ADDI r1, r0, str_on_uart>>8
+    ADDI r2, r0, str_on_uart&0xFF
+    RJAL oled_str
+    RJAL oled_flush_h       # 游戏进行屏: 横屏全刷(修残留)
+    RJAL oled_irq_on
+    LBU  r1, SAV1
+    LBU  r2, SAV2
+    LBU  r3, SAV3
+    LBU  r4, SAV4
+    LBU  r5, SAV5
+    LBU  r6, SAV6
+    JALR
+
+# ---- oled_init: SSD1306 初始化 + 清屏（GPIO4=SCL/GPIO5=SDA + I2C 400k）----
+# ---- blink_led: 入参 r7=闪烁次数; P15 LED 低电平点亮; 破坏 r1,r2,r7 ----
+blink_led:
+__bl_again:
+    SB   r0, GPIO               # bit6=0 → LED 亮
+    ADDI r1, r0, 0x20
+__bl_on:
+    ADDI r2, r0, 0xFF
+__bl_on_i:
+    ADDI r2, r2, 0xFF
+    LBNE r2, r0, __bl_on_i
+    ADDI r1, r1, 0xFF
+    LBNE r1, r0, __bl_on
+    ADDI r1, r0, 0x40
+    SB   r1, GPIO               # bit6=1 → LED 灭
+    ADDI r1, r0, 0x20
+__bl_off:
+    ADDI r2, r0, 0xFF
+__bl_off_i:
+    ADDI r2, r2, 0xFF
+    LBNE r2, r0, __bl_off_i
+    ADDI r1, r1, 0xFF
+    LBNE r1, r0, __bl_off
+    ADDI r7, r7, 0xFF
+    RBNE r7, r0, __bl_again
+    JALR
+
+oled_init:
+    SBI  0x09, GPIO_PIN4
+    SBI  0x0A, GPIO_PIN5
+    SBI  0x03, I2C_CFG
+    # 上电延时 ~200ms（OLED 刚上电需稳定，同 oled_jkd；否则 I2C 可能挂死）
+    ADDI r3, r0, 0x1A
+__oi_dly_o:
+    ADDI r2, r0, 0xFF
+__oi_dly_m:
+    ADDI r1, r0, 0xFF
+__oi_dly_i:
+    ADDI r1, r1, 0xFF
+    LBNE r1, r0, __oi_dly_i
+    ADDI r2, r2, 0xFF
+    LBNE r2, r0, __oi_dly_m
+    ADDI r3, r3, 0xFF
+    LBNE r3, r0, __oi_dly_o
+    ADDI r7, r0, 0xAE
+    RJAL oled_cmd
+    ADDI r7, r0, 0xD5
+    RJAL oled_cmd
+    ADDI r7, r0, 0x80
+    RJAL oled_cmd
+    ADDI r7, r0, 0xA8
+    RJAL oled_cmd
+    ADDI r7, r0, 0x3F
+    RJAL oled_cmd
+    ADDI r7, r0, 0xD3
+    RJAL oled_cmd
+    ADDI r7, r0, 0x00
+    RJAL oled_cmd
+    ADDI r7, r0, 0x40
+    RJAL oled_cmd
+    ADDI r7, r0, 0x8D
+    RJAL oled_cmd
+    ADDI r7, r0, 0x14
+    RJAL oled_cmd
+    ADDI r7, r0, 0x20
+    RJAL oled_cmd
+    ADDI r7, r0, 0x02       # 页模式
+    RJAL oled_cmd
+    ADDI r7, r0, 0xA1
+    RJAL oled_cmd
+    ADDI r7, r0, 0xC8
+    RJAL oled_cmd
+    ADDI r7, r0, 0xDA
+    RJAL oled_cmd
+    ADDI r7, r0, 0x12
+    RJAL oled_cmd
+    ADDI r7, r0, 0x81
+    RJAL oled_cmd
+    ADDI r7, r0, 0x7F
+    RJAL oled_cmd
+    ADDI r7, r0, 0xD9
+    RJAL oled_cmd
+    ADDI r7, r0, 0xF1
+    RJAL oled_cmd
+    ADDI r7, r0, 0xDB
+    RJAL oled_cmd
+    ADDI r7, r0, 0x40
+    RJAL oled_cmd
+    ADDI r7, r0, 0xA4
+    RJAL oled_cmd
+    ADDI r7, r0, 0xA6
+    RJAL oled_cmd
+    ADDI r7, r0, 0xAF
+    RJAL oled_cmd
+    JALR
+
+# ============================================================
+# 数据区: 6x8 字库 + 菜单字符串
+# ============================================================
+.data
+FONT6X8:
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x5F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x07
+    .byte 0x00
+    .byte 0x07
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x14
+    .byte 0x7F
+    .byte 0x14
+    .byte 0x7F
+    .byte 0x14
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x14
+    .byte 0x2A
+    .byte 0x7F
+    .byte 0x2A
+    .byte 0x14
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x63
+    .byte 0x66
+    .byte 0x08
+    .byte 0x33
+    .byte 0x63
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x50
+    .byte 0x26
+    .byte 0x59
+    .byte 0x49
+    .byte 0x36
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x03
+    .byte 0x04
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x22
+    .byte 0x1C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x1C
+    .byte 0x22
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x14
+    .byte 0x08
+    .byte 0x3E
+    .byte 0x08
+    .byte 0x14
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x08
+    .byte 0x08
+    .byte 0x3E
+    .byte 0x08
+    .byte 0x08
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x30
+    .byte 0x40
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x08
+    .byte 0x08
+    .byte 0x08
+    .byte 0x08
+    .byte 0x08
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x60
+    .byte 0x60
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x03
+    .byte 0x04
+    .byte 0x08
+    .byte 0x10
+    .byte 0x60
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3E
+    .byte 0x45
+    .byte 0x49
+    .byte 0x51
+    .byte 0x3E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x40
+    .byte 0x7F
+    .byte 0x42
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x46
+    .byte 0x49
+    .byte 0x49
+    .byte 0x51
+    .byte 0x62
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x31
+    .byte 0x4B
+    .byte 0x45
+    .byte 0x41
+    .byte 0x21
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x10
+    .byte 0x7F
+    .byte 0x12
+    .byte 0x14
+    .byte 0x18
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x39
+    .byte 0x45
+    .byte 0x45
+    .byte 0x45
+    .byte 0x27
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x30
+    .byte 0x49
+    .byte 0x49
+    .byte 0x4A
+    .byte 0x3C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x03
+    .byte 0x05
+    .byte 0x09
+    .byte 0x71
+    .byte 0x01
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x36
+    .byte 0x49
+    .byte 0x49
+    .byte 0x49
+    .byte 0x36
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x1E
+    .byte 0x29
+    .byte 0x49
+    .byte 0x49
+    .byte 0x06
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x36
+    .byte 0x36
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x36
+    .byte 0x56
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x22
+    .byte 0x14
+    .byte 0x08
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x14
+    .byte 0x14
+    .byte 0x14
+    .byte 0x14
+    .byte 0x14
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x08
+    .byte 0x14
+    .byte 0x22
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x06
+    .byte 0x09
+    .byte 0x59
+    .byte 0x01
+    .byte 0x02
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3E
+    .byte 0x41
+    .byte 0x79
+    .byte 0x49
+    .byte 0x32
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7E
+    .byte 0x09
+    .byte 0x09
+    .byte 0x09
+    .byte 0x7E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x36
+    .byte 0x49
+    .byte 0x49
+    .byte 0x49
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x22
+    .byte 0x41
+    .byte 0x41
+    .byte 0x41
+    .byte 0x3E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x1C
+    .byte 0x22
+    .byte 0x41
+    .byte 0x41
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x49
+    .byte 0x49
+    .byte 0x49
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x01
+    .byte 0x09
+    .byte 0x09
+    .byte 0x09
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7A
+    .byte 0x49
+    .byte 0x49
+    .byte 0x41
+    .byte 0x3E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x08
+    .byte 0x08
+    .byte 0x08
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x7F
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3F
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x30
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x22
+    .byte 0x14
+    .byte 0x08
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x02
+    .byte 0x0C
+    .byte 0x02
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x08
+    .byte 0x04
+    .byte 0x02
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3E
+    .byte 0x41
+    .byte 0x41
+    .byte 0x41
+    .byte 0x3E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x06
+    .byte 0x09
+    .byte 0x09
+    .byte 0x09
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x5E
+    .byte 0x21
+    .byte 0x51
+    .byte 0x41
+    .byte 0x3E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x46
+    .byte 0x29
+    .byte 0x19
+    .byte 0x09
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x31
+    .byte 0x49
+    .byte 0x49
+    .byte 0x49
+    .byte 0x46
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x01
+    .byte 0x01
+    .byte 0x7F
+    .byte 0x01
+    .byte 0x01
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3F
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x3F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x1F
+    .byte 0x20
+    .byte 0x40
+    .byte 0x20
+    .byte 0x1F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3F
+    .byte 0x40
+    .byte 0x38
+    .byte 0x40
+    .byte 0x3F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x63
+    .byte 0x14
+    .byte 0x08
+    .byte 0x14
+    .byte 0x63
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x03
+    .byte 0x04
+    .byte 0x78
+    .byte 0x04
+    .byte 0x03
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x43
+    .byte 0x45
+    .byte 0x49
+    .byte 0x51
+    .byte 0x61
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x41
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x60
+    .byte 0x10
+    .byte 0x08
+    .byte 0x04
+    .byte 0x03
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x41
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x04
+    .byte 0x02
+    .byte 0x01
+    .byte 0x02
+    .byte 0x04
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x40
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x04
+    .byte 0x02
+    .byte 0x01
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7C
+    .byte 0x4A
+    .byte 0x4A
+    .byte 0x4A
+    .byte 0x30
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x38
+    .byte 0x44
+    .byte 0x44
+    .byte 0x44
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x20
+    .byte 0x44
+    .byte 0x44
+    .byte 0x44
+    .byte 0x38
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x44
+    .byte 0x44
+    .byte 0x44
+    .byte 0x38
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x18
+    .byte 0x54
+    .byte 0x54
+    .byte 0x54
+    .byte 0x38
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x02
+    .byte 0x01
+    .byte 0x09
+    .byte 0x7E
+    .byte 0x08
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3E
+    .byte 0x52
+    .byte 0x52
+    .byte 0x52
+    .byte 0x0C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x78
+    .byte 0x04
+    .byte 0x04
+    .byte 0x04
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x40
+    .byte 0x7D
+    .byte 0x44
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3D
+    .byte 0x44
+    .byte 0x40
+    .byte 0x20
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x44
+    .byte 0x28
+    .byte 0x10
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x40
+    .byte 0x7F
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x78
+    .byte 0x04
+    .byte 0x78
+    .byte 0x04
+    .byte 0x7C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x78
+    .byte 0x04
+    .byte 0x04
+    .byte 0x04
+    .byte 0x7C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x38
+    .byte 0x44
+    .byte 0x44
+    .byte 0x44
+    .byte 0x38
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x0C
+    .byte 0x12
+    .byte 0x12
+    .byte 0x12
+    .byte 0x7E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7E
+    .byte 0x12
+    .byte 0x12
+    .byte 0x12
+    .byte 0x0C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x08
+    .byte 0x04
+    .byte 0x04
+    .byte 0x08
+    .byte 0x7C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x24
+    .byte 0x54
+    .byte 0x54
+    .byte 0x54
+    .byte 0x48
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x20
+    .byte 0x40
+    .byte 0x44
+    .byte 0x3F
+    .byte 0x04
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7C
+    .byte 0x20
+    .byte 0x40
+    .byte 0x40
+    .byte 0x3C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x1C
+    .byte 0x20
+    .byte 0x40
+    .byte 0x20
+    .byte 0x1C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3C
+    .byte 0x40
+    .byte 0x30
+    .byte 0x40
+    .byte 0x3C
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x44
+    .byte 0x28
+    .byte 0x10
+    .byte 0x28
+    .byte 0x44
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x3E
+    .byte 0x50
+    .byte 0x50
+    .byte 0x50
+    .byte 0x0E
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x44
+    .byte 0x4C
+    .byte 0x54
+    .byte 0x64
+    .byte 0x44
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x41
+    .byte 0x36
+    .byte 0x08
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x7F
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x08
+    .byte 0x36
+    .byte 0x41
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x01
+    .byte 0x02
+    .byte 0x01
+    .byte 0x01
+    .byte 0x02
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+    .byte 0x00
+str_main_title: .db "JUSTIN MCU 3.4", 0
+str_mi0:    .db "1 CREDITS", 0
+str_mi1:    .db "2 STATUS", 0
+str_mi2:    .db "3 GAME", 0
+str_keys:   .db "8/2 5 0", 0
+str_game_title: .db "GAME", 0
+str_gi0:    .db "1 TETRIS", 0
+str_gi1:    .db "2 MINESWEEP", 0
+str_gi2:    .db "0 MAIN", 0
+str_credits0: .db "CREDITS", 0
+str_credits1: .db "System: RTOS", 0
+str_credits2: .db "Author: Justin", 0
+str_credits3: .db " & Agent", 0
+str_credits4: .db "HW: Justin MCU", 0
+str_credits5: .db "0=BACK", 0
+str_status0: .db "STATUS", 0
+str_status1: .db "CPU: 50MHz", 0
+str_status2: .db "UPTIME: ", 0
+str_status3: .db "MIPS: ~34", 0
+str_status4: .db "2=MIPS 4/6=PAGE", 0
+str_keys_back: .db "0=BACK", 0
+str_gpio01: .db "GPIO P0-P2", 0
+str_gpio34: .db "GPIO P3-P5", 0
+str_gpio67: .db "GPIO P6-P7", 0
+str_pg_hint: .db "4/6=PAGE 0=BACK", 0
+str_unuse:  .db "unuse", 0
+str_uart_rx: .db "UART_RX", 0
+str_uart_tx: .db "UART_TX", 0
+str_i2c_scl: .db "I2C_SCL", 0
+str_i2c_sda: .db "I2C_SDA", 0
+str_led_out: .db "LED_OUT", 0
+str_irq_in:  .db "IRQ_IN", 0
+str_b115200: .db "115200", 0
+str_b400k:   .db "400K", 0
+str_game_tetris: .db "TETRIS", 0
+str_game_mine: .db "MINESWEEP", 0
+str_on_uart: .db "ON UART", 0

@@ -29,7 +29,7 @@ module ram_ext_top(
     input wire [7:0] bus_data_dma,
     input wire [3:0] bus_sig_dma,
     output reg [7:0] bus_data_out,
-    output wire stall_bus
+    output wire stall
     );
 
     wire dma_oc = (bus_addr_dma[15:12] == 4'b1100 || bus_addr_dma[15:12] == 4'b1011) ? 1'b1 : 1'b0;
@@ -42,7 +42,7 @@ module ram_ext_top(
     reg [1:0] sec_num;
     wire [7:0] sec_out [0:3];
     wire access = (bus_addr_final[15:12] == 4'b1100)? 1'b1 : 1'b0;
-    assign stall_bus = access && !done && !bus_sig_final[0] && !dma_oc;
+    assign stall = access && !done && !bus_sig_final[0] && !dma_oc;
 
     always @(posedge clk) begin
         if (rst) begin

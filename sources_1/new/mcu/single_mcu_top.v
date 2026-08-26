@@ -33,13 +33,14 @@ module single_mcu_top(
     wire [3:0] bus_sig_f1, bus_sig_f2, bus_sig_dma;
     wire [7:0] bus_data_b;
     wire tx_flg, tx_busy, i2c_busy;
-    wire stall_bus_in, stall_bus_1, stall_bus_2;
+    wire stall_in, stall_1, stall_2;
+    wire scl, sda_oe, sda_in;  
 
     wire [7:0] bus_data_uart, bus_data_ram1, bus_data_ram2, bus_data_gpio, 
-        bus_data_irq, bus_data_to_dma, bus_data_base;
+        bus_data_irq, bus_data_to_dma, bus_data_base, bus_data_timer;
 
     wire [8:0] irq_bus;
-    wire rx, tx, pwm1, pwm2, scl, sda;
+    wire rx, tx, pwm1, pwm2;
     wire rx_irq ,timer_irq, dma_irq, i2c_err_irq;
     wire [1:0] gpio_irq;
 
@@ -56,7 +57,7 @@ module single_mcu_top(
         .bus_data_in(bus_data_b),
         .tx_busy(tx_busy),
         .i2c_busy(i2c_busy),
-        .stall_bus(stall_bus),
+        .stall(stall),
         .irq_bus(irq_bus),
         //
         .bus_addr_out(bus_addr_f1),
@@ -78,11 +79,11 @@ module single_mcu_top(
         .rx_irq(rx_irq),
         .dma_irq(dma_irq),
         .i2c_err_irq(i2c_err_irq),
-        .stall_bus_1(stall_bus_1),
-        .stall_bus_2(stall_bus_2),
+        .stall_1(stall_1),
+        .stall_2(stall_2),
         .gpio_irq(gpio_irq),
         .irq_bus(irq_bus),
-        .stall_bus(stall_bus),
+        .stall(stall),
         //
         .bus_data_ram1(bus_data_ram1),
         .bus_data_ram2(bus_data_ram2),
@@ -91,6 +92,7 @@ module single_mcu_top(
         .bus_data_irq(bus_data_irq),
         .bus_data_dma(bus_data_dma_cnt),
         .bus_data_base(bus_data_base),
+        .bus_data_timer(bus_data_timer),
         .bus_data_b(bus_data_b),
         .bus_data_to_dma(bus_data_to_dma)
     );
@@ -123,7 +125,7 @@ module single_mcu_top(
         .bus_sig_dma(bus_sig_f2),
         //
         .bus_data_out(bus_data_ram1),
-        .stall_bus(stall_bus_1)
+        .stall(stall_1)
     );
 
     ram_ext_top u_ram_ext_top(
@@ -137,7 +139,7 @@ module single_mcu_top(
         .bus_sig_dma(bus_sig_f2),
         //
         .bus_data_out(bus_data_ram2),
-        .stall_bus(stall_bus_2)
+        .stall(stall_2)
     );
 
     gpio_group u_gpio(
@@ -148,7 +150,8 @@ module single_mcu_top(
         .pwm1(pwm1),
         .pwm2(pwm2),
         .scl(scl),
-        .sda(sda),
+        .sda_oe(sda_oe),
+        .sda_in(sda_in),
         .bus_addr_in(bus_addr_f1),
         .bus_data_in(bus_data_f1),
         .bus_sig_in(bus_sig_f1),
@@ -176,7 +179,7 @@ module single_mcu_top(
         .rx(rx)
     );
 
-    i2c_out u_i2c_out (
+    i2c_out u_i2c_out(
         .clk(clk),
         .rst(rst),
         .bus_addr_in(bus_addr_f1),
@@ -186,7 +189,8 @@ module single_mcu_top(
         .bus_data_dma(bus_data_f2),
         .bus_sig_dma(bus_sig_f2),
         .i2c_err_irq(i2c_err_irq),
-        .sda(sda),
+        .sda_oe(sda_oe),
+        .sda_in(sda_in),
         .scl(scl),
         .busy(i2c_busy)
     );
@@ -197,6 +201,7 @@ module single_mcu_top(
         .bus_addr_in(bus_addr_f1),
         .bus_data_in(bus_data_f1),
         .bus_sig_in(bus_sig_f1),
+        .bus_data_out(bus_data_timer),
         //
         .timer_irq(timer_irq),
         .pwm1(pwm1),

@@ -29,12 +29,11 @@ module gpio_group(
     output reg [1:0] gpio_irq,
 
     inout wire [7:0] gpio_pin_bus,
-    inout wire sda,
-
+    input wire sda_oe, 
     input wire tx,
     input wire scl,
     input wire pwm1, pwm2,
-    output reg rx
+    output reg rx, sda_in
     );
 
     localparam [3:0]
@@ -58,14 +57,13 @@ module gpio_group(
     
     genvar j;
     generate
-        for (j = 0; j < 8; j = j + 1) begin
+        for (j = 0; j < 8; j = j + 1) begin: gpio_mux
             assign gpio_pin_bus[j] = (gpio_mode[j] == OUT || gpio_mode[j] == TX
             || gpio_mode[j] == PWM1 || gpio_mode[j] == PWM2 || gpio_mode[j] == SCL)
-             ? gpio_output[j] : (gpio_mode[j] == SDA) ? sda : 1'bz;
-        end       
+             ? gpio_output[j] : (gpio_mode[j] == SDA) ? (sda_oe ? 1'b0 : 1'bz) : 1'bz;
+        end
     endgenerate
-
-
+    
     always @(posedge clk) begin
         if (rst) begin
             for (i = 0; i < 8; i = i + 1) gpio_mode[i] <= UNUSE;
@@ -97,15 +95,17 @@ module gpio_group(
                 else if (gpio_mode[i] == PWM1) gpio_output[i] <= pwm1;
                 else if (gpio_mode[i] == PWM2) gpio_output[i] <= pwm2;
                 else if (gpio_mode[i] == SCL) gpio_output[i] <= scl;
-            end            
+            end
         end
     end
 
     always @(*) begin 
+        sda_in = 1'bz;
         bus_data_out = 8'b0;
         if (bus_addr_in[15:12] == 4'b0100 && !bus_sig_in[0]) begin 
             for (i = 1; i < 8; i = i + 1) begin
                 if (gpio_mode[i] == IN) bus_data_out[i] = gpio_pin_bus[i];
+                sda_in = (gpio_mode[i] == SDA) ? gpio_pin_bus[i] : 1'bz;
             end
         end
     end

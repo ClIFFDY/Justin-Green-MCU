@@ -25,6 +25,7 @@ module timer(
     input wire [15:0] bus_addr_in,
     input wire [7:0] bus_data_in,
     input wire [3:0] bus_sig_in,
+    output reg [7:0] bus_data_out,
     output reg timer_irq, pwm1, pwm2
     );
 
@@ -52,7 +53,7 @@ module timer(
             if (bus_addr_in[15:12] == 4'b0011 && bus_sig_in[0]) begin
                 for (i = 0; i < 4; i = i + 1) cnt[i] <= 8'b0;
                 if (bus_addr_in[11:0] <= 12'd3) begin
-                    cnt_set[bus_addr_in[11:0]] <= bus_data_in;
+                    cnt_set[bus_addr_in[11:0]] <= bus_data_in;                    
                 end
                 else if (bus_addr_in[11:0] == 12'd4) begin
                     irq_mode <= bus_data_in[0];
@@ -87,6 +88,13 @@ module timer(
     end
 
     always @(*) begin
+        if (bus_addr_in[15:12] == 4'b0011 && !bus_sig_in[0]) begin
+            bus_data_out = cnt[bus_addr_in[11:0]];
+        end
+        else bus_data_out = 8'b0;
+    end
+
+    always @(*) begin
         if (rst) begin
             pwm1 = 1'b0;
             pwm2 = 1'b0;
@@ -100,7 +108,6 @@ module timer(
                 {cnt[3], cnt[2], cnt[1], cnt[0]}) begin
                 pwm1 = 1'b0;
             end
-
             if ({pwm_duty2[3], pwm_duty2[2], pwm_duty2[1], pwm_duty2[0]} <=
                 {cnt[3], cnt[2], cnt[1], cnt[0]}) begin
                 pwm2 = 1'b0; 

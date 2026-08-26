@@ -24,13 +24,12 @@ module uart_rx(
     input wire clk,
     input wire rst,
     input wire rx,
+    input wire [13:0] mcnt,
+    input wire [13:0] mcnt_half,
+    input wire [13:0] mcnt_3q,
     output reg rx_done,
     output reg [7:0] rx_data
     );
-
-    localparam BPS = 115200;
-    localparam CLK = 50_000_000;
-    localparam MCNT = CLK/BPS;
 
     reg [15:0] clk_cnt;
     reg [3:0] bit_cnt;
@@ -62,17 +61,17 @@ module uart_rx(
             if (!start) begin
                 if (!rx_sig1 && rx_sig2) begin
                     start <= 1'b1;
-                    clk_cnt <= CLK/BPS/2;
+                    clk_cnt <= mcnt_half;
                     bit_cnt <= 4'b0;
                 end
             end
             else begin
-                if (bit_cnt == 4'd0 && clk_cnt == (MCNT/2 + MCNT/4 - 1) && rx_sig1) begin
+                if (bit_cnt == 4'd0 && clk_cnt == mcnt_3q && rx_sig1) begin
                     start <= 1'b0;
                     clk_cnt <= 16'b0;
                     bit_cnt <= 4'b0;
                 end
-                else if (clk_cnt < MCNT - 1) clk_cnt <= clk_cnt + 1;
+                else if (clk_cnt < mcnt - 1) clk_cnt <= clk_cnt + 1;
                 else begin
                     clk_cnt <= 16'b0;
                     if (bit_cnt <= 4'd8) begin

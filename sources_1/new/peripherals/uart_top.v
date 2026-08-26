@@ -34,10 +34,37 @@ module uart_top(
     output reg tx_busy, rx_irq
     );
 
+    localparam CLK = 50_000_000;
+    localparam BPSL = 9600;
+    localparam BPSH = 115200;
+
     wire dma_oc = (bus_addr_dma[15:12] == 4'b0010) ? 1'b1 : 1'b0;
     wire [15:0] bus_addr_final = (dma_oc) ? bus_addr_dma: bus_addr_in;
     wire [7:0] bus_data_final = (dma_oc) ? bus_data_dma : bus_data_in;
     wire [3:0] bus_sig_final = (dma_oc) ? bus_sig_dma : bus_sig_in;
+
+    reg uart_bps;
+    reg [13:0] mcnt, mcnt_half, mcnt_3q;
+    
+    always @(posedge clk) begin
+        if (rst) begin
+            mcnt <= CLK/BPSL;
+            mcnt_half <= (CLK/BPSL)/2;
+            mcnt_3q <= (CLK/BPSL)/2 + (CLK/BPSL)/4 - 1;
+        end
+        else if (bus_addr_final[15:12] == 4'b0010) begin
+            if (bus_addr_final[11:10] == 2'b01) begin
+                mcnt <= CLK/BPSH;
+                mcnt_half <= (CLK/BPSH)/2;
+                mcnt_3q <= (CLK/BPSH)/2 + (CLK/BPSH)/4 - 1;
+            end
+            else begin
+                mcnt <= CLK/BPSL;
+                mcnt_half <= (CLK/BPSL)/2;
+                mcnt_3q <= (CLK/BPSL)/2 + (CLK/BPSL)/4 - 1;
+            end
+        end
+    end
 
     wire [7:0] rx_data;
     reg [7:0] tx_data;
@@ -74,7 +101,6 @@ module uart_top(
             wr_ptr_rx <= wr_ptr_rx + 1'b1;
             rx_irq <= 1'b1;
         end
-        // 只收 UART 地址段（0x2xxx）的写；否则 boot 期间 GPIO/RAM/timer 写会灌进 TX FIFO
         if (bus_sig_final[0] && bus_addr_final[15:12] == 4'b0010 && wr_ptr_tx != rd_ptr_tx) begin
             tx_buf[wr_ptr_tx] <= bus_data_final;
             wr_ptr_tx <= wr_ptr_tx + 1'b1;
@@ -113,6 +139,7 @@ end
         .rst(rst),
         .tx_en(tx_en),
         .tx_data(tx_data),
+        .mcnt(mcnt),
         //
         .tx(tx),
         .busy(busy)
@@ -122,6 +149,9 @@ end
         .clk(clk),
         .rst(rst),
         .rx(rx),
+        .mcnt(mcnt),
+        .mcnt_half(mcnt_half),
+        .mcnt_3q(mcnt_3q),
         //
         .rx_done(rx_done),
         .rx_data(rx_data)
