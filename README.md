@@ -71,7 +71,12 @@
 
 <img width="1701" height="532" alt="image" src="https://github.com/user-attachments/assets/567d3805-c8e1-4cb2-b91e-c06600d71ef1" />
    
-*v3.4.x version MCU running RTOS system with UART in/output*
+*v3.4.x version MCU running RTOS system with UART in/output*  
+
+<img width="1801" height="882" alt="image" src="https://github.com/user-attachments/assets/f0c0604f-4c5f-463d-a508-73b193cdbe98" />  
+
+*v3.4.x version MCU running RTOS system with Bluetooth_UART input & I2C_OLED / UART output (25fps)*   
+
 
 ### 核心性能：
 
